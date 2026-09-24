@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#090b16" />
+    <title>Mutation Boss</title>
+  </head>
+  <body>
+    <main id="game-shell">
+      <div id="game-canvas" aria-label="Mutation Boss game canvas"></div>
+      <section id="hud" aria-live="polite">
+        <header class="top-hud">
+          <div class="boss-title-row">
+            <span class="eyebrow" id="boss-name">HARVEST COLOSSUS</span>
+            <span id="timer">00:00</span>
+          </div>
+          <div class="hp-frame"><div id="hp-fill"></div><div id="hp-shine"></div><i class="hp-marker marker-70"></i><i class="hp-marker marker-40"></i></div>
+          <div class="breakpoints" aria-label="Boss breakpoints">
+            <span id="bp-break-1"><b></b>BREAK I</span>
+            <span id="bp-break-2"><b></b>BREAK II</span>
+            <span id="bp-core"><b></b>CORE</span>
+          </div>
+        </header>
+
+        <div id="announcement" role="status"><strong></strong><span></span></div>
+
+        <section id="choice-panel" aria-hidden="true">
+          <div class="choice-heading"><small>CORE FRACTURED</small><strong>CHOOSE MUTATION</strong></div>
+          <div class="choice-options">
+            <button type="button" data-choice-index="0"><i></i><strong></strong><span></span></button>
+            <button type="button" data-choice-index="1"><i></i><strong></strong><span></span></button>
+          </div>
+        </section>
+
+        <div class="bottom-hud">
+          <div class="mutation-strip">
+            <span id="mut-crystal">CRYSTAL</span>
+            <span id="mut-void">VOID</span>
+            <span id="mut-wings">WINGS</span>
+            <span id="mut-pumpkin">PUMPKIN</span>
+          </div>
+          <button id="power-button" type="button" aria-label="Power Hit">
+            <span class="power-label">POWER HIT</span>
+            <span id="power-status">READY</span>
+            <i id="power-cooldown"></i>
+          </button>
+        </div>
+
+        <section id="result-panel" aria-hidden="true">
+          <p>EVOLUTION COMPLETE</p>
+          <h1 id="result-evolution">VOIDSHARD</h1>
+          <h2 id="result-build">CRYSTAL <i>•</i> VOID</h2>
+          <div class="result-stats">
+            <span><small>RUN TIME</small><strong id="result-time">00:00</strong></span>
+            <span><small>DAMAGE</small><strong id="result-damage">0</strong></span>
+            <span><small>POWER HITS</small><strong id="result-power">0</strong></span>
+          </div>
+          <div id="result-event-summary" hidden><strong id="result-discovery"></strong><span id="result-event-energy"></span></div>
+          <button id="retry-button" type="button">PLAY AGAIN</button>
+          <button id="result-hub-button" type="button">EVENT HUB</button>
+        </section>
+
+        <section id="event-hub" aria-hidden="true">
+          <div class="event-scroll">
+            <header class="event-hero">
+              <div class="event-moon"></div><div class="event-colossus"><i></i></div>
+              <p>DARK HARVEST EVENT</p><h1 id="event-hub-title">HALLOWEEN 2026</h1>
+              <strong id="event-status">NEXT · FIRST HARVEST</strong>
+            </header>
+            <div id="event-reward-toast" hidden></div>
+            <section class="event-progress-block">
+              <div><span>HARVEST ENERGY</span><b id="event-energy">0 / 900</b></div>
+              <div class="event-progress-track"><i id="event-progress-fill"></i></div>
+              <small id="event-runs">0 BOSS DEFEATS</small>
+            </section>
+            <section class="event-section"><header><span>ACTIVE CHALLENGES</span></header><ul id="event-challenges"></ul></section>
+            <section class="event-section"><header><span>EVOLUTION COLLECTION</span><b id="event-collection-count">0 / 6</b></header><div id="event-collection"></div></section>
+            <section class="event-section"><header><span>EVENT REWARDS</span></header><div id="event-rewards"></div></section>
+          </div>
+          <button id="event-enter" type="button">ENTER EVENT</button>
+        </section>
+
+        <aside id="debug-panel">
+          <strong>DEV · <span id="debug-quality">MEDIUM</span> · <span id="debug-seed">SEED</span></strong>
+          <button data-debug="break-1">Breakpoint 1</button>
+          <button data-debug="break-2">Breakpoint 2</button>
+          <button data-debug="kill">Boss Kill</button>
+          <button data-debug="choose-crystal">Choose Crystal</button>
+          <button data-debug="choose-void">Choose Void</button>
+          <button data-debug="choose-wings">Choose Wings</button>
+          <button data-debug="choose-pumpkin">Choose Pumpkin</button>
+          <button data-debug="build-cv">Build Voidshard</button>
+          <button data-debug="build-cw">Build Skyshard</button>
+          <button data-debug="build-vw">Build Nightwing</button>
+          <button data-debug="build-pv">Build Jack O'Void</button>
+          <button data-debug="build-pc">Build Harvestshard</button>
+          <button data-debug="build-pw">Build Hollowwing</button>
+          <button data-debug="event-toggle">Halloween ON/OFF</button>
+          <button data-debug="event-progress">+250 Event Progress</button>
+          <button data-debug="event-challenge">Complete Challenge</button>
+          <button data-debug="event-unlock-all">Unlock Evolutions</button>
+          <button data-debug="event-reset">Reset Event</button>
+          <button data-debug="event-complete">Force Event Complete</button>
+          <button data-debug="quality-low">Quality Low</button>
+          <button data-debug="quality-medium">Quality Medium</button>
+          <button data-debug="quality-high">Quality High</button>
+          <button data-debug="effects-reduced">Reduced Effects</button>
+          <button data-debug="visual-catalog">Visual Catalog</button>
+          <button data-debug="restart">Restart</button>
+        </aside>
+        <section id="visual-catalog" data-dev-only="true" aria-hidden="true">
+          <header><div><small>M05 DEV TOOL</small><h1>VISUAL CATALOG</h1></div><button type="button" data-catalog-close aria-label="Close catalog">×</button></header>
+          <div id="visual-catalog-content"></div>
+        </section>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
