@@ -13,6 +13,20 @@ import { visualRandom } from './VisualRandom';
 import { VisualQualityController } from './VisualQuality';
 import { VisualState, type BossDamageStage } from './VisualState';
 import { EVOLUTION_VISUALS, bossVisualKey } from './VisualDefinitions';
+import { ArenaLayer } from './ArenaLayer';
+import type { ArenaRunEvent, ArenaRunSnapshot } from '../gameplay/ArenaRunModel';
+import { ArenaRunModel } from '../gameplay/ArenaRunModel';
+import { RUN_UPGRADES } from '../gameplay/RunUpgrades';
+import type { MovementInput } from '../gameplay/ArenaTypes';
+
+export interface GameSceneM06Options {
+  arena: ArenaRunModel;
+  resumeSnapshot?: ArenaRunSnapshot;
+  saveSnapshot?: (snapshot: ArenaRunSnapshot) => void;
+  clearSnapshot?: () => void;
+  toggleFullscreen?: () => void;
+  inspectProgress?: () => void;
+}
 
 interface Projectile {
   view: Graphics;
@@ -77,6 +91,7 @@ export class GameScene {
   private readonly pumpkinMutation = new Container();
   private readonly fusionMutation = new Container();
   private readonly fusionGraphics = new Graphics();
+  private readonly powerGrowth = new Graphics();
   private readonly essence = new Container();
   private readonly essenceGlow = new Graphics();
   private readonly essenceCore = new Graphics();
@@ -84,6 +99,7 @@ export class GameScene {
   private readonly quality = new VisualQualityController();
   private readonly visualState = new VisualState();
   private readonly effects = new EffectsLayer(this.quality);
+  private readonly arenaLayer = new ArenaLayer();
   private readonly projectiles: Projectile[] = [];
   private readonly motes: Graphics[] = [];
   private readonly temporaryTimers = new Set<number>();
@@ -116,6 +132,12 @@ export class GameScene {
   private bossBaseY = 0;
   private creatureBaseX = 0;
   private creatureBaseY = 0;
+  private movementInput: MovementInput = { x: 0, y: 0 };
+  private readonly keys = new Set<string>();
+  private autosaveMs = 0;
+  private finalLootGranted = false;
+  private readonly keyDown = (event: KeyboardEvent): void => { this.keys.add(event.key.toLowerCase()); this.syncKeyboardMovement(); };
+  private readonly keyUp = (event: KeyboardEvent): void => { this.keys.delete(event.key.toLowerCase()); this.syncKeyboardMovement(); };
 
   constructor(
     private readonly app: Application,
@@ -125,6 +147,7 @@ export class GameScene {
     events: DomainEventBus,
     private readonly assets: AssetRegistry,
     private readonly eventRuntime?: EventRuntime,
+    private readonly m06?: GameSceneM06Options,
   ) {
     this.app.stage.addChild(this.world);
     const backgroundTexture = this.assets.texture('arena.standard.background');
@@ -136,7 +159,7 @@ export class GameScene {
     this.world.addChild(this.background);
     if (this.backgroundAsset) this.world.addChild(this.backgroundAsset);
     if (this.halloweenBackgroundAsset) this.world.addChild(this.halloweenBackgroundAsset);
-    this.world.addChild(this.arenaBack, this.ambient, this.arenaFloor, this.boss, this.creature, this.essence, this.effects, this.arenaForeground);
+    this.world.addChild(this.arenaBack, this.ambient, this.arenaFloor, this.boss, this.arenaLayer, this.creature, this.essence, this.effects, this.arenaForeground);
     if (this.halloweenForegroundAsset) this.world.addChild(this.halloweenForegroundAsset);
     this.world.addChild(this.vignette, this.screenFlash);
     this.createBoss();
@@ -147,6 +170,7 @@ export class GameScene {
     this.applyQuality();
     this.resize();
     this.bindInput();
+    this.m06?.arena.setEventSink((event) => this.handleArenaEvent(event));
     this.unsubscribeEvents = events.subscribe((event) => {
       if (event.type === 'MUTATION_ACQUIRED') this.ui.setMutation(event.mutationId);
       if (event.type === 'EVOLUTION_DISCOVERED') this.audio.play('newDiscovery');
@@ -159,7 +183,8 @@ export class GameScene {
     });
     this.app.ticker.add(this.tick);
     this.syncEventPresentation();
-    if (this.eventRuntime?.enabled) this.openEventHub();
+    if (this.eventRuntime?.enabled && !this.m06?.resumeSnapshot) this.openEventHub();
+    if (this.m06?.resumeSnapshot) { this.inEventHub = false; this.ui.hideEventHub(); this.model.pause(performance.now()); this.ui.showResumePrompt(); }
   }
 
   pause(nowMs: number): void {
@@ -183,6 +208,8 @@ export class GameScene {
     this.app.ticker.remove(this.tick);
     this.clearProjectiles();
     this.effects.clearAll();
+    window.removeEventListener('keydown', this.keyDown);
+    window.removeEventListener('keyup', this.keyUp);
   }
 
   private createBoss(): void {
@@ -273,7 +300,7 @@ export class GameScene {
     this.creatureShadow.ellipse(0, 69, 79, 22).fill({ color: 0x02030b, alpha: 0.5 });
     this.creatureAura.circle(0, -5, 118).fill({ color: 0x7b5cff, alpha: 0.04 }).circle(0, -5, 94).stroke({ color: 0xa58cff, width: 3, alpha: 0.12 });
     this.creatureAura.visible = false;
-    this.creature.addChild(this.creatureAura, this.creatureShadow, this.wingMutation, this.creatureBody, this.fusionMutation, this.creatureProductionEvolution);
+    this.creature.addChild(this.creatureAura, this.creatureShadow, this.wingMutation, this.creatureBody, this.fusionMutation, this.creatureProductionEvolution, this.powerGrowth);
 
     const feet = new Graphics()
       .ellipse(-46, 49, 29, 20).fill(0xd9dcff)
@@ -487,16 +514,76 @@ export class GameScene {
     this.ui.bindEventEnter(() => this.startEventRun());
     this.ui.bindEventHub(() => this.openEventHub());
     this.ui.bindDebug((action) => this.handleDebug(action));
+    this.ui.bindMovement((input) => { this.movementInput = input; });
+    this.ui.bindFullscreen(() => this.m06?.toggleFullscreen?.());
+    this.ui.bindResumeChoice((resume) => {
+      const now = performance.now();
+      if (resume && this.m06?.resumeSnapshot) {
+        this.m06.arena.restore(this.m06.resumeSnapshot, now);
+        this.syncMutationVisuals();
+        this.syncBossDamageVisuals(this.visualState.updateBossHealth(this.model.bossHp, this.model.maxHp));
+        if (this.model.phase === 'choice') this.ui.showChoices(this.model.pendingChoices, (mutation) => this.selectMutation(mutation));
+        if (this.model.phase === 'upgrade') {
+          const choices = this.m06.arena.pendingUpgradeIds.map((id) => RUN_UPGRADES.find((upgrade) => upgrade.id === id)).filter((item): item is NonNullable<typeof item> => Boolean(item));
+          this.ui.showUpgradeChoices(choices, (id) => { if (this.m06?.arena.chooseUpgrade(id, performance.now())) this.ui.hideUpgradeChoices(); });
+        }
+      } else {
+        this.m06?.clearSnapshot?.(); this.model.reset(now); this.m06?.arena.reset(); this.resetVisualsAfterModelReset();
+      }
+      this.model.resume(now); this.ui.hideResumePrompt();
+    });
+    window.addEventListener('keydown', this.keyDown);
+    window.addEventListener('keyup', this.keyUp);
     this.ui.setSeed(this.model.seed);
+  }
+
+  private syncKeyboardMovement(): void {
+    const left = this.keys.has('a') || this.keys.has('arrowleft'); const right = this.keys.has('d') || this.keys.has('arrowright');
+    const up = this.keys.has('w') || this.keys.has('arrowup'); const down = this.keys.has('s') || this.keys.has('arrowdown');
+    const keyboard = { x: Number(right) - Number(left), y: Number(down) - Number(up) };
+    if (keyboard.x || keyboard.y || (!this.movementInput.x && !this.movementInput.y)) this.movementInput = keyboard;
+  }
+
+  private handleArenaEvent(event: ArenaRunEvent): void {
+    if (event.type === 'PLAYER_DAMAGED') { this.creaturePunch = -0.8; this.flash(0.16); this.shake(150, 5); }
+    if (event.type === 'PLAYER_DEFEATED') { this.clearProjectiles(); this.ui.showFailure(); this.m06?.clearSnapshot?.(); }
+    if (event.type === 'LOOT_PICKED') {
+      const point = this.arenaLayer.toScreen(this.m06!.arena.player.position);
+      this.effects.burst(point.x, point.y, event.pickup.rarity === 'epic' ? 0xffd05b : 0x7deaff, event.pickup.rarity === 'common' ? 6 : 12, 0.55);
+      this.ui.announce('LOOT ACQUIRED', event.pickup.kind.replaceAll('-', ' ').toUpperCase(), '#8feaff', 650);
+    }
+    if (event.type === 'RUN_LEVEL_UP') {
+      const choices = event.choices.map((id) => RUN_UPGRADES.find((upgrade) => upgrade.id === id)).filter((item): item is NonNullable<typeof item> => Boolean(item));
+      this.ui.showUpgradeChoices(choices, (id) => { if (this.m06?.arena.chooseUpgrade(id, performance.now())) { this.ui.hideUpgradeChoices(); this.syncPowerGrowth(); this.ui.announce('POWER EVOLVED', RUN_UPGRADES.find((upgrade) => upgrade.id === id)?.name ?? '', '#ffe28a'); } });
+    }
+    if (event.type === 'BOSS_CYCLE_STARTED') this.ui.announce(`CYCLE ${event.cycle}`, 'THE COLOSSUS RETURNS STRONGER', '#ffb35f', 1500);
   }
 
   private handleDebug(action: DebugAction): void {
     const now = performance.now();
     if (action === 'restart') return this.reset();
+    const arena = this.m06?.arena;
+    if (action === 'grant-xp' || action === 'level-up') { arena?.grantXp(action === 'level-up' ? arena.xpToNext : 100, now); return; }
+    if (action === 'spawn-loot' || action === 'spawn-rare') { arena?.spawnLoot(action === 'spawn-rare' ? 'relic' : 'run-xp', action === 'spawn-rare' ? 'epic' : 'common', action === 'spawn-rare' ? 1 : 25); return; }
+    if (action === 'next-cycle') { arena?.advanceCycle(now); this.resetBossForCycle(); return; }
+    if (action === 'attack-slam' || action === 'attack-beam' || action === 'attack-debris') { arena?.forceBossAttack(action === 'attack-slam' ? 'ground-slam' : action === 'attack-beam' ? 'core-beam' : 'falling-debris'); return; }
+    if (action === 'damage-player') { arena?.takeDamage(25, 'ground-slam', now); return; }
+    if (action === 'heal-player') { arena?.heal(50); return; }
+    if (action === 'dummy-add') { arena?.spawnDummy(); return; }
+    if (action === 'dummy-clear') { arena?.clearDummies(); return; }
+    if (action === 'pickup-radius' && arena) { arena.pickupRadiusVisible = !arena.pickupRadiusVisible; return; }
+    if (action === 'collision-bounds' && arena) { arena.collisionBoundsVisible = !arena.collisionBoundsVisible; return; }
+    if (action === 'telegraphs' && arena) { arena.telegraphsVisible = !arena.telegraphsVisible; return; }
+    if (action === 'performance' && arena) { arena.performanceCountersVisible = !arena.performanceCountersVisible; return; }
+    if (action === 'save' && arena) { this.m06?.saveSnapshot?.(arena.snapshot(now)); return; }
+    if (action === 'clear-snapshot') { this.m06?.clearSnapshot?.(); return; }
+    if (action === 'inspect-progress') { this.m06?.inspectProgress?.(); return; }
+    if (action === 'inspect-run' && arena) { console.info('M06 RunState', arena.snapshot(now)); return; }
     if (action === 'visual-catalog') { this.ui.toggleVisualCatalog(); return; }
     if (action === 'event-toggle' && this.eventRuntime) {
       this.eventRuntime.setEnabled(!this.eventRuntime.enabled);
       this.model.setEventEnabled(this.eventRuntime.enabled, now);
+      if (this.m06?.arena) { this.m06.arena.runMode = this.eventRuntime.enabled ? 'event' : 'solo'; this.m06.arena.reset(); }
       this.resetVisualsAfterModelReset();
       this.syncEventPresentation();
       if (this.eventRuntime.enabled) this.openEventHub(); else this.ui.hideEventHub();
@@ -575,7 +662,7 @@ export class GameScene {
     }, 120);
   }
 
-  private launchProjectile(kind: AttackKind, sourceKind: 'normal' | 'power' = kind === 'power' ? 'power' : 'normal'): void {
+  private launchProjectile(kind: AttackKind, sourceKind: 'normal' | 'power' = kind === 'power' ? 'power' : 'normal', extraIndex = 0): void {
     const projectile = this.projectiles.find((candidate) => !candidate.active);
     if (!projectile || this.model.phase !== 'playing') return;
     projectile.active = true;
@@ -585,7 +672,7 @@ export class GameScene {
     projectile.trailElapsed = 0;
     projectile.duration = kind === 'power' ? GAME_CONFIG.timing.powerProjectileMs : kind === 'voidEcho' || kind === 'wingVolley' || kind === 'pumpkinBurst' ? 180 : GAME_CONFIG.timing.normalProjectileMs;
     projectile.sx = this.creature.x;
-    projectile.sy = this.creature.y - 45 * this.creatureBaseScale;
+    projectile.sy = this.creature.y - 45 * this.creatureBaseScale + extraIndex * 10;
     projectile.tx = this.boss.x;
     projectile.ty = this.boss.y + this.model.activeBoss.weakpoint.y * this.bossBaseScale;
     projectile.view.clear();
@@ -632,9 +719,14 @@ export class GameScene {
         .circle(0, 0, 8).fill(0xe5e8ff).circle(0, 0, 13).stroke({ color: 0x9fa9ff, width: 3, alpha: 0.38 });
     }
     projectile.view.position.set(projectile.sx, projectile.sy);
+    projectile.view.scale.set(this.m06?.arena.player.stats.projectileScale ?? 1);
     projectile.view.visible = true;
     this.creaturePunch = Math.max(this.creaturePunch, kind === 'power' ? 1.2 : 0.55);
     if (kind === 'normal') this.audio.play(this.model.mutations.has('pumpkin') ? 'pumpkinShot' : 'normalAttack');
+    if (extraIndex === 0 && (kind === 'normal' || kind === 'power')) {
+      const count = Math.min(5, this.m06?.arena.player.stats.projectileCount ?? 1);
+      for (let index = 1; index < count; index += 1) this.schedule(() => this.launchProjectile(kind === 'power' ? 'wingVolley' : 'normal', sourceKind, index), 55 * index);
+    }
   }
 
   private update(deltaMs: number): void {
@@ -647,10 +739,23 @@ export class GameScene {
       this.model.powerCooldownRemaining(now),
       !this.inEventHub && this.model.phase === 'playing' && !this.powerInFlight,
     );
+    const arena = this.m06?.arena;
+    if (arena) {
+      this.ui.updateArena(arena.player.hp, arena.player.maxHp, arena.runLevel, arena.runXp, arena.xpToNext, arena.bossCycle);
+    }
 
     if (this.hitStopMs > 0) {
       this.hitStopMs -= deltaMs;
       return;
+    }
+
+    if (arena && !this.inEventHub) {
+      arena.update(deltaMs, this.movementInput, now);
+      const point = this.arenaLayer.toScreen(arena.player.position);
+      this.creatureBaseX = point.x; this.creatureBaseY = point.y;
+      this.arenaLayer.sync(arena, now / 1000);
+      this.autosaveMs += deltaMs;
+      if (this.autosaveMs >= GAME_CONFIG.arena.autosaveIntervalMs) { this.autosaveMs = 0; this.m06?.saveSnapshot?.(arena.snapshot(now)); }
     }
 
     this.animateScene(deltaMs, now);
@@ -737,6 +842,7 @@ export class GameScene {
       this.creatureAura.rotation -= deltaMs * 0.00025;
       this.creatureAura.alpha = 0.56 + Math.sin(seconds * 3.8) * 0.15;
     }
+    this.powerGrowth.rotation += deltaMs * 0.0009;
     this.flashAlpha = Math.max(0, this.flashAlpha - deltaMs / 180);
     this.screenFlash.alpha = this.flashAlpha;
 
@@ -776,6 +882,7 @@ export class GameScene {
         const result = this.model.attack(projectile.kind, now, projectile.sourceKind);
         if (projectile.kind === 'power') this.powerInFlight = false;
         if (!result.accepted) continue;
+        this.m06?.arena.onBossDamage(result.damage, now);
         this.syncBossDamageVisuals(this.visualState.updateBossHealth(this.model.bossHp, this.model.maxHp));
         this.showImpact(projectile.kind, result.damage);
         const followupsAllowed = !result.triggeredBreakpointId && !result.bossDefeated && this.model.phase === 'playing';
@@ -788,7 +895,7 @@ export class GameScene {
           this.pumpkinDelayMs = GAME_CONFIG.combat.pumpkinBurstDelayMs;
           this.pumpkinSource = projectile.kind === 'power' ? 'power' : 'normal';
         }
-        if (result.triggeredBreakpointId) this.beginBreakpointTransition(result.triggeredBreakpointId);
+        if (result.triggeredBreakpointId) { this.m06?.arena.onBreakpoint(); this.beginBreakpointTransition(result.triggeredBreakpointId); }
         if (result.bossDefeated) this.beginFinalTransition();
       }
     }
@@ -884,6 +991,7 @@ export class GameScene {
 
   private beginFinalTransition(): void {
     if (!this.visualState.beginKill()) return;
+    if (!this.finalLootGranted) { this.finalLootGranted = true; this.m06?.arena.onBossDefeated(performance.now()); }
     this.clearProjectiles();
     this.powerInFlight = false;
     this.echoDelayMs = -1;
@@ -923,8 +1031,12 @@ export class GameScene {
       this.boss.alpha = Math.max(0.08, 1 - Math.max(0, progress - 0.35) * 1.45);
       if (progress >= 1) {
         this.transition = undefined;
-        if (this.visualState.beginReveal()) {
-          this.model.finish(performance.now());
+        const now = performance.now();
+        if (this.m06?.arena.advanceCycle(now)) {
+          this.resetBossForCycle();
+        } else if (this.visualState.beginReveal()) {
+          this.model.finish(now, this.m06?.arena.resultExtras());
+          this.m06?.clearSnapshot?.();
           this.audio.play('evolutionReveal');
           this.resultElapsed = 0;
         }
@@ -979,6 +1091,14 @@ export class GameScene {
     }
   }
 
+  private resetBossForCycle(): void {
+    this.finalLootGranted = false;
+    this.visualState.reset(); this.boss.alpha = 1; this.coreGlow.scale.set(1); this.coreGem.alpha = 1;
+    document.getElementById('bp-core')?.classList.remove('broken');
+    this.ui.setBreakpoint('break-1', false); this.ui.setBreakpoint('break-2', false);
+    this.syncBossDamageVisuals('intact'); this.autoAttackMs = 550;
+  }
+
   private revealMutation(mutation: Mutation): void {
     if (mutation === 'crystal') {
       this.crystalMutation.visible = true;
@@ -1031,6 +1151,16 @@ export class GameScene {
     this.creatureFallbackBase.tint = tint;
     this.creatureProductionBase.tint = tint;
     this.syncFusionVisuals();
+    this.syncPowerGrowth();
+  }
+
+  private syncPowerGrowth(): void {
+    const arena = this.m06?.arena; this.powerGrowth.clear(); if (!arena) return;
+    const visible = arena.selectedUpgrades.filter((selected) => RUN_UPGRADES.find((upgrade) => upgrade.id === selected.id)?.visualModifier);
+    const count = Math.min(4, Math.max(0, arena.runLevel - 1, visible.length));
+    const color = this.model.mutations.has('pumpkin') ? 0xff8a3b : this.model.mutations.has('void') ? 0xbc5fff : this.model.mutations.has('crystal') ? 0x68eaff : 0x91a5ff;
+    for (let i = 0; i < count; i += 1) { const angle = i / Math.max(1, count) * Math.PI * 2; this.powerGrowth.poly([Math.cos(angle) * 105, Math.sin(angle) * 52 - 12, Math.cos(angle) * 112 + 6, Math.sin(angle) * 58 - 5, Math.cos(angle) * 99 - 5, Math.sin(angle) * 47]).fill({ color, alpha: 0.78 }); }
+    this.powerGrowth.visible = count > 0;
   }
 
   private animateMutationReveal(mutation: Mutation, progress: number): void {
@@ -1046,6 +1176,7 @@ export class GameScene {
     this.fusionMutation.visible = false;
     this.creatureAura.clear();
     this.creatureAura.visible = false;
+    this.powerGrowth.clear();
     const productionEvolution = this.syncEvolutionProductionVisual();
     if (this.model.mutations.size < 2) return;
 
@@ -1150,6 +1281,7 @@ export class GameScene {
     const now = performance.now();
     if (this.model.phase === 'result') {
       this.model.reset(now);
+      this.m06?.arena.reset();
       this.resetVisualsAfterModelReset();
     }
     this.inEventHub = false;
@@ -1178,6 +1310,8 @@ export class GameScene {
     window.clearTimeout(this.resultTimeout);
     this.clearTemporaryTimers();
     this.model.reset(performance.now());
+    this.m06?.arena.reset();
+    this.m06?.clearSnapshot?.();
     this.inEventHub = false;
     this.ui.hideEventHub();
     this.resetVisualsAfterModelReset();
@@ -1195,6 +1329,8 @@ export class GameScene {
     this.volleyDelayMs = -1;
     this.pumpkinDelayMs = -1;
     this.transition = undefined;
+    this.finalLootGranted = false;
+    this.autosaveMs = 0;
     this.resultElapsed = 0;
     this.visualState.reset();
     this.flashAlpha = 0;
@@ -1225,6 +1361,7 @@ export class GameScene {
     this.essence.visible = false;
     this.clearProjectiles();
     this.effects.clearAll();
+    this.arenaLayer.clearTransient();
     this.ui.reset();
     this.ui.setSeed(this.model.seed);
     this.syncBossDamageVisuals('intact');
@@ -1330,8 +1467,10 @@ export class GameScene {
     this.creatureBaseScale = this.portrait ? Math.min(0.86, this.width / 620) : Math.min(0.82, this.height / 760);
     this.bossBaseX = this.portrait ? this.width * 0.5 : this.width * 0.66;
     this.bossBaseY = this.portrait ? this.height * 0.37 : this.height * 0.43;
-    this.creatureBaseX = this.portrait ? this.width * 0.5 : this.width * 0.27;
-    this.creatureBaseY = this.portrait ? this.height * 0.78 : this.height * 0.7;
+    this.arenaLayer.resize(this.width, this.height, this.portrait);
+    const arenaPlayer = this.m06?.arena ? this.arenaLayer.toScreen(this.m06.arena.player.position) : undefined;
+    this.creatureBaseX = arenaPlayer?.x ?? (this.portrait ? this.width * 0.5 : this.width * 0.27);
+    this.creatureBaseY = arenaPlayer?.y ?? (this.portrait ? this.height * 0.78 : this.height * 0.7);
     this.boss.position.set(this.bossBaseX, this.bossBaseY);
     this.boss.scale.set(this.bossBaseScale);
     this.creature.position.set(this.creatureBaseX, this.creatureBaseY);

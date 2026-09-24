@@ -14,7 +14,14 @@ export interface CombatModelOptions {
   eventEnabled?: boolean;
 }
 
-type InactiveReason = 'background' | 'choice';
+export interface CombatSnapshot {
+  runId: string; seed: number; startedAtIso: string; elapsedMs: number; bossHp: number; maxHp: number;
+  phase: RunPhase; totalDamage: number; buildDamage: number; powerHits: number; mutations: Mutation[];
+  triggered: BreakpointId[]; pendingChoices: Mutation[]; breakpointEvents: RunContract['breakpointEvents'];
+  lastPowerAtActiveMs: number; eventEnabled: boolean;
+}
+
+type InactiveReason = 'background' | 'choice' | 'upgrade' | 'cycle';
 let runSequence = 0;
 
 export class CombatModel {
@@ -39,6 +46,9 @@ export class CombatModel {
   private inactiveDurationMs = 0;
   private completedResult?: RunContract;
   private bossDefeatEmitted = false;
+  private bossMaxHpOverride?: number;
+  private damageMultiplier = 1;
+  private attackRateMultiplier = 1;
   private readonly emitEvent: (event: GameDomainEvent) => void;
   private readonly idGenerator: () => string;
   private readonly wallClock: () => string;
@@ -63,6 +73,7 @@ export class CombatModel {
     this.startedAtMs = nowMs;
     this.endedAtMs = 0;
     this.startedAtIso = this.wallClock();
+    this.bossMaxHpOverride = undefined;
     this.bossHp = this.maxHp;
     this.phase = 'playing';
     this.totalDamage = 0;
@@ -78,6 +89,8 @@ export class CombatModel {
     this.inactiveDurationMs = 0;
     this.completedResult = undefined;
     this.bossDefeatEmitted = false;
+    this.damageMultiplier = 1;
+    this.attackRateMultiplier = 1;
     this.emitEvent({ type: 'RUN_STARTED', runId: this.runId, bossId: this.activeBoss.id });
   }
 
@@ -88,7 +101,7 @@ export class CombatModel {
 
   get isEventRun(): boolean { return this.eventEnabled && Boolean(this.eventDefinition); }
   get activeBoss() { return bossForEvent(this.isEventRun); }
-  get maxHp(): number { return this.activeBoss.maxHp; }
+  get maxHp(): number { return this.bossMaxHpOverride ?? this.activeBoss.maxHp; }
   get mutationPool(): readonly Mutation[] { return mutationPoolForEvent(this.isEventRun); }
 
   pause(nowMs: number): void {
@@ -110,7 +123,7 @@ export class CombatModel {
 
   get attackIntervalMs(): number {
     const multiplier = this.mutations.has('wings') ? GAME_CONFIG.combat.wingAttackIntervalMultiplier : 1;
-    return Math.round(GAME_CONFIG.combat.attackIntervalMs * multiplier);
+    return Math.round(GAME_CONFIG.combat.attackIntervalMs * multiplier * this.attackRateMultiplier);
   }
 
   get voidEchoDelayMs(): number {
@@ -133,7 +146,7 @@ export class CombatModel {
 
     let damage = this.baseDamage(kind, sourceKind);
     for (const mutation of this.mutations) damage *= MUTATION_BY_ID[mutation].damageModifier;
-    damage = Math.round(damage);
+    damage = Math.round(damage * this.damageMultiplier);
 
     if (kind === 'power') {
       this.lastPowerAtActiveMs = this.elapsedMs(nowMs);
@@ -146,7 +159,9 @@ export class CombatModel {
     if (this.mutations.size > 0) this.buildDamage += appliedDamage;
     this.emitEvent({ type: 'ATTACK_LANDED', runId: this.runId, atMs: this.elapsedMs(nowMs), attackKind: kind, damage: appliedDamage, bossHp: this.bossHp });
 
-    const breakpoint = this.activeBoss.breakpoints.find((candidate) => this.bossHp / this.maxHp <= candidate.threshold && !this.triggered.has(candidate.id));
+    const breakpoint = this.mutations.size < 2
+      ? this.activeBoss.breakpoints.find((candidate) => this.bossHp / this.maxHp <= candidate.threshold && !this.triggered.has(candidate.id))
+      : undefined;
     if (breakpoint) {
       this.registerBreakpoint(breakpoint.id, breakpoint.threshold, nowMs);
       return { accepted: true, kind, damage: appliedDamage, hpBefore, hpAfter: this.bossHp, triggeredBreakpointId: breakpoint.id };
@@ -212,7 +227,63 @@ export class CombatModel {
     return true;
   }
 
-  finish(nowMs: number): RunContract {
+  pauseForUpgrade(nowMs: number): void { this.phase = 'upgrade'; this.addInactive('upgrade', nowMs); }
+  resumeAfterUpgrade(nowMs: number): void {
+    if (this.phase !== 'upgrade') return;
+    this.removeInactive('upgrade', nowMs);
+    this.phase = 'playing';
+  }
+
+  setRunModifiers(damageMultiplier: number, attackRateMultiplier: number): void {
+    this.damageMultiplier = Math.max(0.1, damageMultiplier);
+    this.attackRateMultiplier = Math.max(0.25, attackRateMultiplier);
+  }
+
+  startNextCycle(nowMs: number, maxHp: number): void {
+    this.removeInactive('cycle', nowMs);
+    this.bossMaxHpOverride = Math.max(1, Math.round(maxHp));
+    this.bossHp = this.bossMaxHpOverride;
+    this.phase = 'playing';
+    this.triggered.clear();
+    this.pendingChoices = [];
+    this.bossDefeatEmitted = false;
+    this.completedResult = undefined;
+  }
+
+  markCycleTransition(nowMs: number): void { this.phase = 'cycle'; this.addInactive('cycle', nowMs); }
+
+  failRun(nowMs: number): void {
+    if (this.phase === 'result' || this.phase === 'failed') return;
+    this.endedAtMs = nowMs;
+    this.phase = 'failed';
+  }
+
+  snapshot(nowMs: number): CombatSnapshot {
+    return {
+      runId: this.runId, seed: this.seed, startedAtIso: this.startedAtIso, elapsedMs: this.elapsedMs(nowMs),
+      bossHp: this.bossHp, maxHp: this.maxHp, phase: this.phase, totalDamage: this.totalDamage,
+      buildDamage: this.buildDamage, powerHits: this.powerHits, mutations: [...this.mutations],
+      triggered: [...this.triggered], pendingChoices: [...this.pendingChoices],
+      breakpointEvents: this.breakpointEvents.map((event) => ({ ...event, choices: [...event.choices] })),
+      lastPowerAtActiveMs: this.lastPowerAtActiveMs, eventEnabled: this.eventEnabled,
+    };
+  }
+
+  restore(snapshot: CombatSnapshot, nowMs: number): void {
+    this.runId = snapshot.runId; this.seed = snapshot.seed; this.random = new RunRandom(snapshot.seed);
+    this.startedAtMs = nowMs - Math.max(0, snapshot.elapsedMs); this.startedAtIso = snapshot.startedAtIso;
+    this.endedAtMs = 0; this.eventEnabled = snapshot.eventEnabled; this.bossMaxHpOverride = snapshot.maxHp;
+    this.bossHp = Math.max(0, Math.min(snapshot.maxHp, snapshot.bossHp)); this.phase = snapshot.phase;
+    this.totalDamage = snapshot.totalDamage; this.buildDamage = snapshot.buildDamage; this.powerHits = snapshot.powerHits;
+    this.mutations = new Set(snapshot.mutations); this.triggered = new Set(snapshot.triggered);
+    this.pendingChoices = [...snapshot.pendingChoices]; this.breakpointEvents = snapshot.breakpointEvents.map((event) => ({ ...event, choices: [...event.choices] }));
+    this.lastPowerAtActiveMs = snapshot.lastPowerAtActiveMs; this.inactiveReasons.clear(); this.inactiveDurationMs = 0; this.inactiveSinceMs = 0;
+    if (snapshot.phase === 'choice') this.addInactive('choice', nowMs);
+    if (snapshot.phase === 'upgrade') this.addInactive('upgrade', nowMs);
+    this.bossDefeatEmitted = snapshot.phase === 'finalizing' || snapshot.phase === 'result'; this.completedResult = undefined;
+  }
+
+  finish(nowMs: number, extras: Partial<RunContract> = {}): RunContract {
     if (this.completedResult) return this.completedResult;
     if (!this.bossDefeatEmitted || this.mutations.size !== 2) throw new Error('Cannot finish before defeating the boss with a two-mutation build.');
     this.phase = 'result';
@@ -242,6 +313,7 @@ export class CombatModel {
         eventConfigVersion: this.eventDefinition.eventConfigVersion,
         eventThemeId: this.eventDefinition.themeId,
       } : {}),
+      ...extras,
     };
     this.emitEvent({ type: 'RUN_COMPLETED', runId: this.runId, result: this.completedResult });
     return this.completedResult;

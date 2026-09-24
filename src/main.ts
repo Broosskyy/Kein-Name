@@ -10,6 +10,10 @@ import { AppLifecycle } from './platform/AppLifecycle';
 import { GameScene } from './render/GameScene';
 import { GameUI } from './ui/GameUI';
 import './styles.css';
+import { ArenaRunModel } from './gameplay/ArenaRunModel';
+import { GamePersistence } from './progress/GamePersistence';
+import { awardPersistentProgress } from './progress/PlayerProgress';
+import { FullscreenController } from './platform/FullscreenController';
 
 async function bootstrap(): Promise<void> {
   const mount = document.getElementById('game-canvas');
@@ -33,14 +37,32 @@ async function bootstrap(): Promise<void> {
   await assets.preload();
   const ui = new GameUI(assets);
   const events = new DomainEventBus();
+  const persistence = new GamePersistence(localStorage);
+  const playerProgress = persistence.loadProgress();
   const eventRuntime = new EventRuntime(HALLOWEEN_2026, (event) => events.emit(event));
-  events.subscribe((event) => { if (event.type === 'RUN_COMPLETED') eventRuntime.processRun(event.result); });
+  events.subscribe((event) => {
+    if (event.type !== 'RUN_COMPLETED') return;
+    eventRuntime.processRun(event.result);
+    awardPersistentProgress(playerProgress, event.result.bossCyclesCleared ?? 1, event.result.totalDamage, event.result.pickupCount ?? 0);
+    persistence.saveProgress(playerProgress); persistence.clearRun();
+  });
   const model = new CombatModel(performance.now(), {
     emit: (event) => events.emit(event),
     eventDefinition: HALLOWEEN_2026,
     eventEnabled: eventRuntime.enabled,
   });
-  const scene = new GameScene(app, ui, audio, model, events, assets, eventRuntime);
+  playerProgress.statistics.runsStarted += 1; persistence.saveProgress(playerProgress);
+  const arena = new ArenaRunModel(model, playerProgress.guestId, eventRuntime.enabled ? 'event' : 'solo');
+  let scene: GameScene;
+  const fullscreen = new FullscreenController(document, document.documentElement, () => { app.resize(); scene?.resize(); });
+  scene = new GameScene(app, ui, audio, model, events, assets, eventRuntime, {
+    arena,
+    resumeSnapshot: persistence.loadRun(),
+    saveSnapshot: (snapshot) => persistence.saveRun(snapshot),
+    clearSnapshot: () => persistence.clearRun(),
+    toggleFullscreen: () => { void fullscreen.toggle(); },
+    inspectProgress: () => console.info('M06 PlayerProgress', playerProgress),
+  });
   const lifecycle = new AppLifecycle({
     pause: (nowMs) => scene.pause(nowMs),
     resume: (nowMs) => scene.resume(nowMs),

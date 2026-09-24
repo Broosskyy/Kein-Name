@@ -14,8 +14,8 @@ export interface QualityProfile {
 }
 
 export const GAME_CONFIG = {
-  schemaVersion: 2,
-  clientVersion: '0.5.0',
+  schemaVersion: 3,
+  clientVersion: '0.6.0',
   combat: {
     normalDamage: 42,
     attackIntervalMs: 950,
@@ -41,6 +41,24 @@ export const GAME_CONFIG = {
     normalHitStopMs: 22,
     powerHitStopMs: 68,
     finalHitStopMs: 125,
+  },
+  arena: {
+    width: 1000,
+    height: 480,
+    playerSpeed: 310,
+    playerMaxHp: 100,
+    pickupRadius: 58,
+    maxLoot: 28,
+    maxDummyAllies: 7,
+    autosaveIntervalMs: 5000,
+  },
+  cycles: {
+    max: 3,
+    hpMultiplier: 1.55,
+    damageMultiplier: 1.22,
+    cadenceMultiplier: 0.88,
+    lootMultiplier: 1.2,
+    xpMultiplier: 1.15,
   },
   quality: {
     active: 'medium' as QualityName,

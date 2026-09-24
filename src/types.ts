@@ -1,7 +1,7 @@
 export type Mutation = 'crystal' | 'void' | 'wings' | 'pumpkin';
 export type BreakpointId = 'break-1' | 'break-2';
 export type EvolutionId = 'voidshard' | 'skyshard' | 'nightwing' | 'jack-o-void' | 'harvestshard' | 'hollowwing';
-export type RunPhase = 'playing' | 'choice' | 'finalizing' | 'result';
+export type RunPhase = 'playing' | 'choice' | 'upgrade' | 'cycle' | 'finalizing' | 'result' | 'failed';
 export type AttackKind = 'normal' | 'power' | 'voidEcho' | 'wingVolley' | 'pumpkinBurst';
 
 export interface AttackResult {
@@ -48,6 +48,13 @@ export interface RunContract {
   eventProgressEarned?: number;
   eventChallengeProgress?: Record<string, number>;
   isNewEvolutionDiscovery?: boolean;
+  runMode?: string;
+  bossCyclesCleared?: number;
+  runLevel?: number;
+  upgradeIds?: string[];
+  pickupCount?: number;
+  lootSummary?: Record<string, number>;
+  playerDefeated?: boolean;
 }
 
 export type RunResult = RunContract;

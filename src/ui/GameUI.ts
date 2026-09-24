@@ -10,8 +10,10 @@ import type { EventRunOutcome } from '../event/EventProgress';
 import type { EventState } from '../event/EventState';
 import type { AssetRegistry } from '../assets';
 import { renderVisualCatalog } from './VisualCatalog';
+import type { MovementInput } from '../gameplay/ArenaTypes';
+import type { RunUpgradeDefinition } from '../gameplay/RunUpgrades';
 
-export type DebugAction = 'break-1' | 'break-2' | 'kill' | 'choose-crystal' | 'choose-void' | 'choose-wings' | 'choose-pumpkin' | 'build-cv' | 'build-cw' | 'build-vw' | 'build-pv' | 'build-pc' | 'build-pw' | 'event-toggle' | 'event-progress' | 'event-challenge' | 'event-unlock-all' | 'event-reset' | 'event-complete' | 'quality-low' | 'quality-medium' | 'quality-high' | 'effects-reduced' | 'visual-catalog' | 'restart';
+export type DebugAction = 'break-1' | 'break-2' | 'kill' | 'choose-crystal' | 'choose-void' | 'choose-wings' | 'choose-pumpkin' | 'build-cv' | 'build-cw' | 'build-vw' | 'build-pv' | 'build-pc' | 'build-pw' | 'event-toggle' | 'event-progress' | 'event-challenge' | 'event-unlock-all' | 'event-reset' | 'event-complete' | 'quality-low' | 'quality-medium' | 'quality-high' | 'effects-reduced' | 'visual-catalog' | 'grant-xp' | 'level-up' | 'spawn-loot' | 'spawn-rare' | 'next-cycle' | 'attack-slam' | 'attack-beam' | 'attack-debris' | 'damage-player' | 'heal-player' | 'dummy-add' | 'dummy-clear' | 'pickup-radius' | 'collision-bounds' | 'telegraphs' | 'performance' | 'save' | 'clear-snapshot' | 'inspect-progress' | 'inspect-run' | 'restart';
 
 export class GameUI {
   private readonly hpFill = requiredElement<HTMLElement>('hp-fill');
@@ -32,6 +34,9 @@ export class GameUI {
   private onDebug?: (action: DebugAction) => void;
   private onEventEnter?: () => void;
   private onEventHub?: () => void;
+  private onMove?: (input: MovementInput) => void;
+  private onFullscreen?: () => void;
+  private onResumeChoice?: (resume: boolean) => void;
   private announcementTimeout?: number;
   private choiceCallback?: (mutation: Mutation) => void;
   private choices: readonly Mutation[] = [];
@@ -44,6 +49,11 @@ export class GameUI {
     requiredElement<HTMLButtonElement>('retry-button').addEventListener('click', () => this.onRetry?.());
     requiredElement<HTMLButtonElement>('event-enter').addEventListener('click', () => this.onEventEnter?.());
     requiredElement<HTMLButtonElement>('result-hub-button').addEventListener('click', () => this.onEventHub?.());
+    requiredElement<HTMLButtonElement>('fullscreen-button').addEventListener('click', () => this.onFullscreen?.());
+    requiredElement<HTMLButtonElement>('continue-run').addEventListener('click', () => this.chooseResume(true));
+    requiredElement<HTMLButtonElement>('new-run').addEventListener('click', () => this.chooseResume(false));
+    requiredElement<HTMLButtonElement>('failure-retry').addEventListener('click', () => this.onRetry?.());
+    this.bindJoystick();
     this.choiceButtons.forEach((button, index) => button.addEventListener('click', () => {
       const mutation = this.choices[index];
       if (mutation) this.choiceCallback?.(mutation);
@@ -68,6 +78,9 @@ export class GameUI {
   bindDebug(callback: (action: DebugAction) => void): void { this.onDebug = callback; }
   bindEventEnter(callback: () => void): void { this.onEventEnter = callback; }
   bindEventHub(callback: () => void): void { this.onEventHub = callback; }
+  bindMovement(callback: (input: MovementInput) => void): void { this.onMove = callback; }
+  bindFullscreen(callback: () => void): void { this.onFullscreen = callback; }
+  bindResumeChoice(callback: (resume: boolean) => void): void { this.onResumeChoice = callback; }
 
   update(hp: number, maxHp: number, elapsedMs: number, cooldownMs: number, playing: boolean): void {
     const hpRatio = Math.max(0, hp / maxHp);
@@ -94,6 +107,29 @@ export class GameUI {
   setQuality(quality: QualityName, reduced: boolean): void {
     requiredElement('debug-quality').textContent = `${quality.toUpperCase()}${reduced ? ' · REDUCED' : ''}`;
   }
+
+  updateArena(playerHp: number, playerMaxHp: number, level: number, xp: number, xpToNext: number, cycle: number): void {
+    const ratio = Math.max(0, Math.min(1, playerHp / playerMaxHp));
+    requiredElement('player-hp-fill').style.transform = `scaleX(${ratio})`;
+    requiredElement('player-hp-text').textContent = `${Math.ceil(playerHp)} / ${playerMaxHp}`;
+    requiredElement('run-level').textContent = String(level);
+    requiredElement('run-xp-fill').style.transform = `scaleX(${Math.max(0, Math.min(1, xp / xpToNext))})`;
+    requiredElement('cycle-label').textContent = `CYCLE ${cycle}`;
+  }
+
+  showUpgradeChoices(choices: readonly RunUpgradeDefinition[], callback: (id: string) => void): void {
+    const panel = requiredElement('upgrade-panel');
+    const options = requiredElement('upgrade-options');
+    options.innerHTML = choices.map((choice) => `<button type="button" data-upgrade="${choice.id}"><i>${choice.category.slice(0, 1)}</i><strong>${choice.name}</strong><span>${choice.shortDescription}</span><small>${choice.rarity}</small></button>`).join('');
+    options.querySelectorAll<HTMLButtonElement>('button[data-upgrade]').forEach((button) => button.addEventListener('click', () => callback(button.dataset.upgrade ?? ''), { once: true }));
+    panel.classList.add('visible'); panel.setAttribute('aria-hidden', 'false');
+  }
+
+  hideUpgradeChoices(): void { const panel = requiredElement('upgrade-panel'); panel.classList.remove('visible'); panel.setAttribute('aria-hidden', 'true'); }
+  showResumePrompt(): void { const panel = requiredElement('resume-panel'); panel.classList.add('visible'); panel.setAttribute('aria-hidden', 'false'); }
+  hideResumePrompt(): void { const panel = requiredElement('resume-panel'); panel.classList.remove('visible'); panel.setAttribute('aria-hidden', 'true'); }
+  showFailure(): void { const panel = requiredElement('failure-panel'); panel.classList.add('visible'); panel.setAttribute('aria-hidden', 'false'); }
+  hideFailure(): void { const panel = requiredElement('failure-panel'); panel.classList.remove('visible'); panel.setAttribute('aria-hidden', 'true'); }
 
   toggleVisualCatalog(force?: boolean): void {
     const visible = force ?? !this.visualCatalog.classList.contains('visible');
@@ -220,12 +256,31 @@ export class GameUI {
     this.resultPanel.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('result-open');
     this.hideChoices();
+    this.hideUpgradeChoices();
+    this.hideFailure();
     this.announcement.classList.remove('show');
     window.clearTimeout(this.announcementTimeout);
     (['crystal', 'void', 'wings', 'pumpkin'] as Mutation[]).forEach((mutation) => this.setMutation(mutation, false));
     this.setBreakpoint('break-1', false);
     this.setBreakpoint('break-2', false);
     requiredElement('bp-core').classList.remove('broken');
+  }
+
+  private chooseResume(resume: boolean): void { this.hideResumePrompt(); this.onResumeChoice?.(resume); }
+
+  private bindJoystick(): void {
+    const joystick = requiredElement('joystick'); const knob = requiredElement('joystick-knob');
+    let pointerId: number | undefined;
+    const update = (event: PointerEvent): void => {
+      const rect = joystick.getBoundingClientRect(); const radius = Math.max(1, rect.width * 0.34);
+      let x = event.clientX - (rect.left + rect.width / 2); let y = event.clientY - (rect.top + rect.height / 2);
+      const distance = Math.hypot(x, y); if (distance > radius) { x = x / distance * radius; y = y / distance * radius; }
+      knob.style.transform = `translate(${x}px, ${y}px)`; this.onMove?.({ x: x / radius, y: y / radius });
+    };
+    joystick.addEventListener('pointerdown', (event) => { pointerId = event.pointerId; joystick.setPointerCapture(pointerId); update(event); event.preventDefault(); });
+    joystick.addEventListener('pointermove', (event) => { if (event.pointerId === pointerId) update(event); });
+    const release = (event: PointerEvent): void => { if (event.pointerId !== pointerId) return; pointerId = undefined; knob.style.transform = ''; this.onMove?.({ x: 0, y: 0 }); };
+    joystick.addEventListener('pointerup', release); joystick.addEventListener('pointercancel', release);
   }
 }
 
