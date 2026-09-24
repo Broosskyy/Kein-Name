@@ -25,6 +25,7 @@ jobs:
           git add -A
           if git diff --cached --quiet; then exit 0; fi
           git commit -m "Unpack M05 source"
+          git pull --rebase origin main
           git push
 
 # trigger unpack
