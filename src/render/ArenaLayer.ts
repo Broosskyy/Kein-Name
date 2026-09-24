@@ -1,117 +1,30 @@
 import { Container, Graphics } from 'pixi.js';
+import { GAME_CONFIG } from '../config';
+import { ArenaCamera } from '../gameplay/ArenaCamera';
 import type { ArenaRunModel } from '../gameplay/ArenaRunModel';
-import type { BossTelegraph } from '../gameplay/BossAttackSystem';
+import { BOSS_ATTACKS, type BossTelegraph } from '../gameplay/BossAttackSystem';
 import type { LootDrop, LootKind } from '../gameplay/LootSystem';
 import type { Vec2 } from '../gameplay/ArenaTypes';
 
-interface ArenaViewport { x: number; y: number; width: number; height: number }
+const LOOT_COLORS:Record<LootKind,number>={'run-xp':0x75eaff,'crystal-essence':0x67e7ff,'void-essence':0xc667ff,'wing-essence':0xffdf78,'pumpkin-essence':0xff792f,'combat-orb':0x6dff91,relic:0xffc850,'harvest-energy':0xff8a38};
+const LANDMARKS=[{x:380,y:430,t:0},{x:760,y:1340,t:1},{x:1260,y:680,t:2},{x:1950,y:1420,t:0},{x:2410,y:720,t:1},{x:2840,y:1220,t:2},{x:400,y:1120,t:2},{x:2670,y:380,t:0}];
 
-const LOOT_COLORS: Record<LootKind, number> = {
-  'run-xp': 0x75eaff, 'crystal-essence': 0x67e7ff, 'void-essence': 0xc667ff,
-  'wing-essence': 0xffdf78, 'pumpkin-essence': 0xff792f, 'combat-orb': 0x6dff91,
-  relic: 0xffc850, 'harvest-energy': 0xff8a38,
-};
-
-/** Bounded, renderer-only projection of deterministic arena state. */
-export class ArenaLayer extends Container {
-  private readonly telegraphs = new Graphics();
-  private readonly guides = new Graphics();
-  private readonly lootViews: Graphics[] = [];
-  private readonly dummyViews: Graphics[] = [];
-  private readonly petView = new Graphics();
-  private viewport: ArenaViewport = { x: 0, y: 0, width: 1, height: 1 };
-
-  constructor() {
-    super();
-    this.addChild(this.guides, this.telegraphs);
-    for (let i = 0; i < 28; i += 1) {
-      const view = new Graphics(); view.visible = false; this.lootViews.push(view); this.addChild(view);
-    }
-    for (let i = 0; i < 7; i += 1) {
-      const view = new Graphics().ellipse(0, 6, 18, 7).fill({ color: 0x070913, alpha: 0.55 })
-        .circle(0, 0, 13).fill(0x6c78a8).circle(-4, -3, 2).fill(0xe9f4ff).circle(4, -3, 2).fill(0xe9f4ff);
-      view.visible = false; this.dummyViews.push(view); this.addChild(view);
-    }
-    this.petView.circle(0, 0, 8).fill(0xffa33f).circle(0, 0, 14).stroke({ color: 0xffd17b, width: 2, alpha: 0.55 });
-    this.petView.visible = false; this.addChild(this.petView);
-  }
-
-  resize(width: number, height: number, portrait: boolean): void {
-    this.viewport = portrait
-      ? { x: width * 0.07, y: height * 0.59, width: width * 0.86, height: height * 0.25 }
-      : { x: width * 0.08, y: height * 0.61, width: width * 0.84, height: height * 0.27 };
-  }
-
-  toScreen(position: Vec2): Vec2 {
-    return {
-      x: this.viewport.x + position.x / 1000 * this.viewport.width,
-      y: this.viewport.y + position.y / 480 * this.viewport.height,
-    };
-  }
-
-  sync(arena: ArenaRunModel, seconds: number): void {
-    this.drawTelegraphs(arena.bossAttacks.active, arena.telegraphsVisible, seconds);
-    this.drawGuides(arena);
-    const visibleDrops = arena.loot.drops.filter((drop) => drop.phase !== 'collected');
-    this.lootViews.forEach((view, index) => {
-      const drop = visibleDrops[index]; view.visible = Boolean(drop); if (!drop) return;
-      this.drawLoot(view, drop, seconds); const point = this.toScreen(drop.position); view.position.set(point.x, point.y);
-    });
-    this.dummyViews.forEach((view, index) => {
-      const dummy = arena.dummyAllies[index]; view.visible = Boolean(dummy); if (!dummy) return;
-      const point = this.toScreen(dummy.position); view.position.set(point.x, point.y); view.alpha = 0.72;
-    });
-    this.petView.visible = Boolean(arena.inventory.petId);
-    if (this.petView.visible) {
-      const player = this.toScreen(arena.player.position);
-      this.petView.position.set(player.x - 30 + Math.sin(seconds * 3) * 5, player.y - 18 + Math.cos(seconds * 4) * 4);
-    }
-  }
-
-  clearTransient(): void {
-    this.telegraphs.clear(); this.guides.clear(); this.lootViews.forEach((view) => { view.visible = false; });
-    this.dummyViews.forEach((view) => { view.visible = false; }); this.petView.visible = false;
-  }
-
-  private drawTelegraphs(attacks: readonly BossTelegraph[], visible: boolean, seconds: number): void {
-    this.telegraphs.clear(); if (!visible) return;
-    for (const attack of attacks) {
-      const point = this.toScreen(attack.position);
-      const rx = attack.radius / 1000 * this.viewport.width;
-      const ry = attack.radius / 480 * this.viewport.height;
-      const impact = attack.phase === 'impact';
-      const pulse = 0.7 + Math.sin(seconds * 12) * 0.15;
-      if (attack.kind === 'core-beam') {
-        this.telegraphs.rect(point.x - rx, this.viewport.y, rx * 2, this.viewport.height)
-          .fill({ color: impact ? 0xffd477 : 0xff623c, alpha: impact ? 0.34 : 0.12 * pulse })
-          .rect(point.x - rx, this.viewport.y, rx * 2, this.viewport.height)
-          .stroke({ color: impact ? 0xffffff : 0xff7655, width: impact ? 4 : 2, alpha: 0.82 });
-      } else {
-        this.telegraphs.ellipse(point.x, point.y, rx, Math.max(10, ry * 0.55))
-          .fill({ color: impact ? 0xffb54d : 0xff4d35, alpha: impact ? 0.34 : 0.11 * pulse })
-          .ellipse(point.x, point.y, rx, Math.max(10, ry * 0.55))
-          .stroke({ color: impact ? 0xfff0b0 : 0xff6045, width: impact ? 5 : 3, alpha: 0.88 });
-      }
-    }
-  }
-
-  private drawGuides(arena: ArenaRunModel): void {
-    this.guides.clear();
-    if (arena.collisionBoundsVisible) this.guides.rect(this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height).stroke({ color: 0x62ffb5, width: 2, alpha: 0.7 });
-    if (arena.pickupRadiusVisible) {
-      const p = this.toScreen(arena.player.position);
-      const rx = arena.player.stats.pickupRadius / 1000 * this.viewport.width;
-      this.guides.circle(p.x, p.y, Math.max(8, rx)).stroke({ color: 0x75eaff, width: 2, alpha: 0.45 });
-    }
-  }
-
-  private drawLoot(view: Graphics, drop: LootDrop, seconds: number): void {
-    const color = LOOT_COLORS[drop.kind]; const rare = drop.rarity !== 'common';
-    view.clear();
-    if (rare) view.circle(0, 0, drop.rarity === 'epic' ? 20 : 15).fill({ color, alpha: 0.12 });
-    if (drop.kind === 'relic') view.roundRect(-11, -8, 22, 17, 4).fill(0x7b4920).stroke({ color, width: 3 });
-    else view.poly([0, -12, 9, -3, 5, 11, -6, 10, -10, -3]).fill(color).poly([0, -8, 5, -2, 2, 6, -3, 5]).fill({ color: 0xffffff, alpha: 0.58 });
-    if (rare && drop.phase === 'grounded') view.rect(-2, -60, 4, 48).fill({ color, alpha: 0.24 });
-    view.scale.set(1 + Math.sin(seconds * 4 + Number(drop.id.split('-')[1])) * 0.05);
-  }
+/** World-space arena renderer. UI and the looming boss remain screen-space. */
+export class ArenaLayer extends Container{
+ readonly camera=new ArenaCamera(GAME_CONFIG.arena.width,GAME_CONFIG.arena.height,GAME_CONFIG.arena.cameraMinZoom,GAME_CONFIG.arena.cameraMaxZoom);
+ private floor=new Graphics();private props=new Graphics();private telegraphs=new Graphics();private guides=new Graphics();private lootViews:Graphics[]=[];private dummyViews:Graphics[]=[];private petView=new Graphics();
+ private readonly brokenLandmarks=new Set<number>();
+ constructor(){super();this.addChild(this.floor,this.props,this.telegraphs,this.guides);for(let i=0;i<GAME_CONFIG.arena.maxLoot;i++){const v=new Graphics();v.visible=false;this.lootViews.push(v);this.addChild(v)}for(let i=0;i<7;i++){const v=new Graphics().ellipse(0,7,15,6).fill({color:0x050611,alpha:.6}).circle(0,0,10).fill(0x6576ac).circle(-3,-2,1.7).fill(0xffffff).circle(3,-2,1.7).fill(0xffffff);v.visible=false;this.dummyViews.push(v);this.addChild(v)}this.petView.circle(0,0,7).fill(0xffa33f).circle(0,0,13).stroke({color:0xffd17b,width:2,alpha:.55});this.petView.visible=false;this.addChild(this.petView)}
+ resize(width:number,height:number):void{this.camera.resize(width,height)}
+ toScreen(p:Vec2):Vec2{return this.camera.worldToScreen(p)}
+ updateCamera(dt:number,arena:ArenaRunModel):void{this.camera.update(dt,arena.player.position,arena.player.velocity)}
+ setZoom(value:number):number{return this.camera.setZoom(value)}
+ reactToImpact(position:Vec2,radius:number):boolean{let changed=false;LANDMARKS.forEach((landmark,index)=>{if(!this.brokenLandmarks.has(index)&&Math.hypot(position.x-landmark.x,position.y-landmark.y)<=radius+90){this.brokenLandmarks.add(index);changed=true}});return changed}
+ sync(arena:ArenaRunModel,seconds:number):void{this.drawEnvironment(arena,seconds);this.drawTelegraphs(arena.bossAttacks.active,arena.telegraphsVisible,seconds);this.drawGuides(arena);const drops=arena.loot.drops.filter(d=>d.phase!=='collected');this.lootViews.forEach((v,i)=>{const d=drops[i];v.visible=Boolean(d);if(!d)return;this.drawLoot(v,d,seconds);const p=this.toScreen(d.position);v.position.set(p.x,p.y);v.visible=this.inView(p,90)});this.dummyViews.forEach((v,i)=>{const d=arena.dummyAllies[i];v.visible=Boolean(d);if(!d)return;const p=this.toScreen(d.position);v.position.set(p.x,p.y);v.scale.set(this.camera.scale*2.1);v.visible=this.inView(p,50)});this.petView.visible=Boolean(arena.inventory.petId);if(this.petView.visible){const p=this.toScreen(arena.petPosition);this.petView.position.set(p.x,p.y+Math.sin(seconds*4)*3);this.petView.scale.set(this.camera.scale*2.2)}}
+ clearTransient():void{this.telegraphs.clear();this.guides.clear();this.brokenLandmarks.clear();this.lootViews.forEach(v=>v.visible=false);this.dummyViews.forEach(v=>v.visible=false);this.petView.visible=false}
+ private drawEnvironment(arena:ArenaRunModel,seconds:number):void{this.floor.clear();this.props.clear();const vp=this.camera.viewport;this.floor.rect(vp.x,vp.y,vp.width,vp.height).fill({color:arena.combat.isEventRun?0x110b18:0x0b1122,alpha:.98});for(let x=0;x<=GAME_CONFIG.arena.width;x+=320){const a=this.toScreen({x,y:0}),b=this.toScreen({x,y:GAME_CONFIG.arena.height});this.floor.moveTo(a.x,a.y).lineTo(b.x,b.y).stroke({color:arena.combat.isEventRun?0x6e3025:0x253b5c,width:1,alpha:.15})}for(let y=0;y<=GAME_CONFIG.arena.height;y+=240){const a=this.toScreen({x:0,y}),b=this.toScreen({x:GAME_CONFIG.arena.width,y});this.floor.moveTo(a.x,a.y).lineTo(b.x,b.y).stroke({color:0xa67867,width:1,alpha:.11})}LANDMARKS.forEach((l,index)=>{const p=this.toScreen(l);if(!this.inView(p,100))return;const s=this.camera.scale*(l.t===1?1.4:1);if(this.brokenLandmarks.has(index)){this.props.ellipse(p.x,p.y,35*s,9*s).fill({color:0x151521,alpha:.8}).poly([p.x-22*s,p.y,p.x-8*s,p.y-14*s,p.x+2*s,p.y]).fill(0x343346).poly([p.x+5*s,p.y,p.x+18*s,p.y-10*s,p.x+27*s,p.y]).fill(0x2b293b);return}if(l.t===0)this.props.poly([p.x,p.y-55*s,p.x+28*s,p.y,p.x,p.y+12*s,p.x-26*s,p.y]).fill({color:0x372d49,alpha:.9}).poly([p.x,p.y-48*s,p.x+12*s,p.y-4*s,p.x,p.y]).fill({color:0x9564b7,alpha:.34});else if(l.t===1)this.props.rect(p.x-12*s,p.y-56*s,24*s,64*s).fill(0x24283a).rect(p.x-22*s,p.y-58*s,44*s,10*s).fill(0x43475a);else this.props.ellipse(p.x,p.y,42*s,14*s).fill({color:0x070812,alpha:.5}).circle(p.x,p.y-8*s,24*s).fill(0x282738)});const pulse=.08+Math.sin(seconds*1.7)*.02;this.floor.rect(vp.x,vp.y,vp.width,vp.height).fill({color:arena.combat.isEventRun?0xff6a2c:0x557cff,alpha:pulse*.18})}
+ private drawTelegraphs(attacks:readonly BossTelegraph[],visible:boolean,seconds:number):void{this.telegraphs.clear();if(!visible)return;for(const a of attacks){const d=BOSS_ATTACKS[a.kind],p=this.toScreen(a.position),o=this.toScreen(a.origin),r=a.radius*this.camera.scale,inner=a.innerRadius*this.camera.scale,impact=a.phase==='impact',progress=a.phase==='telegraph'?Math.min(1,a.elapsedMs/d.telegraphMs):1,color=impact?0xffd36b:progress>.72?0xff5038:0xc83242,alpha=impact?.4:.1+.13*progress+.025*Math.sin(seconds*12);if(d.shape==='circle'){this.telegraphs.circle(p.x,p.y,r).fill({color,alpha}).circle(p.x,p.y,r).stroke({color,width:2+progress*3,alpha:.9});this.telegraphs.circle(p.x,p.y,r*(1-progress)).stroke({color:0xffe3aa,width:2,alpha:.7})}else if(d.shape==='ring'){this.telegraphs.circle(p.x,p.y,r).stroke({color,width:Math.max(8,r-inner),alpha:.14+.18*progress}).circle(p.x,p.y,r).stroke({color,width:3,alpha:.9}).circle(p.x,p.y,inner).stroke({color,width:2,alpha:.7})}else{const len=d.shape==='line'?1900:a.radius,end=this.toScreen({x:a.origin.x+a.direction.x*len,y:a.origin.y+a.direction.y*len}),width=d.shape==='line'?r:len*this.camera.scale*.58;this.telegraphs.moveTo(o.x,o.y).lineTo(end.x,end.y).stroke({color,width:Math.max(8,width*2),alpha}).moveTo(o.x,o.y).lineTo(end.x,end.y).stroke({color:0xffd0a0,width:2+progress*2,alpha:.78})}}}
+ private drawGuides(arena:ArenaRunModel):void{this.guides.clear();if(arena.collisionBoundsVisible){const a=this.toScreen({x:160,y:180}),b=this.toScreen({x:3040,y:1620});this.guides.rect(a.x,a.y,b.x-a.x,b.y-a.y).stroke({color:0x62ffb5,width:2,alpha:.7})}if(arena.pickupRadiusVisible){const p=this.toScreen(arena.player.position);this.guides.circle(p.x,p.y,arena.player.stats.pickupRadius*this.camera.scale).stroke({color:0x75eaff,width:2,alpha:.55})}}
+ private drawLoot(v:Graphics,d:LootDrop,seconds:number):void{const c=LOOT_COLORS[d.kind],rare=d.rarity!=='common';v.clear();if(rare)v.circle(0,0,d.rarity==='epic'?18:14).fill({color:c,alpha:.14});if(d.kind==='relic')v.roundRect(-10,-7,20,15,4).fill(0x72411e).stroke({color:c,width:3});else v.poly([0,-11,8,-3,5,10,-6,9,-9,-3]).fill(c).poly([0,-7,4,-2,2,5,-3,4]).fill({color:0xffffff,alpha:.6});if(rare&&d.phase!=='airborne')v.rect(-2,-68,4,54).fill({color:c,alpha:.28});v.scale.set(this.camera.scale*2.4*(1+Math.sin(seconds*4+Number(d.id.split('-')[1]))*.05))}
+ private inView(p:Vec2,m:number):boolean{const v=this.camera.viewport;return p.x>=v.x-m&&p.x<=v.x+v.width+m&&p.y>=v.y-m&&p.y<=v.y+v.height+m}
 }

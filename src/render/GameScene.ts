@@ -26,6 +26,8 @@ export interface GameSceneM06Options {
   clearSnapshot?: () => void;
   toggleFullscreen?: () => void;
   inspectProgress?: () => void;
+  initialZoom?: number;
+  saveZoom?: (zoom: number) => void;
 }
 
 interface Projectile {
@@ -136,7 +138,7 @@ export class GameScene {
   private readonly keys = new Set<string>();
   private autosaveMs = 0;
   private finalLootGranted = false;
-  private readonly keyDown = (event: KeyboardEvent): void => { this.keys.add(event.key.toLowerCase()); this.syncKeyboardMovement(); };
+  private readonly keyDown = (event: KeyboardEvent): void => { const key=event.key.toLowerCase(); this.keys.add(key); if(key===' '){event.preventDefault();this.tryDash();} if(key==='+'||key==='=')this.changeZoom(.08);if(key==='-')this.changeZoom(-.08);this.syncKeyboardMovement(); };
   private readonly keyUp = (event: KeyboardEvent): void => { this.keys.delete(event.key.toLowerCase()); this.syncKeyboardMovement(); };
 
   constructor(
@@ -159,7 +161,7 @@ export class GameScene {
     this.world.addChild(this.background);
     if (this.backgroundAsset) this.world.addChild(this.backgroundAsset);
     if (this.halloweenBackgroundAsset) this.world.addChild(this.halloweenBackgroundAsset);
-    this.world.addChild(this.arenaBack, this.ambient, this.arenaFloor, this.boss, this.arenaLayer, this.creature, this.essence, this.effects, this.arenaForeground);
+    this.world.addChild(this.arenaBack, this.ambient, this.arenaFloor, this.arenaLayer, this.boss, this.creature, this.essence, this.effects, this.arenaForeground);
     if (this.halloweenForegroundAsset) this.world.addChild(this.halloweenForegroundAsset);
     this.world.addChild(this.vignette, this.screenFlash);
     this.createBoss();
@@ -169,6 +171,7 @@ export class GameScene {
     this.createEssence();
     this.applyQuality();
     this.resize();
+    this.arenaLayer.setZoom(this.m06?.initialZoom ?? GAME_CONFIG.arena.cameraDefaultZoom);
     this.bindInput();
     this.m06?.arena.setEventSink((event) => this.handleArenaEvent(event));
     this.unsubscribeEvents = events.subscribe((event) => {
@@ -510,6 +513,8 @@ export class GameScene {
       this.audio.unlock();
       this.requestPowerHit();
     });
+    this.ui.bindDash(() => this.tryDash());
+    this.ui.bindZoom((delta) => this.changeZoom(delta));
     this.ui.bindRetry(() => this.reset());
     this.ui.bindEventEnter(() => this.startEventRun());
     this.ui.bindEventHub(() => this.openEventHub());
@@ -544,8 +549,13 @@ export class GameScene {
     if (keyboard.x || keyboard.y || (!this.movementInput.x && !this.movementInput.y)) this.movementInput = keyboard;
   }
 
+  private tryDash(): void { if(this.m06?.arena.dash(this.movementInput)){this.audio.unlock();this.shake(90,2.5);this.arenaLayer.camera.impulse(3.5);} }
+  private changeZoom(delta:number):void{const zoom=this.arenaLayer.setZoom(this.arenaLayer.camera.targetZoom+delta);this.m06?.saveZoom?.(zoom)}
+
   private handleArenaEvent(event: ArenaRunEvent): void {
     if (event.type === 'PLAYER_DAMAGED') { this.creaturePunch = -0.8; this.flash(0.16); this.shake(150, 5); }
+    if (event.type === 'PLAYER_DASHED') { const from=this.arenaLayer.toScreen(event.from),to=this.arenaLayer.toScreen(event.to);for(let i=0;i<7;i++){const t=i/6;this.effects.trail(from.x+(to.x-from.x)*t,from.y+(to.y-from.y)*t,0x8feaff,7-i*.65);} }
+    if (event.type === 'BOSS_ATTACK_IMPACT') { const p=this.arenaLayer.toScreen(event.impact.position);this.effects.burst(p.x,p.y,0xff7045,event.impact.kind==='falling-debris'?10:16,.7);this.arenaLayer.camera.impulse(event.impact.hit?8:5);if(this.arenaLayer.reactToImpact(event.impact.position,event.impact.radius))this.effects.burst(p.x,p.y,0x918ba5,8,.45); }
     if (event.type === 'PLAYER_DEFEATED') { this.clearProjectiles(); this.ui.showFailure(); this.m06?.clearSnapshot?.(); }
     if (event.type === 'LOOT_PICKED') {
       const point = this.arenaLayer.toScreen(this.m06!.arena.player.position);
@@ -556,7 +566,7 @@ export class GameScene {
       const choices = event.choices.map((id) => RUN_UPGRADES.find((upgrade) => upgrade.id === id)).filter((item): item is NonNullable<typeof item> => Boolean(item));
       this.ui.showUpgradeChoices(choices, (id) => { if (this.m06?.arena.chooseUpgrade(id, performance.now())) { this.ui.hideUpgradeChoices(); this.syncPowerGrowth(); this.ui.announce('POWER EVOLVED', RUN_UPGRADES.find((upgrade) => upgrade.id === id)?.name ?? '', '#ffe28a'); } });
     }
-    if (event.type === 'BOSS_CYCLE_STARTED') this.ui.announce(`CYCLE ${event.cycle}`, 'THE COLOSSUS RETURNS STRONGER', '#ffb35f', 1500);
+    if (event.type === 'BOSS_CYCLE_STARTED') { this.ui.announce(`CYCLE ${event.cycle}`, 'THE COLOSSUS RETURNS STRONGER', '#ffb35f', 1500); this.arenaLayer.camera.emphasize('cycle'); }
   }
 
   private handleDebug(action: DebugAction): void {
@@ -566,11 +576,12 @@ export class GameScene {
     if (action === 'grant-xp' || action === 'level-up') { arena?.grantXp(action === 'level-up' ? arena.xpToNext : 100, now); return; }
     if (action === 'spawn-loot' || action === 'spawn-rare') { arena?.spawnLoot(action === 'spawn-rare' ? 'relic' : 'run-xp', action === 'spawn-rare' ? 'epic' : 'common', action === 'spawn-rare' ? 1 : 25); return; }
     if (action === 'next-cycle') { arena?.advanceCycle(now); this.resetBossForCycle(); return; }
-    if (action === 'attack-slam' || action === 'attack-beam' || action === 'attack-debris') { arena?.forceBossAttack(action === 'attack-slam' ? 'ground-slam' : action === 'attack-beam' ? 'core-beam' : 'falling-debris'); return; }
+    if (action.startsWith('attack-')) { const attacks={ 'attack-slam':'ground-slam','attack-beam':'core-beam','attack-debris':'falling-debris','attack-cone':'void-cone','attack-ring':'corruption-ring','attack-shockwave':'shockwave'} as const;arena?.forceBossAttack(attacks[action as keyof typeof attacks]);return; }
     if (action === 'damage-player') { arena?.takeDamage(25, 'ground-slam', now); return; }
     if (action === 'heal-player') { arena?.heal(50); return; }
     if (action === 'dummy-add') { arena?.spawnDummy(); return; }
     if (action === 'dummy-clear') { arena?.clearDummies(); return; }
+    if (action === 'dummy-1' || action === 'dummy-2' || action === 'dummy-4' || action === 'dummy-8') { arena?.setVisualPlayerCount(Number(action.slice(-1)) as 1|2|4|8); return; }
     if (action === 'pickup-radius' && arena) { arena.pickupRadiusVisible = !arena.pickupRadiusVisible; return; }
     if (action === 'collision-bounds' && arena) { arena.collisionBoundsVisible = !arena.collisionBoundsVisible; return; }
     if (action === 'telegraphs' && arena) { arena.telegraphsVisible = !arena.telegraphsVisible; return; }
@@ -741,7 +752,7 @@ export class GameScene {
     );
     const arena = this.m06?.arena;
     if (arena) {
-      this.ui.updateArena(arena.player.hp, arena.player.maxHp, arena.runLevel, arena.runXp, arena.xpToNext, arena.bossCycle);
+      this.ui.updateArena(arena.player.hp, arena.player.maxHp, arena.runLevel, arena.runXp, arena.xpToNext, arena.bossCycle, arena.dashCooldownMs);
     }
 
     if (this.hitStopMs > 0) {
@@ -751,6 +762,7 @@ export class GameScene {
 
     if (arena && !this.inEventHub) {
       arena.update(deltaMs, this.movementInput, now);
+      this.arenaLayer.updateCamera(deltaMs, arena);
       const point = this.arenaLayer.toScreen(arena.player.position);
       this.creatureBaseX = point.x; this.creatureBaseY = point.y;
       this.arenaLayer.sync(arena, now / 1000);
@@ -813,10 +825,12 @@ export class GameScene {
     const punch = Math.max(0, this.creaturePunch);
     const evolution = this.model.mutations.size === 2 ? evolutionFor(this.model.mutations).id : undefined;
     const progressScale = evolution ? EVOLUTION_VISUALS[evolution].renderScale : 1 + this.model.mutations.size * 0.07;
+    const cameraScale = this.model.phase === 'result' ? 1 : this.arenaLayer.camera.zoom / GAME_CONFIG.arena.cameraDefaultZoom;
     this.creature.scale.set(
-      this.creatureBaseScale * progressScale * (creatureBreath + punch * 0.08),
-      this.creatureBaseScale * progressScale * (2 - creatureBreath - punch * 0.11),
+      this.creatureBaseScale * cameraScale * progressScale * (creatureBreath + punch * 0.08),
+      this.creatureBaseScale * cameraScale * progressScale * (2 - creatureBreath - punch * 0.11),
     );
+    if (this.model.phase !== 'result' && this.m06?.arena) this.creature.rotation = this.m06.arena.player.velocity.x / Math.max(1, this.m06.arena.player.stats.moveSpeed) * 0.07;
     const wingLift = this.wingMutation.visible ? -5 + Math.sin(seconds * 3.4) * 4 : 0;
     this.creature.y = this.creatureBaseY + Math.sin(seconds * 2.4) * 3 + wingLift + punch * 7;
     this.creature.rotation = Math.sin(seconds * 2) * 0.012 - punch * 0.025;
@@ -927,6 +941,7 @@ export class GameScene {
 
   private beginBreakpointTransition(id: BreakpointId): void {
     if (!this.visualState.beginBreakpoint(id)) return;
+    this.arenaLayer.camera.emphasize('breakpoint');
     this.clearProjectiles();
     this.powerInFlight = false;
     this.echoDelayMs = -1;
@@ -962,6 +977,7 @@ export class GameScene {
   }
 
   private beginMutationTransition(mutation: Mutation): void {
+    this.arenaLayer.camera.emphasize('mutation');
     this.transition = { kind: 'mutation', mutation, elapsed: 0, duration: GAME_CONFIG.timing.mutationDurationMs, absorbed: false };
     const data = mutationVisual(mutation);
     this.essenceAsset?.destroy();
@@ -991,6 +1007,7 @@ export class GameScene {
 
   private beginFinalTransition(): void {
     if (!this.visualState.beginKill()) return;
+    this.arenaLayer.camera.emphasize('kill');
     if (!this.finalLootGranted) { this.finalLootGranted = true; this.m06?.arena.onBossDefeated(performance.now()); }
     this.clearProjectiles();
     this.powerInFlight = false;
@@ -1255,7 +1272,9 @@ export class GameScene {
     this.creature.y = lerp(this.creatureBaseY, targetY, easeInOut(t));
     const evolution = this.model.mutations.size === 2 ? evolutionFor(this.model.mutations).id : undefined;
     const identityScale = evolution ? EVOLUTION_VISUALS[evolution].renderScale : 1;
-    const revealScale = this.creatureBaseScale * (this.portrait ? 1.92 : 1.62) * identityScale;
+    // Arena scale is deliberately small; reveal scale stays hero-sized and independent.
+    const heroBaseScale = this.portrait ? Math.min(0.86, this.width / 620) : Math.min(0.82, this.height / 760);
+    const revealScale = heroBaseScale * (this.portrait ? 1.92 : 1.62) * identityScale;
     const currentScale = lerp(this.creatureBaseScale, revealScale, easeOutBack(t));
     this.creature.scale.set(currentScale);
     this.boss.alpha = Math.max(0.05, 1 - t * 0.93);
@@ -1464,10 +1483,10 @@ export class GameScene {
       this.halloweenForegroundAsset.position.set((this.width - this.halloweenForegroundAsset.width) / 2, (this.height - this.halloweenForegroundAsset.height) / 2);
     }
     this.bossBaseScale = this.portrait ? Math.min(1.05, this.width / 540) : Math.min(1.02, this.height / 600);
-    this.creatureBaseScale = this.portrait ? Math.min(0.86, this.width / 620) : Math.min(0.82, this.height / 760);
+    this.creatureBaseScale = this.model.phase === 'result' ? (this.portrait ? Math.min(0.86, this.width / 620) : Math.min(0.82, this.height / 760)) : (this.portrait ? Math.min(0.46, this.width / 980) : Math.min(0.48, this.height / 1250));
     this.bossBaseX = this.portrait ? this.width * 0.5 : this.width * 0.66;
     this.bossBaseY = this.portrait ? this.height * 0.37 : this.height * 0.43;
-    this.arenaLayer.resize(this.width, this.height, this.portrait);
+    this.arenaLayer.resize(this.width, this.height);
     const arenaPlayer = this.m06?.arena ? this.arenaLayer.toScreen(this.m06.arena.player.position) : undefined;
     this.creatureBaseX = arenaPlayer?.x ?? (this.portrait ? this.width * 0.5 : this.width * 0.27);
     this.creatureBaseY = arenaPlayer?.y ?? (this.portrait ? this.height * 0.78 : this.height * 0.7);

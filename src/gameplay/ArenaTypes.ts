@@ -1,4 +1,5 @@
 import type { EvolutionId, Mutation } from '../types';
+import { GAME_CONFIG } from '../config';
 
 export interface Vec2 { x: number; y: number }
 export type Facing = 'left' | 'right';
@@ -39,7 +40,7 @@ export interface CombatEntityState {
 
 export interface MovementInput { x: number; y: number }
 
-export const ARENA_BOUNDS = { minX: 70, maxX: 930, minY: 65, maxY: 430 } as const;
+export const ARENA_BOUNDS = { minX: 160, maxX: 3040, minY: 180, maxY: 1620 } as const;
 
 export function clampToArena(position: Vec2): Vec2 {
   return {
@@ -50,12 +51,12 @@ export function clampToArena(position: Vec2): Vec2 {
 
 export function createLocalPlayer(entityId: string, guestId: string): CombatEntityState {
   const stats: CombatStats = {
-    maxHp: 100, moveSpeed: 310, damageMultiplier: 1, attackRateMultiplier: 1,
-    projectileCount: 1, projectileScale: 1, pickupRadius: 58, mitigation: 0, xpMultiplier: 1,
+    maxHp: GAME_CONFIG.arena.playerMaxHp, moveSpeed: GAME_CONFIG.arena.playerSpeed, damageMultiplier: 1, attackRateMultiplier: 1,
+    projectileCount: 1, projectileScale: 1, pickupRadius: GAME_CONFIG.arena.pickupRadius, mitigation: 0, xpMultiplier: 1,
   };
   return {
     entityId, kind: 'local-player', playerId: guestId, displayName: 'YOU',
-    position: { x: 500, y: 340 }, velocity: { x: 0, y: 0 }, facing: 'right',
+    position: { x: 1600, y: 1220 }, velocity: { x: 0, y: 0 }, facing: 'right',
     hp: stats.maxHp, maxHp: stats.maxHp, invulnerableMs: 0, mutationIds: [],
     equippedRunItemIds: [], cosmeticIds: [], buffIds: [], stats, isOnlinePlayer: false,
   };
@@ -65,6 +66,7 @@ export function createDummyAlly(index: number): CombatEntityState {
   const entity = createLocalPlayer(`dummy-${index}`, `dev-dummy-${index}`);
   entity.kind = 'dummy-ally';
   entity.displayName = `DEV ALLY ${index}`;
-  entity.position = { x: 280 + (index % 4) * 150, y: 250 + Math.floor(index / 4) * 90 };
+  const angle = (index - 1) / 7 * Math.PI * 2;
+  entity.position = { x: 1600 + Math.cos(angle) * 620, y: 1050 + Math.sin(angle) * 360 };
   return entity;
 }

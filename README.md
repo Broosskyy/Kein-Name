@@ -1,6 +1,6 @@
-# Mutation Boss — M06 Arena Combat Foundation
+# Mutation Boss — M07 Expanded Arena & Active Combat
 
-Browser-first PixiJS action prototype: move and dodge in a compact arena, auto-attack the looming Harvest Colossus, use Power Hit, collect physical loot, level a run build, mutate, clear escalating boss cycles and retain local guest progress.
+Browser-first PixiJS action prototype: explore a camera-driven 3200×1800 arena beneath the looming Harvest Colossus, dodge phase attacks, dash for physical loot, level a visible run build, mutate and clear escalating boss cycles.
 
 ## Start and validate
 
@@ -15,19 +15,21 @@ npm run preview
 
 ## Controls
 
-- Mobile: left virtual joystick + **POWER HIT**; independent pointer IDs allow simultaneous input.
-- Desktop: WASD/arrows + click/tap Power Hit.
+- Mobile: 360° joystick + **POWER HIT** + **DASH**; pinch or `− / +` to zoom.
+- Desktop: WASD/arrows, Space to dash, mouse wheel or `− / +` to zoom.
 - Fullscreen is optional and only requested from its explicit button.
 - Mutation and level-up choices pause active time and danger timing.
 - `D`, backtick or `?debug=1` opens DEV controls for attacks, loot, XP, cycles, dummies, quality and state.
 
-## Implemented M06 scope
+## Implemented M07 scope
 
-- Bounded 1000×480 logical arena projected into the lower screen while the boss remains huge
+- Bounded 3200×1800 world arena, independent screen-space UI and smooth boss-aware camera
+- Soft follow/dead-zone/look-ahead, additive shake, clamped 0.78–1.22 zoom and saved zoom preference
+- Full X/Y/diagonal movement with normalized speed plus cooldown/invulnerability dash
 - One real local player; bounded DEV-only dummy allies are explicitly non-network entities
-- Ground Slam, Core Beam and Falling Debris telegraph → impact → recovery attacks
+- Ground Slam, Beam, Debris, Cone, Ring, Shockwave and Moving Hazard phase vocabulary
 - Player HP, mitigation, brief invulnerability, failure and retry
-- Physical bounded loot with boss-origin arcs, ground persistence, rarity and proximity pickup
+- Physical bounded loot with boss-origin arcs, bounce, rarity beams, magnet range and world-space Ember Wisp pickup
 - Run XP, levels and 11 data-driven upgrades across attack, defense, movement, utility and synergy
 - Visible projectile scale/count and orbiting power-growth presentation
 - Three finite escalating boss cycles
@@ -49,10 +51,11 @@ No backend, authentication, cloud save, real multiplayer, country/world aggregat
 - `src/gameplay/RunUpgrades.ts` / `Equipment.ts` / `RunModes.ts` — content and future boundaries
 - `src/progress/PlayerProgress.ts` / `GamePersistence.ts` — guest persistence and resume
 - `src/online/Contracts.ts` — contracts only; intentionally no network
-- `src/render/ArenaLayer.ts` — projection for telegraphs, loot, dummies and pet hook
+- `src/gameplay/ArenaCamera.ts` — world camera, transforms, zoom, follow and shake
+- `src/render/ArenaLayer.ts` — culled world floor, landmarks, telegraphs, loot, dummies and pet
 - `src/render/GameScene.ts` — M05 presentation plus M06 arena integration
 - `src/ui/GameUI.ts` / `src/styles.css` — joystick, run HUD, choices, resume/failure and fullscreen
-- `M06_GAMEPLAY_ARCHITECTURE.md` / `M06_CONTENT_MATRIX.md` — boundaries and implemented content
+- `M07_ARENA_CAMERA_COMBAT.md` — M07 world, controls, pacing and compatibility
 
 ## Save/resume strategy
 

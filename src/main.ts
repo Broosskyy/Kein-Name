@@ -62,6 +62,8 @@ async function bootstrap(): Promise<void> {
     clearSnapshot: () => persistence.clearRun(),
     toggleFullscreen: () => { void fullscreen.toggle(); },
     inspectProgress: () => console.info('M06 PlayerProgress', playerProgress),
+    initialZoom: typeof playerProgress.settings.arenaZoom === 'number' ? playerProgress.settings.arenaZoom : undefined,
+    saveZoom: (zoom) => { playerProgress.settings.arenaZoom = zoom; persistence.saveProgress(playerProgress); },
   });
   const lifecycle = new AppLifecycle({
     pause: (nowMs) => scene.pause(nowMs),

@@ -15,7 +15,7 @@ export interface QualityProfile {
 
 export const GAME_CONFIG = {
   schemaVersion: 3,
-  clientVersion: '0.6.0',
+  clientVersion: '0.7.0',
   combat: {
     normalDamage: 42,
     attackIntervalMs: 950,
@@ -43,14 +43,21 @@ export const GAME_CONFIG = {
     finalHitStopMs: 125,
   },
   arena: {
-    width: 1000,
-    height: 480,
-    playerSpeed: 310,
+    width: 3200,
+    height: 1800,
+    playerSpeed: 590,
     playerMaxHp: 100,
-    pickupRadius: 58,
-    maxLoot: 28,
+    pickupRadius: 105,
+    maxLoot: 36,
     maxDummyAllies: 7,
     autosaveIntervalMs: 5000,
+    dashDistance: 430,
+    dashCooldownMs: 2400,
+    dashInvulnerabilityMs: 340,
+    movementDeadZone: 0.12,
+    cameraMinZoom: 0.78,
+    cameraMaxZoom: 1.22,
+    cameraDefaultZoom: 0.92,
   },
   cycles: {
     max: 3,

@@ -48,6 +48,8 @@
             <span id="power-status">READY</span>
             <i id="power-cooldown"></i>
           </button>
+          <button id="dash-button" type="button" aria-label="Dash"><span>DASH</span><small id="dash-status">READY</small></button>
+          <div class="zoom-controls" aria-label="Arena zoom"><button id="zoom-out" type="button">−</button><button id="zoom-in" type="button">+</button></div>
           <button id="fullscreen-button" type="button" aria-label="Toggle fullscreen">⛶</button>
         </div>
 
@@ -128,10 +130,14 @@
           <button data-debug="attack-slam">Ground Slam</button>
           <button data-debug="attack-beam">Core Beam</button>
           <button data-debug="attack-debris">Falling Debris</button>
+          <button data-debug="attack-cone">Void Cone</button>
+          <button data-debug="attack-ring">Corruption Ring</button>
+          <button data-debug="attack-shockwave">Shockwave</button>
           <button data-debug="damage-player">Damage Player</button>
           <button data-debug="heal-player">Heal Player</button>
           <button data-debug="dummy-add">Add DEV Ally</button>
           <button data-debug="dummy-clear">Clear DEV Allies</button>
+          <button data-debug="dummy-1">1 Player View</button><button data-debug="dummy-2">2 Player View</button><button data-debug="dummy-4">4 Player View</button><button data-debug="dummy-8">8 Player View</button>
           <button data-debug="pickup-radius">Pickup Radius</button>
           <button data-debug="collision-bounds">Arena Bounds</button>
           <button data-debug="telegraphs">Telegraphs</button>

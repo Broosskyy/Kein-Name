@@ -15,14 +15,15 @@ export interface RunInventoryState {
 }
 
 export interface ArenaRunSnapshot {
-  schemaVersion: 1; eligible: boolean; savedAt: string; runMode: RunModeId; combat: CombatSnapshot;
+  schemaVersion: 1 | 2; eligible: boolean; savedAt: string; runMode: RunModeId; combat: CombatSnapshot;
   player: CombatEntityState; runLevel: number; runXp: number; xpToNext: number; selectedUpgrades: SelectedUpgrade[];
   pendingUpgradeIds: string[]; inventory: RunInventoryState; bossCycle: number; bossCyclesCleared: number;
-  pickups: number; lootSummary: Record<string, number>;
+  pickups: number; lootSummary: Record<string, number>; dashCooldownMs?: number; petPosition?: { x: number; y: number };
 }
 
 export type ArenaRunEvent =
   | { type: 'PLAYER_MOVED'; position: { x: number; y: number } }
+  | { type: 'PLAYER_DASHED'; from: { x: number; y: number }; to: { x: number; y: number } }
   | { type: 'PLAYER_DAMAGED'; damage: number; hp: number; source: BossAttackKind }
   | { type: 'PLAYER_DEFEATED' }
   | { type: 'LOOT_SPAWNED'; kind: LootKind; rarity: LootRarity }
@@ -30,7 +31,8 @@ export type ArenaRunEvent =
   | { type: 'RUN_LEVEL_UP'; level: number; choices: string[] }
   | { type: 'UPGRADE_ACQUIRED'; upgradeId: string; stacks: number }
   | { type: 'BOSS_CYCLE_CLEARED'; cycle: number }
-  | { type: 'BOSS_CYCLE_STARTED'; cycle: number };
+  | { type: 'BOSS_CYCLE_STARTED'; cycle: number }
+  | { type: 'BOSS_ATTACK_IMPACT'; impact: BossAttackImpact };
 
 export class ArenaRunModel {
   readonly player: CombatEntityState;
@@ -53,6 +55,9 @@ export class ArenaRunModel {
   collisionBoundsVisible = false;
   telegraphsVisible = true;
   performanceCountersVisible = false;
+  dashCooldownMs = 0;
+  readonly petPosition = { x: 1540, y: 1260 };
+  private lastMoveDirection = { x: 0, y: -1 };
   private readonly random: RunRandom;
   private readonly baseStats;
   private emit: (event: ArenaRunEvent) => void;
@@ -62,7 +67,7 @@ export class ArenaRunModel {
     this.runMode = runMode; this.emit = emit; this.random = new RunRandom(combat.seed ^ 0xa6e06e);
     this.player = createLocalPlayer(`player-${combat.runId}`, guestId); this.baseStats = { ...this.player.stats };
     this.bossAttacks = new BossAttackSystem(combat.seed); this.loot = new LootSystem(combat.seed, GAME_CONFIG.arena.maxLoot);
-    this.syncCombatModifiers();
+    this.equipPrototypePet(); this.syncCombatModifiers();
   }
 
   setEventSink(emit: (event: ArenaRunEvent) => void): void { this.emit = emit; }
@@ -73,7 +78,8 @@ export class ArenaRunModel {
     Object.assign(this.player, createLocalPlayer(`player-${this.combat.runId}`, guestId));
     this.runLevel = 1; this.runXp = 0; this.xpToNext = 100; this.selectedUpgrades = []; this.pendingUpgradeIds = [];
     this.bossCycle = 1; this.bossCyclesCleared = 0; this.pickupCount = 0; this.lootSummary = {};
-    this.inventory.equipmentIds = []; this.inventory.temporaryBuffIds = []; this.inventory.resources = {}; delete this.inventory.petId;
+    this.inventory.equipmentIds = []; this.inventory.temporaryBuffIds = []; this.inventory.resources = {}; this.dashCooldownMs = 0;
+    this.petPosition.x = this.player.position.x - 70; this.petPosition.y = this.player.position.y + 50; this.equipPrototypePet();
     this.dummyAllies.length = 0; this.bossAttacks.reset(this.combat.seed); this.loot.reset(this.combat.seed); this.syncCombatModifiers();
   }
 
@@ -85,20 +91,34 @@ export class ArenaRunModel {
 
   update(deltaMs: number, input: MovementInput, nowMs: number): void {
     if (this.combat.phase === 'playing' && !this.pausedForUpgrade) this.movePlayer(deltaMs, input);
+    this.dashCooldownMs = Math.max(0, this.dashCooldownMs - deltaMs);
     this.player.invulnerableMs = Math.max(0, this.player.invulnerableMs - deltaMs);
     const attackEnabled = this.combat.phase === 'playing' && !this.pausedForUpgrade;
-    for (const impact of this.bossAttacks.update(deltaMs, this.player.position, this.bossCycle, attackEnabled)) this.resolveBossImpact(impact, nowMs);
-    for (const pickup of this.loot.update(deltaMs, this.player.position, this.player.stats.pickupRadius)) this.collect(pickup, nowMs);
+    for (const impact of this.bossAttacks.update(deltaMs, this.player.position, this.bossCycle, attackEnabled, this.combat.bossHp / this.combat.maxHp)) this.resolveBossImpact(impact, nowMs);
+    const follow = 1 - Math.exp(-deltaMs / 240); const petTarget = { x: this.player.position.x - this.lastMoveDirection.x * 95 - 55, y: this.player.position.y - this.lastMoveDirection.y * 70 + 45 };
+    this.petPosition.x += (petTarget.x - this.petPosition.x) * follow; this.petPosition.y += (petTarget.y - this.petPosition.y) * follow;
+    for (const pickup of this.loot.update(deltaMs, this.player.position, this.player.stats.pickupRadius, this.inventory.petId ? this.petPosition : undefined)) this.collect(pickup, nowMs);
   }
 
   movePlayer(deltaMs: number, input: MovementInput): void {
     const magnitude = Math.hypot(input.x, input.y);
     const nx = magnitude > 1 ? input.x / magnitude : input.x;
     const ny = magnitude > 1 ? input.y / magnitude : input.y;
-    this.player.velocity.x = nx * this.player.stats.moveSpeed; this.player.velocity.y = ny * this.player.stats.moveSpeed;
+    const active = magnitude >= GAME_CONFIG.arena.movementDeadZone; const tx = active ? nx * this.player.stats.moveSpeed : 0, ty = active ? ny * this.player.stats.moveSpeed : 0;
+    const smoothing = 1 - Math.exp(-deltaMs / (active ? 65 : 90)); this.player.velocity.x += (tx - this.player.velocity.x) * smoothing; this.player.velocity.y += (ty - this.player.velocity.y) * smoothing;
     this.player.position = clampToArena({ x: this.player.position.x + this.player.velocity.x * deltaMs / 1000, y: this.player.position.y + this.player.velocity.y * deltaMs / 1000 });
     if (Math.abs(nx) > 0.05) this.player.facing = nx < 0 ? 'left' : 'right';
-    if (magnitude > 0.02) this.emit({ type: 'PLAYER_MOVED', position: { ...this.player.position } });
+    if (active) { this.lastMoveDirection = { x: nx, y: ny }; this.emit({ type: 'PLAYER_MOVED', position: { ...this.player.position } }); }
+  }
+
+  dash(input: MovementInput = this.lastMoveDirection): boolean {
+    if (this.combat.phase !== 'playing' || this.pausedForUpgrade || this.dashCooldownMs > 0) return false;
+    const mag = Math.hypot(input.x, input.y); const direction = mag > GAME_CONFIG.arena.movementDeadZone ? { x: input.x / mag, y: input.y / mag } : this.lastMoveDirection;
+    const from = { ...this.player.position };
+    this.player.position = clampToArena({ x: from.x + direction.x * GAME_CONFIG.arena.dashDistance, y: from.y + direction.y * GAME_CONFIG.arena.dashDistance });
+    this.player.velocity = { x: direction.x * this.player.stats.moveSpeed * 1.7, y: direction.y * this.player.stats.moveSpeed * 1.7 };
+    this.player.invulnerableMs = Math.max(this.player.invulnerableMs, GAME_CONFIG.arena.dashInvulnerabilityMs); this.dashCooldownMs = GAME_CONFIG.arena.dashCooldownMs;
+    this.emit({ type: 'PLAYER_DASHED', from, to: { ...this.player.position } }); return true;
   }
 
   takeDamage(rawDamage: number, source: BossAttackKind, nowMs: number): number {
@@ -126,7 +146,7 @@ export class ArenaRunModel {
     this.bossCyclesCleared += 1; this.emit({ type: 'BOSS_CYCLE_CLEARED', cycle: this.bossCycle });
     this.grantXp(Math.round(100 * Math.pow(GAME_CONFIG.cycles.xpMultiplier, this.bossCycle - 1)), nowMs);
     this.spawnLoot('relic', this.bossCycle >= 3 ? 'epic' : 'rare', 1);
-    for (let i = 0; i < Math.min(5, 2 + this.bossCycle); i += 1) this.spawnLoot(this.combat.isEventRun ? 'harvest-energy' : 'run-xp', i === 0 ? 'rare' : 'common', 20);
+    for (let i = 0; i < Math.min(9, 4 + this.bossCycle * 2); i += 1) this.spawnLoot(this.combat.isEventRun ? 'harvest-energy' : 'run-xp', i === 0 ? 'rare' : 'common', 20);
   }
 
   advanceCycle(nowMs: number): boolean {
@@ -159,12 +179,13 @@ export class ArenaRunModel {
   grantUpgrade(upgradeId: string, nowMs: number): boolean { this.pendingUpgradeIds = [upgradeId]; this.combat.pauseForUpgrade(nowMs); return this.chooseUpgrade(upgradeId, nowMs); }
 
   spawnLoot(kind: LootKind = 'run-xp', rarity: LootRarity = 'common', value = 10): void {
-    const spawned = this.loot.spawn(kind, rarity, { x: 500, y: 0 }, value);
+    const spawned = this.loot.spawn(kind, rarity, { x: 1600, y: 240 }, value);
     if (spawned) this.emit({ type: 'LOOT_SPAWNED', kind, rarity });
   }
 
   forceBossAttack(kind: BossAttackKind): void { this.bossAttacks.force(kind, { ...this.player.position }, this.bossCycle); }
   spawnDummy(): boolean { if (this.dummyAllies.length >= GAME_CONFIG.arena.maxDummyAllies) return false; this.dummyAllies.push(createDummyAlly(this.dummyAllies.length + 1)); return true; }
+  setVisualPlayerCount(count: 1 | 2 | 4 | 8): void { this.clearDummies(); while (this.dummyAllies.length < count - 1) this.spawnDummy(); }
   clearDummies(): void { this.dummyAllies.length = 0; }
 
   equip(itemId: string): boolean {
@@ -175,12 +196,12 @@ export class ArenaRunModel {
 
   snapshot(nowMs: number): ArenaRunSnapshot {
     return {
-      schemaVersion: 1, eligible: this.combat.phase !== 'result' && this.combat.phase !== 'failed', savedAt: new Date().toISOString(), runMode: this.runMode,
+      schemaVersion: 2, eligible: this.combat.phase !== 'result' && this.combat.phase !== 'failed', savedAt: new Date().toISOString(), runMode: this.runMode,
       combat: this.combat.snapshot(nowMs), player: JSON.parse(JSON.stringify(this.player)) as CombatEntityState,
       runLevel: this.runLevel, runXp: this.runXp, xpToNext: this.xpToNext,
       selectedUpgrades: this.selectedUpgrades.map((item) => ({ ...item })), pendingUpgradeIds: [...this.pendingUpgradeIds],
       inventory: JSON.parse(JSON.stringify(this.inventory)) as RunInventoryState, bossCycle: this.bossCycle,
-      bossCyclesCleared: this.bossCyclesCleared, pickups: this.pickupCount, lootSummary: { ...this.lootSummary },
+      bossCyclesCleared: this.bossCyclesCleared, pickups: this.pickupCount, lootSummary: { ...this.lootSummary }, dashCooldownMs: this.dashCooldownMs, petPosition: { ...this.petPosition },
     };
   }
 
@@ -191,10 +212,11 @@ export class ArenaRunModel {
     this.selectedUpgrades = snapshot.selectedUpgrades.map((item) => ({ ...item })); this.pendingUpgradeIds = [...snapshot.pendingUpgradeIds];
     Object.assign(this.inventory, JSON.parse(JSON.stringify(snapshot.inventory)) as RunInventoryState);
     this.bossCycle = snapshot.bossCycle; this.bossCyclesCleared = snapshot.bossCyclesCleared; this.pickupCount = snapshot.pickups; this.lootSummary = { ...snapshot.lootSummary };
+    this.dashCooldownMs = snapshot.dashCooldownMs ?? 0; Object.assign(this.petPosition, snapshot.petPosition ?? { x: this.player.position.x - 70, y: this.player.position.y + 50 });
     this.bossAttacks.reset(this.combat.seed); this.loot.reset(this.combat.seed); this.recalculateStats();
   }
 
-  private resolveBossImpact(impact: BossAttackImpact, nowMs: number): void { if (impact.hit) this.takeDamage(impact.damage, impact.kind, nowMs); }
+  private resolveBossImpact(impact: BossAttackImpact, nowMs: number): void { this.emit({ type: 'BOSS_ATTACK_IMPACT', impact }); if (impact.hit) this.takeDamage(impact.damage, impact.kind, nowMs); }
   private collect(pickup: LootPickup, nowMs: number): void {
     this.pickupCount += 1; this.lootSummary[pickup.kind] = (this.lootSummary[pickup.kind] ?? 0) + pickup.value;
     this.inventory.resources[pickup.kind] = (this.inventory.resources[pickup.kind] ?? 0) + pickup.value;

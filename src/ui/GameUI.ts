@@ -13,7 +13,7 @@ import { renderVisualCatalog } from './VisualCatalog';
 import type { MovementInput } from '../gameplay/ArenaTypes';
 import type { RunUpgradeDefinition } from '../gameplay/RunUpgrades';
 
-export type DebugAction = 'break-1' | 'break-2' | 'kill' | 'choose-crystal' | 'choose-void' | 'choose-wings' | 'choose-pumpkin' | 'build-cv' | 'build-cw' | 'build-vw' | 'build-pv' | 'build-pc' | 'build-pw' | 'event-toggle' | 'event-progress' | 'event-challenge' | 'event-unlock-all' | 'event-reset' | 'event-complete' | 'quality-low' | 'quality-medium' | 'quality-high' | 'effects-reduced' | 'visual-catalog' | 'grant-xp' | 'level-up' | 'spawn-loot' | 'spawn-rare' | 'next-cycle' | 'attack-slam' | 'attack-beam' | 'attack-debris' | 'damage-player' | 'heal-player' | 'dummy-add' | 'dummy-clear' | 'pickup-radius' | 'collision-bounds' | 'telegraphs' | 'performance' | 'save' | 'clear-snapshot' | 'inspect-progress' | 'inspect-run' | 'restart';
+export type DebugAction = 'break-1' | 'break-2' | 'kill' | 'choose-crystal' | 'choose-void' | 'choose-wings' | 'choose-pumpkin' | 'build-cv' | 'build-cw' | 'build-vw' | 'build-pv' | 'build-pc' | 'build-pw' | 'event-toggle' | 'event-progress' | 'event-challenge' | 'event-unlock-all' | 'event-reset' | 'event-complete' | 'quality-low' | 'quality-medium' | 'quality-high' | 'effects-reduced' | 'visual-catalog' | 'grant-xp' | 'level-up' | 'spawn-loot' | 'spawn-rare' | 'next-cycle' | 'attack-slam' | 'attack-beam' | 'attack-debris' | 'attack-cone' | 'attack-ring' | 'attack-shockwave' | 'damage-player' | 'heal-player' | 'dummy-add' | 'dummy-clear' | 'dummy-1' | 'dummy-2' | 'dummy-4' | 'dummy-8' | 'pickup-radius' | 'collision-bounds' | 'telegraphs' | 'performance' | 'save' | 'clear-snapshot' | 'inspect-progress' | 'inspect-run' | 'restart';
 
 export class GameUI {
   private readonly hpFill = requiredElement<HTMLElement>('hp-fill');
@@ -30,6 +30,8 @@ export class GameUI {
   private readonly eventHub = requiredElement<HTMLElement>('event-hub');
   private readonly visualCatalog = requiredElement<HTMLElement>('visual-catalog');
   private onPower?: () => void;
+  private onDash?: () => void;
+  private onZoom?: (delta: number) => void;
   private onRetry?: () => void;
   private onDebug?: (action: DebugAction) => void;
   private onEventEnter?: () => void;
@@ -46,6 +48,9 @@ export class GameUI {
       event.preventDefault();
       this.onPower?.();
     });
+    requiredElement<HTMLButtonElement>('dash-button').addEventListener('pointerdown', (event) => { event.preventDefault(); this.onDash?.(); });
+    requiredElement<HTMLButtonElement>('zoom-out').addEventListener('click', () => this.onZoom?.(-0.08));
+    requiredElement<HTMLButtonElement>('zoom-in').addEventListener('click', () => this.onZoom?.(0.08));
     requiredElement<HTMLButtonElement>('retry-button').addEventListener('click', () => this.onRetry?.());
     requiredElement<HTMLButtonElement>('event-enter').addEventListener('click', () => this.onEventEnter?.());
     requiredElement<HTMLButtonElement>('result-hub-button').addEventListener('click', () => this.onEventHub?.());
@@ -54,6 +59,7 @@ export class GameUI {
     requiredElement<HTMLButtonElement>('new-run').addEventListener('click', () => this.chooseResume(false));
     requiredElement<HTMLButtonElement>('failure-retry').addEventListener('click', () => this.onRetry?.());
     this.bindJoystick();
+    this.bindArenaZoom();
     this.choiceButtons.forEach((button, index) => button.addEventListener('click', () => {
       const mutation = this.choices[index];
       if (mutation) this.choiceCallback?.(mutation);
@@ -74,6 +80,8 @@ export class GameUI {
   }
 
   bindPower(callback: () => void): void { this.onPower = callback; }
+  bindDash(callback: () => void): void { this.onDash = callback; }
+  bindZoom(callback: (delta: number) => void): void { this.onZoom = callback; }
   bindRetry(callback: () => void): void { this.onRetry = callback; }
   bindDebug(callback: (action: DebugAction) => void): void { this.onDebug = callback; }
   bindEventEnter(callback: () => void): void { this.onEventEnter = callback; }
@@ -108,13 +116,15 @@ export class GameUI {
     requiredElement('debug-quality').textContent = `${quality.toUpperCase()}${reduced ? ' · REDUCED' : ''}`;
   }
 
-  updateArena(playerHp: number, playerMaxHp: number, level: number, xp: number, xpToNext: number, cycle: number): void {
+  updateArena(playerHp: number, playerMaxHp: number, level: number, xp: number, xpToNext: number, cycle: number, dashCooldownMs = 0): void {
     const ratio = Math.max(0, Math.min(1, playerHp / playerMaxHp));
     requiredElement('player-hp-fill').style.transform = `scaleX(${ratio})`;
     requiredElement('player-hp-text').textContent = `${Math.ceil(playerHp)} / ${playerMaxHp}`;
     requiredElement('run-level').textContent = String(level);
     requiredElement('run-xp-fill').style.transform = `scaleX(${Math.max(0, Math.min(1, xp / xpToNext))})`;
     requiredElement('cycle-label').textContent = `CYCLE ${cycle}`;
+    requiredElement('dash-status').textContent = dashCooldownMs <= 0 ? 'READY' : `${(dashCooldownMs / 1000).toFixed(1)}s`;
+    requiredElement<HTMLButtonElement>('dash-button').disabled = dashCooldownMs > 0;
   }
 
   showUpgradeChoices(choices: readonly RunUpgradeDefinition[], callback: (id: string) => void): void {
@@ -281,6 +291,14 @@ export class GameUI {
     joystick.addEventListener('pointermove', (event) => { if (event.pointerId === pointerId) update(event); });
     const release = (event: PointerEvent): void => { if (event.pointerId !== pointerId) return; pointerId = undefined; knob.style.transform = ''; this.onMove?.({ x: 0, y: 0 }); };
     joystick.addEventListener('pointerup', release); joystick.addEventListener('pointercancel', release);
+  }
+
+  private bindArenaZoom(): void {
+    const surface = requiredElement('game-canvas'); const pointers = new Map<number, { x: number; y: number }>(); let previousDistance = 0;
+    surface.addEventListener('wheel', (event) => { event.preventDefault(); this.onZoom?.(event.deltaY > 0 ? -0.055 : 0.055); }, { passive: false });
+    surface.addEventListener('pointerdown', (event) => { pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); });
+    surface.addEventListener('pointermove', (event) => { if (!pointers.has(event.pointerId)) return; pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); if (pointers.size !== 2) { previousDistance = 0; return; } const [a,b]=[...pointers.values()];const distance=Math.hypot(a.x-b.x,a.y-b.y);if(previousDistance>0&&Math.abs(distance-previousDistance)>3)this.onZoom?.((distance-previousDistance)*.0025);previousDistance=distance; });
+    const release=(event:PointerEvent):void=>{pointers.delete(event.pointerId);previousDistance=0};surface.addEventListener('pointerup',release);surface.addEventListener('pointercancel',release);
   }
 }
 
