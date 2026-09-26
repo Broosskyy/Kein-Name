@@ -1,9 +1,9 @@
-name: Unpack M07 Source
+name: Unpack M08 Source
 on:
   push:
     branches: [main]
     paths:
-      - 'Mutation_Boss_M07_Source.zip'
+      - 'Mutation_Boss_M08_Source.zip'
       - '.github/workflows/unpack-m05.yml'
   workflow_dispatch:
 
@@ -15,16 +15,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Unpack M07 source
+      - name: Unpack M08 source
         run: |
-          unzip -o Mutation_Boss_M07_Source.zip -d .
-          rm Mutation_Boss_M07_Source.zip
-      - name: Commit unpacked M07 source
+          unzip -o Mutation_Boss_M08_Source.zip -d .
+          rm Mutation_Boss_M08_Source.zip
+      - name: Commit unpacked M08 source
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "Unpack M07 source"
+          git commit -m "Unpack M08 source"
           git pull --rebase origin main
           git push
