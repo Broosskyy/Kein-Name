@@ -20,6 +20,8 @@ import { RUN_UPGRADES } from '../gameplay/RunUpgrades';
 import type { MovementInput } from '../gameplay/ArenaTypes';
 import { BossWorldPresentation } from './BossWorldPresentation';
 import { BOSS_WORLD_ANCHOR } from '../gameplay/ArenaRegions';
+import { CreatureLocomotion } from './CreatureLocomotion';
+import { ArenaDepthSystem } from '../gameplay/ArenaDepthSystem';
 
 export interface GameSceneM06Options {
   arena: ArenaRunModel;
@@ -106,6 +108,8 @@ export class GameScene {
   private readonly effects = new EffectsLayer(this.quality);
   private readonly arenaLayer = new ArenaLayer();
   private readonly bossWorldPresentation = new BossWorldPresentation();
+  private readonly creatureLocomotion = new CreatureLocomotion();
+  private readonly depthSystem = new ArenaDepthSystem();
   private readonly projectiles: Projectile[] = [];
   private readonly motes: Graphics[] = [];
   private readonly temporaryTimers = new Set<number>();
@@ -157,6 +161,7 @@ export class GameScene {
     private readonly m06?: GameSceneM06Options,
   ) {
     this.app.stage.addChild(this.world);
+    this.world.sortableChildren = true;
     const backgroundTexture = this.assets.texture('arena.standard.background');
     if (backgroundTexture) this.backgroundAsset = new Sprite(backgroundTexture);
     const halloweenBackgroundTexture = this.assets.texture('arena.halloween.background');
@@ -169,6 +174,13 @@ export class GameScene {
     this.world.addChild(this.arenaBack, this.ambient, this.arenaFloor, this.arenaLayer, this.boss, this.creature, this.essence, this.effects, this.arenaForeground);
     if (this.halloweenForegroundAsset) this.world.addChild(this.halloweenForegroundAsset);
     this.world.addChild(this.vignette, this.screenFlash);
+    this.background.zIndex=-100;
+    if(this.backgroundAsset)this.backgroundAsset.zIndex=-99;
+    if(this.halloweenBackgroundAsset)this.halloweenBackgroundAsset.zIndex=-98;
+    this.arenaBack.zIndex=-90;this.ambient.zIndex=-80;this.arenaFloor.zIndex=-70;this.arenaLayer.zIndex=0;
+    this.boss.zIndex=12;this.creature.zIndex=14;this.essence.zIndex=25;this.effects.zIndex=30;this.arenaForeground.zIndex=40;
+    if(this.halloweenForegroundAsset)this.halloweenForegroundAsset.zIndex=41;
+    this.vignette.zIndex=50;this.screenFlash.zIndex=60;
     this.createBoss();
     this.createCreature();
     this.createAmbientMotes();
@@ -448,6 +460,7 @@ export class GameScene {
     for (let index = 0; index < GAME_CONFIG.quality.high.maxProjectiles; index += 1) {
       const view = new Graphics();
       view.visible = false;
+      view.zIndex = 24;
       this.world.addChild(view);
       this.projectiles.push({ view, active: false, kind: 'normal', elapsed: 0, duration: 0, sx: 0, sy: 0, tx: 0, ty: 0, sourceKind: 'normal', trailElapsed: 0 });
     }
@@ -528,6 +541,8 @@ export class GameScene {
     });
     this.ui.bindDash(() => this.tryDash());
     this.ui.bindZoom((delta) => this.changeZoom(delta));
+    this.ui.bindCameraPan((dx, dy) => this.arenaLayer.panCamera(dx, dy));
+    this.ui.bindCameraReset(() => this.arenaLayer.resetCamera());
     this.ui.bindRetry(() => this.reset());
     this.ui.bindEventEnter(() => this.startEventRun());
     this.ui.bindEventHub(() => this.openEventHub());
@@ -562,7 +577,7 @@ export class GameScene {
     if (keyboard.x || keyboard.y || (!this.movementInput.x && !this.movementInput.y)) this.movementInput = keyboard;
   }
 
-  private tryDash(): void { if(this.m06?.arena.dash(this.movementInput)){this.audio.unlock();this.shake(90,2.5);this.arenaLayer.camera.impulse(3.5);} }
+  private tryDash(): void { if(this.m06?.arena.dash(this.movementInput)){this.audio.unlock();this.creaturePunch=1.2;this.shake(105,3.2);this.arenaLayer.camera.impulse(4.5);} }
   private changeZoom(delta:number):void{const zoom=this.arenaLayer.setZoom(this.arenaLayer.camera.targetZoom+delta);this.m06?.saveZoom?.(zoom)}
 
   private handleArenaEvent(event: ArenaRunEvent): void {
@@ -832,10 +847,13 @@ export class GameScene {
   private animateScene(deltaMs: number, now: number): void {
     const seconds = now / 1000;
     if (this.model.phase !== 'result' && this.m06?.arena) {
-      const pose = this.bossWorldPresentation.pose(this.arenaLayer.camera, this.m06.arena.player.position, this.width, this.height, this.portrait);
+      const pose = this.bossWorldPresentation.pose(this.arenaLayer.camera, this.m06.arena.player.position, this.width, this.height, this.portrait, this.m06.arena.bossWorld.position);
       this.bossBaseX = pose.x;
       this.bossBaseY = pose.y;
       this.bossBaseScale = pose.scale;
+      const depth = this.depthSystem.bossAndPlayer(this.m06.arena.bossWorld.position, this.m06.arena.player.position);
+      this.boss.zIndex = depth.boss;
+      this.creature.zIndex = depth.player;
     }
     const breath = 1 + Math.sin(seconds * 1.45) * 0.009;
     this.boss.scale.set(this.bossBaseScale * breath * (1 + this.bossRecoil * 0.018), this.bossBaseScale * (2 - breath) * (1 - this.bossRecoil * 0.012));
@@ -854,25 +872,27 @@ export class GameScene {
     this.bossEventLayer.alpha = Math.min(1, .68 + cycle * .1 + (1 - this.model.bossHp / this.model.maxHp) * .14);
     this.bossFallbackArt.rotation = Math.sin(seconds * 1.17) * .004 * cycle;
 
-    const creatureBreath = 1 + Math.sin(seconds * 3.1) * 0.018;
+    const creatureBreath = 1 + Math.sin(seconds * 3.1) * 0.014;
     const punch = Math.max(0, this.creaturePunch);
     const evolution = this.model.mutations.size === 2 ? evolutionFor(this.model.mutations).id : undefined;
     const progressScale = evolution ? EVOLUTION_VISUALS[evolution].renderScale : 1 + this.model.mutations.size * 0.07;
     const cameraScale = this.model.phase === 'result' ? 1 : this.arenaLayer.camera.zoom / GAME_CONFIG.arena.cameraDefaultZoom;
+    const arenaPlayer = this.m06?.arena.player;
+    const locomotion = this.creatureLocomotion.update(deltaMs, this.m06?.arena.lastMovementFrame, arenaPlayer?.velocity.x ?? 0, arenaPlayer?.stats.moveSpeed ?? 1);
     this.creature.scale.set(
-      this.creatureBaseScale * cameraScale * progressScale * (creatureBreath + punch * 0.08),
-      this.creatureBaseScale * cameraScale * progressScale * (2 - creatureBreath - punch * 0.11),
+      this.creatureBaseScale * cameraScale * progressScale * (creatureBreath + punch * 0.08) * locomotion.scaleX,
+      this.creatureBaseScale * cameraScale * progressScale * (2 - creatureBreath - punch * 0.11) * locomotion.scaleY,
     );
     const moveSpeed = this.model.phase !== 'result' && this.m06?.arena ? Math.hypot(this.m06.arena.player.velocity.x, this.m06.arena.player.velocity.y) : 0;
     const moveRatio = this.m06?.arena ? Math.min(1, moveSpeed / Math.max(1, this.m06.arena.player.stats.moveSpeed)) : 0;
     const wingLift = this.wingMutation.visible ? -5 + Math.sin(seconds * 3.4) * 4 : 0;
-    this.creature.y = this.creatureBaseY + Math.sin(seconds * (2.4 + moveRatio * 4)) * (3 + moveRatio * 2.2) + wingLift + punch * 7;
-    const directionalLean = this.m06?.arena ? this.m06.arena.player.velocity.x / Math.max(1, this.m06.arena.player.stats.moveSpeed) * 0.085 : 0;
-    this.creature.rotation = directionalLean + Math.sin(seconds * 2) * 0.01 - punch * 0.025;
+    this.creature.x = this.creatureBaseX;
+    this.creature.y = this.creatureBaseY + locomotion.offsetY + wingLift + punch * 7;
+    this.creature.rotation = locomotion.rotation + Math.sin(seconds * 2) * 0.006 - punch * 0.025;
     this.creaturePunch = Math.max(0, this.creaturePunch - deltaMs / 190);
     const hovering = this.wingMutation.visible || evolution === 'skyshard' || evolution === 'nightwing' || evolution === 'hollowwing';
-    this.creatureShadow.scale.set((hovering ? 0.78 : 1) * (1 + moveRatio * .14), (hovering ? 0.72 : 1) * (1 - moveRatio * .1));
-    this.creatureShadow.alpha = hovering ? 0.34 : 0.52;
+    this.creatureShadow.scale.set((hovering ? 0.78 : 1) * locomotion.shadowScaleX, (hovering ? 0.72 : 1) * locomotion.shadowScaleY);
+    this.creatureShadow.alpha = hovering ? 0.32 : locomotion.shadowAlpha;
     if (this.wingMutation.visible && this.visualState.sequence !== 'mutation') {
       const flap = 1 + Math.sin(seconds * 5.6) * 0.035;
       this.wingMutation.scale.set(flap, 2 - flap);
@@ -893,7 +913,7 @@ export class GameScene {
     }
     this.powerGrowth.rotation += deltaMs * 0.0009;
     this.movementDustMs -= deltaMs;
-    if (moveRatio > .45 && this.movementDustMs <= 0 && !this.quality.reducedEffects) {
+    if (locomotion.dust && this.movementDustMs <= 0 && !this.quality.reducedEffects) {
       this.movementDustMs = this.quality.name === 'low' ? 170 : 105;
       this.effects.trail(this.creatureBaseX, this.creatureBaseY + 20, this.model.isEventRun ? 0xb26a48 : 0x7787aa, 4 + moveRatio * 3);
     }
@@ -1524,7 +1544,7 @@ export class GameScene {
       this.halloweenForegroundAsset.position.set((this.width - this.halloweenForegroundAsset.width) / 2, (this.height - this.halloweenForegroundAsset.height) / 2);
     }
     this.bossBaseScale = this.portrait ? Math.min(1.05, this.width / 540) : Math.min(1.02, this.height / 600);
-    this.creatureBaseScale = this.model.phase === 'result' ? (this.portrait ? Math.min(0.86, this.width / 620) : Math.min(0.82, this.height / 760)) : (this.portrait ? Math.min(0.36, this.width / 1160) : Math.min(0.39, this.height / 1420));
+    this.creatureBaseScale = this.model.phase === 'result' ? (this.portrait ? Math.min(0.86, this.width / 620) : Math.min(0.82, this.height / 760)) : (this.portrait ? Math.min(0.48, this.width / 880) : Math.min(0.5, this.height / 1080));
     this.bossBaseX = this.portrait ? this.width * 0.5 : this.width * 0.66;
     this.bossBaseY = this.portrait ? this.height * 0.37 : this.height * 0.43;
     this.arenaLayer.resize(this.width, this.height);

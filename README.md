@@ -1,6 +1,6 @@
-# Mutation Boss — M08 World & Combat Experience
+# Mutation Boss — M09 True 360° Boss Arena
 
-Browser-first PixiJS boss-arena prototype: travel through a camera-driven 3200×1800 dark-fantasy arena, read world-space danger, dash for physical loot, grow a visible mutation build and break increasingly unstable Harvest Colossus cycles.
+Browser-first PixiJS boss-arena vertical slice: circle a physical world-space Harvest Colossus inside a 5600×4000 dark-fantasy arena, freely look and zoom, read directional danger, dash for physical loot, mutate and break escalating boss cycles.
 
 ## Start and validate
 
@@ -15,20 +15,22 @@ npm run preview
 
 ## Controls
 
-- Mobile: 360° joystick + **POWER HIT** + **DASH**; pinch or `− / +` to zoom.
-- Desktop: WASD/arrows, Space to dash, mouse wheel or `− / +` to zoom.
+- Mobile: 360° joystick + **POWER HIT** + **DASH**; drag open battlefield space to look, pinch to zoom, double-tap to reset follow.
+- Desktop: WASD/arrows, Space to dash, mouse drag to look, mouse wheel or `− / +` to zoom.
 - Fullscreen is optional and only requested from its explicit button.
 - Mutation and level-up choices pause active time and danger timing.
 - `D`, backtick or `?debug=1` opens DEV controls for attacks, loot, XP, cycles, dummies, quality and state.
 
-## Implemented M08 scope
+## Implemented M09 scope
 
-- Six visually distinct connected arena regions with large landmarks, cached floor detail, break reactions and bounded attack aftermath
-- Hybrid world-anchored giant boss whose pose responds to player distance, lateral camera travel and zoom
-- Soft follow/dead-zone/look-ahead, additive shake, clamped 0.68–1.30 zoom and saved zoom preference
-- Full X/Y/diagonal movement with normalized speed plus cooldown/invulnerability dash
+- Eight connected combat regions across a 5600×4000 arena with large landmarks, cached floor detail, break reactions and bounded aftermath
+- A real boss entity at (2800,1900), an elliptical 520×360 footprint, orientation, slow tracking and near/mid/far plus front/flank/rear classification
+- Fully world-projected giant boss presentation: lateral travel is real, depth changes around the boss and the Colossus can leave the viewport
+- Free camera look offset, soft follow/dead-zone/look-ahead, smooth reset, additive shake and clamped 0.62–1.38 saved zoom
+- Acceleration/deceleration-based analog X/Y movement, normalized diagonals, responsive turning and a timed invulnerable dash
+- Code-driven locomotion with stride, lean, acceleration stretch, braking/landing compression, contact-shadow response and bounded dust
 - One real local player; bounded DEV-only dummy allies are explicitly non-network entities
-- Distance-aware, repetition-resistant Ground Slam, Beam, Debris, Cone, Ring, Shockwave and Moving Hazard vocabulary
+- Position-aware, repetition-resistant Ground Slam, Beam, Debris, Cone, Ring, Shockwave, Moving Hazard, Arm Sweep, Rear Slam and Radial Shockwave vocabulary
 - Player HP, mitigation, brief invulnerability, failure and retry
 - Physical bounded loot with boss-origin arcs, bounce, contact shadows, rarity silhouettes/beams, risk-weighted landings and world-space Ember Wisp pickup
 - Run XP, levels and 11 data-driven upgrades across attack, defense, movement, utility and synergy
@@ -48,17 +50,20 @@ No backend, authentication, cloud save, real multiplayer, country/world aggregat
 
 - `src/core/CombatModel.ts` — combat values, mutation choices, cooldowns and result
 - `src/gameplay/ArenaRunModel.ts` — arena player, XP/build, loot, cycles and run snapshot
-- `src/gameplay/ArenaTypes.ts` / `ArenaRegions.ts` — combat coordinates, regions and boss zone
+- `src/gameplay/ArenaTypes.ts` / `ArenaRegions.ts` — 5600×4000 combat coordinates and eight regions
+- `src/gameplay/BossWorldEntity.ts` — physical footprint, orientation and boss-relative spatial classification
+- `src/gameplay/PlayerMovementController.ts` — analog acceleration, braking, turning and timed dash
 - `src/gameplay/BossAttackSystem.ts` / `LootSystem.ts` — bounded spatial systems
 - `src/gameplay/RunUpgrades.ts` / `Equipment.ts` / `RunModes.ts` — content and future boundaries
 - `src/progress/PlayerProgress.ts` / `GamePersistence.ts` — guest persistence and resume
 - `src/online/Contracts.ts` — contracts only; intentionally no network
 - `src/gameplay/ArenaCamera.ts` — world camera, transforms, zoom, follow and shake
 - `src/render/ArenaLayer.ts` — cached/camera-masked floor, regions, landmarks, telegraphs, aftermath, loot, dummies and pet
-- `src/render/BossWorldPresentation.ts` — giant hybrid boss world/screen pose
+- `src/render/BossWorldPresentation.ts` — giant world-projected boss pose
+- `src/render/CreatureLocomotion.ts` — movement pose and grounding
 - `src/render/GameScene.ts` — M05 presentation plus M06 arena integration
 - `src/ui/GameUI.ts` / `src/styles.css` — joystick, run HUD, choices, resume/failure and fullscreen
-- `M08_WORLD_VISUAL_COMBAT.md` — visual audit, world convergence, presentation and performance strategy
+- `M09_TRUE_BOSS_ARENA.md` — M09 architecture, parameters, validation and known risks
 
 ## Save/resume strategy
 

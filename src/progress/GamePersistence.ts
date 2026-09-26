@@ -17,7 +17,7 @@ export class GamePersistence {
   }
   saveProgress(progress: PlayerProgress): void { this.storage.setItem(SAVE_KEY, JSON.stringify(progress)); }
   loadRun(): ArenaRunSnapshot | undefined {
-    try { const raw = this.storage.getItem(RUN_KEY); if (!raw) return undefined; const parsed = JSON.parse(raw) as ArenaRunSnapshot; return (parsed.schemaVersion === 1 || parsed.schemaVersion === 2) && parsed.eligible ? parsed : undefined; }
+    try { const raw = this.storage.getItem(RUN_KEY); if (!raw) return undefined; const parsed = JSON.parse(raw) as ArenaRunSnapshot; return (parsed.schemaVersion === 1 || parsed.schemaVersion === 2 || parsed.schemaVersion === 3) && parsed.eligible ? parsed : undefined; }
     catch { this.storage.removeItem(RUN_KEY); return undefined; }
   }
   saveRun(snapshot: ArenaRunSnapshot): void { this.storage.setItem(RUN_KEY, JSON.stringify(snapshot)); }

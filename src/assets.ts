@@ -19,15 +19,22 @@ export type AssetKey =
   | 'boss.halloween.damage1'
   | 'boss.halloween.damage2'
   | 'boss.core'
+  | 'boss.core.unstable'
+  | 'boss.armor.fragments'
   | 'arena.standard.background'
   | 'arena.halloween.background'
   | 'arena.halloween.foreground'
   | 'arena.landmark.crystal'
   | 'arena.landmark.pillar'
   | 'arena.landmark.harvestRoot'
+  | 'arena.floor.detail'
+  | 'arena.landmark.rock'
+  | 'arena.landmark.fissure'
+  | 'arena.landmark.corruption'
   | 'loot.common'
   | 'loot.rare'
   | 'loot.epic'
+  | 'loot.legendaryReady'
   | 'pet.emberWisp'
   | 'icon.mutation.crystal'
   | 'icon.mutation.void'
@@ -37,6 +44,9 @@ export type AssetKey =
   | 'essence.void'
   | 'essence.wings'
   | 'essence.pumpkin'
+  | 'vfx.projectile'
+  | 'vfx.impact'
+  | 'vfx.telegraphNoise'
   | 'ui.powerHit';
 
 export type AssetKind = 'character' | 'mutation-part' | 'boss' | 'background' | 'foreground' | 'icon' | 'effect' | 'ui';
@@ -79,15 +89,22 @@ export const ASSET_MANIFEST: AssetManifest = {
   'boss.halloween.damage1': entry('boss', [1280, 1280]),
   'boss.halloween.damage2': entry('boss', [1280, 1280]),
   'boss.core': entry('effect', [384, 384]),
+  'boss.core.unstable': entry('effect', [512, 512], true, 'deferred'),
+  'boss.armor.fragments': entry('foreground', [1024, 768], true, 'deferred'),
   'arena.standard.background': entry('background', [1600, 1200], false),
   'arena.halloween.background': entry('background', [1600, 1200], false),
   'arena.halloween.foreground': entry('foreground', [1600, 1200], true, 'deferred'),
   'arena.landmark.crystal': entry('foreground', [512, 768], true, 'deferred'),
   'arena.landmark.pillar': entry('foreground', [512, 1024], true, 'deferred'),
   'arena.landmark.harvestRoot': entry('foreground', [768, 768], true, 'deferred'),
+  'arena.floor.detail': entry('background', [1024, 1024], true, 'deferred'),
+  'arena.landmark.rock': entry('foreground', [512, 512], true, 'deferred'),
+  'arena.landmark.fissure': entry('foreground', [768, 384], true, 'deferred'),
+  'arena.landmark.corruption': entry('foreground', [768, 768], true, 'deferred'),
   'loot.common': entry('icon', [192, 192], true, 'deferred'),
   'loot.rare': entry('icon', [256, 256], true, 'deferred'),
   'loot.epic': entry('icon', [320, 320], true, 'deferred'),
+  'loot.legendaryReady': entry('icon', [384, 384], true, 'deferred'),
   'pet.emberWisp': entry('character', [384, 384], true, 'deferred'),
   'icon.mutation.crystal': entry('icon', [256, 256]),
   'icon.mutation.void': entry('icon', [256, 256]),
@@ -97,6 +114,9 @@ export const ASSET_MANIFEST: AssetManifest = {
   'essence.void': entry('effect', [256, 256]),
   'essence.wings': entry('effect', [256, 256]),
   'essence.pumpkin': entry('effect', [256, 256]),
+  'vfx.projectile': entry('effect', [256, 128], true, 'deferred'),
+  'vfx.impact': entry('effect', [512, 512], true, 'deferred'),
+  'vfx.telegraphNoise': entry('effect', [512, 512], true, 'deferred'),
   'ui.powerHit': entry('ui', [512, 192]),
 };
 

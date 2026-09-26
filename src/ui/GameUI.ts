@@ -32,6 +32,8 @@ export class GameUI {
   private onPower?: () => void;
   private onDash?: () => void;
   private onZoom?: (delta: number) => void;
+  private onCameraPan?: (dx: number, dy: number) => void;
+  private onCameraReset?: () => void;
   private onRetry?: () => void;
   private onDebug?: (action: DebugAction) => void;
   private onEventEnter?: () => void;
@@ -82,6 +84,8 @@ export class GameUI {
   bindPower(callback: () => void): void { this.onPower = callback; }
   bindDash(callback: () => void): void { this.onDash = callback; }
   bindZoom(callback: (delta: number) => void): void { this.onZoom = callback; }
+  bindCameraPan(callback: (dx: number, dy: number) => void): void { this.onCameraPan = callback; }
+  bindCameraReset(callback: () => void): void { this.onCameraReset = callback; }
   bindRetry(callback: () => void): void { this.onRetry = callback; }
   bindDebug(callback: (action: DebugAction) => void): void { this.onDebug = callback; }
   bindEventEnter(callback: () => void): void { this.onEventEnter = callback; }
@@ -294,10 +298,26 @@ export class GameUI {
   }
 
   private bindArenaZoom(): void {
-    const surface = requiredElement('game-canvas'); const pointers = new Map<number, { x: number; y: number }>(); let previousDistance = 0;
+    const surface = requiredElement('game-canvas'); const pointers = new Map<number, { x: number; y: number }>(); let previousDistance = 0; let lastTap = 0;
     surface.addEventListener('wheel', (event) => { event.preventDefault(); this.onZoom?.(event.deltaY > 0 ? -0.055 : 0.055); }, { passive: false });
-    surface.addEventListener('pointerdown', (event) => { pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); });
-    surface.addEventListener('pointermove', (event) => { if (!pointers.has(event.pointerId)) return; pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); if (pointers.size !== 2) { previousDistance = 0; return; } const [a,b]=[...pointers.values()];const distance=Math.hypot(a.x-b.x,a.y-b.y);if(previousDistance>0&&Math.abs(distance-previousDistance)>3)this.onZoom?.((distance-previousDistance)*.0025);previousDistance=distance; });
+    surface.addEventListener('pointerdown', (event) => {
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      const now = performance.now();
+      if (now - lastTap < 310) this.onCameraReset?.();
+      lastTap = now;
+    });
+    surface.addEventListener('pointermove', (event) => {
+      const previous = pointers.get(event.pointerId);
+      if (!previous) return;
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (pointers.size === 1) {
+        this.onCameraPan?.(event.clientX - previous.x, event.clientY - previous.y);
+        previousDistance = 0;
+        return;
+      }
+      if (pointers.size !== 2) return;
+      const [a,b]=[...pointers.values()];const distance=Math.hypot(a.x-b.x,a.y-b.y);if(previousDistance>0&&Math.abs(distance-previousDistance)>3)this.onZoom?.((distance-previousDistance)*.0025);previousDistance=distance;
+    });
     const release=(event:PointerEvent):void=>{pointers.delete(event.pointerId);previousDistance=0};surface.addEventListener('pointerup',release);surface.addEventListener('pointercancel',release);
   }
 }

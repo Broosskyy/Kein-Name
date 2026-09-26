@@ -103,3 +103,20 @@ M08 adds a deliberately small set of deferred semantic slots. All use procedural
 | `pet.emberWisp` | 384×384 | Yes | Small warm spirit, clear face/core, no trail/shadow baked in | Procedural ember wisp |
 
 Code retains rarity beams, bounce, shadows, fog, landmark break dust and lighting. Assets must not bake effects that need to react to world state.
+
+## M09 world-space extension slots
+
+These remain deferred and always have procedural fallbacks.
+
+| Asset ID | Recommended | Alpha | Purpose |
+|---|---:|:---:|---|
+| `boss.core.unstable` | 512×512 | Yes | Aligned unstable-core insert for final phase/cycles |
+| `boss.armor.fragments` | 1024×768 | Yes | Aligned modular armor fragments; no debris trail baked in |
+| `arena.floor.detail` | 1024×1024 | Yes | Seam-safe broad stone wear/detail, no gameplay markings |
+| `arena.landmark.rock` | 512×512 | Yes | Large dark angular rock, ground anchor y90% |
+| `arena.landmark.fissure` | 768×384 | Yes | Ground-aligned glowing crack without baked bloom |
+| `arena.landmark.corruption` | 768×768 | Yes | Root/corruption cluster with clear walk-space silhouette |
+| `loot.legendaryReady` | 384×384 | Yes | Reserved high-tier silhouette; tier is not content-enabled |
+| `vfx.projectile` | 256×128 | Yes | Optional neutral projectile body, horizontal travel |
+| `vfx.impact` | 512×512 | Yes | Optional impact material mask, no full-screen flash |
+| `vfx.telegraphNoise` | 512×512 | Yes | Tileable monochrome telegraph noise/mask |

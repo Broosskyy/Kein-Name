@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import { GAME_CONFIG, type QualityName } from '../config';
 import { ArenaCamera } from '../gameplay/ArenaCamera';
-import { ARENA_REGIONS, BOSS_WORLD_ANCHOR, BOSS_ZONE_RADIUS } from '../gameplay/ArenaRegions';
+import { ARENA_REGIONS, BOSS_WORLD_ANCHOR } from '../gameplay/ArenaRegions';
 import type { ArenaRunModel } from '../gameplay/ArenaRunModel';
 import { BOSS_ATTACKS, type BossTelegraph } from '../gameplay/BossAttackSystem';
 import type { LootDrop, LootKind } from '../gameplay/LootSystem';
@@ -15,11 +15,13 @@ const LOOT_COLORS: Record<LootKind, number> = {
 
 interface Landmark { x: number; y: number; type: 'crystal' | 'pillar' | 'root' | 'statue' | 'fissure'; scale: number }
 const LANDMARKS: readonly Landmark[] = [
-  { x: 360, y: 610, type: 'crystal', scale: 1.45 }, { x: 690, y: 1240, type: 'crystal', scale: 1.05 },
-  { x: 2580, y: 650, type: 'pillar', scale: 1.65 }, { x: 2890, y: 1180, type: 'pillar', scale: 1.15 },
-  { x: 610, y: 1570, type: 'root', scale: 1.45 }, { x: 1150, y: 1510, type: 'root', scale: 0.95 },
-  { x: 2110, y: 1430, type: 'fissure', scale: 1.4 }, { x: 2730, y: 1530, type: 'fissure', scale: 1.15 },
-  { x: 1440, y: 890, type: 'statue', scale: 1.35 }, { x: 1840, y: 680, type: 'statue', scale: 0.9 },
+  { x: 520, y: 720, type: 'pillar', scale: 1.75 }, { x: 980, y: 1280, type: 'statue', scale: 1.25 },
+  { x: 720, y: 2380, type: 'crystal', scale: 1.55 }, { x: 1180, y: 3380, type: 'pillar', scale: 1.35 },
+  { x: 1900, y: 650, type: 'root', scale: 1.4 }, { x: 2800, y: 520, type: 'statue', scale: 1.65 },
+  { x: 3800, y: 610, type: 'fissure', scale: 1.55 }, { x: 4780, y: 820, type: 'root', scale: 1.55 },
+  { x: 4600, y: 1700, type: 'pillar', scale: 1.7 }, { x: 5000, y: 2860, type: 'crystal', scale: 1.65 },
+  { x: 4320, y: 3500, type: 'crystal', scale: 1.25 }, { x: 3300, y: 3400, type: 'fissure', scale: 1.45 },
+  { x: 2180, y: 3380, type: 'statue', scale: 1.1 }, { x: 1520, y: 2100, type: 'fissure', scale: 1.15 },
 ] as const;
 
 interface AftermathDecal { position: Vec2; kind: string; ageMs: number; durationMs: number; radius: number }
@@ -76,6 +78,8 @@ export class ArenaLayer extends Container {
   toScreen(position: Vec2): Vec2 { return this.camera.worldToScreen(position); }
   updateCamera(deltaMs: number, arena: ArenaRunModel): void { this.camera.update(deltaMs, arena.player.position, arena.player.velocity); this.applyCameraTransform(); }
   setZoom(value: number): number { return this.camera.setZoom(value); }
+  panCamera(dx:number,dy:number):void{this.camera.panByScreen(dx,dy);this.applyCameraTransform()}
+  resetCamera():void{this.camera.resetFollow()}
 
   reactToImpact(position: Vec2, radius: number, kind = 'slam'): boolean {
     let changed = false;
@@ -139,8 +143,8 @@ export class ArenaLayer extends Container {
   }
 
   private drawStoneFloor(): void {
-    for (let row = 0; row < 9; row += 1) {
-      for (let column = 0; column < 14; column += 1) {
+    for (let row = 0; row < 20; row += 1) {
+      for (let column = 0; column < 25; column += 1) {
         const x = 120 + column * 230 + (row % 2) * 95;
         const y = 110 + row * 205;
         const variation = (row * 17 + column * 31) % 5;
@@ -148,7 +152,7 @@ export class ArenaLayer extends Container {
         this.floor.poly(points).fill({ color: variation % 2 ? 0x20202c : 0x1b1c28, alpha: 0.44 }).stroke({ color: 0x6e6372, width: 4, alpha: 0.09 });
       }
     }
-    const cracks = [[270,420,590,690],[980,330,1250,580],[1980,980,2270,1270],[2380,1370,2860,1480],[610,1390,1040,1540]];
+    const cracks = [[270,420,790,790],[1280,530,1750,980],[2480,1080,2870,1570],[3380,1370,4260,1680],[610,2790,1440,3340],[3820,2780,5020,3300],[2050,3500,3040,3700]];
     for (const [x1,y1,x2,y2] of cracks) this.floor.moveTo(x1,y1).lineTo((x1+x2)/2+40,(y1+y2)/2-35).lineTo(x2,y2).stroke({ color: this.eventTheme ? 0xb5482c : 0x485a85, width: 13, alpha: 0.18 + this.cycle * 0.04 });
   }
 
@@ -184,8 +188,8 @@ export class ArenaLayer extends Container {
 
   private drawBossPresence(seconds: number, hpRatio: number): void {
     this.bossPresence.clear(); const instability = 1 - hpRatio;
-    this.bossPresence.ellipse(BOSS_WORLD_ANCHOR.x, BOSS_WORLD_ANCHOR.y + 220, 470, 180).fill({ color: 0x020208, alpha: 0.55 + instability * 0.15 });
-    this.bossPresence.circle(BOSS_WORLD_ANCHOR.x, BOSS_WORLD_ANCHOR.y + 120, BOSS_ZONE_RADIUS).stroke({ color: this.eventTheme ? 0xff6d32 : 0x7d5fa7, width: 20, alpha: 0.07 + instability * 0.08 });
+    this.bossPresence.ellipse(BOSS_WORLD_ANCHOR.x, BOSS_WORLD_ANCHOR.y + 170, 610, 245).fill({ color: 0x020208, alpha: 0.58 + instability * 0.15 });
+    this.bossPresence.ellipse(BOSS_WORLD_ANCHOR.x, BOSS_WORLD_ANCHOR.y, 520, 360).stroke({ color: this.eventTheme ? 0xff6d32 : 0x7d5fa7, width: 20, alpha: 0.06 + instability * 0.08 });
     const pulse = 25 + Math.sin(seconds * (2 + this.cycle)) * 8;
     this.bossPresence.circle(BOSS_WORLD_ANCHOR.x, BOSS_WORLD_ANCHOR.y + 130, 130 + pulse).fill({ color: this.eventTheme ? 0xff6b2d : 0x9258d1, alpha: 0.025 + instability * 0.035 });
   }
@@ -210,9 +214,17 @@ export class ArenaLayer extends Container {
       } else {
         const length = definition.shape === 'line' ? 1900 : attack.radius;
         const end = { x: attack.origin.x + attack.direction.x * length, y: attack.origin.y + attack.direction.y * length };
-        const width = definition.shape === 'line' ? attack.radius * 2 : length * 0.72;
-        this.telegraphs.moveTo(attack.origin.x, attack.origin.y).lineTo(end.x, end.y).stroke({ color, width, alpha: fillAlpha })
-          .moveTo(attack.origin.x, attack.origin.y).lineTo(end.x, end.y).stroke({ color: imminent ? 0xffedc2 : color, width: 10 + progress * 6, alpha: 0.88 });
+        const halfWidth = definition.shape === 'line' ? attack.radius : length * 0.38;
+        const px = -attack.direction.y, py = attack.direction.x;
+        const startWidth = definition.shape === 'line' ? halfWidth : 26;
+        const polygon = [
+          attack.origin.x + px * startWidth, attack.origin.y + py * startWidth,
+          end.x + px * halfWidth, end.y + py * halfWidth,
+          end.x - px * halfWidth, end.y - py * halfWidth,
+          attack.origin.x - px * startWidth, attack.origin.y - py * startWidth,
+        ];
+        this.telegraphs.poly(polygon).fill({ color, alpha: fillAlpha }).stroke({ color: imminent ? 0xffedc2 : color, width: 10 + progress * 6, alpha: 0.82 });
+        for(let stripe=1;stripe<=3;stripe+=1){const t=stripe/4;const sx=attack.origin.x+(end.x-attack.origin.x)*t,sy=attack.origin.y+(end.y-attack.origin.y)*t,w=startWidth+(halfWidth-startWidth)*t;this.telegraphs.moveTo(sx+px*w,sy+py*w).lineTo(sx-px*w,sy-py*w).stroke({color,width:5,alpha:.12+progress*.12})}
       }
     }
   }
@@ -266,7 +278,7 @@ export class ArenaLayer extends Container {
 
   private drawGuides(arena: ArenaRunModel): void {
     this.guides.clear();
-    if (arena.collisionBoundsVisible) this.guides.rect(160, 180, 2880, 1440).stroke({ color: 0x62ffb5, width: 8, alpha: .7 });
+    if (arena.collisionBoundsVisible) this.guides.rect(180, 180, 5240, 3640).stroke({ color: 0x62ffb5, width: 8, alpha: .7 }).ellipse(arena.bossWorld.position.x,arena.bossWorld.position.y,arena.bossWorld.footprint.radiusX,arena.bossWorld.footprint.radiusY).stroke({color:0xff9a45,width:8,alpha:.7});
     if (arena.pickupRadiusVisible) this.guides.circle(arena.player.position.x, arena.player.position.y, arena.player.stats.pickupRadius).stroke({ color: 0x75eaff, width: 7, alpha: .55 });
   }
 

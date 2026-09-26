@@ -297,7 +297,6 @@ body.halloween-event .hp-frame { border-color:rgba(255,139,61,.24); }body.hallow
 #mut-wings i::before { right:8px; } #mut-wings i::after { left:8px;transform:scaleX(-1); }
 #mut-pumpkin i { border-radius:46%;background:radial-gradient(circle at 50% 55%,#ffc25f 0 18%,#d35524 21% 65%,#632538);box-shadow:0 0 8px #ff762e; }
 @keyframes acquired-icon { from { opacity:0;transform:scale(.45) rotate(-12deg); } }
-.zoom-controls { opacity:.28; transition:opacity .2s ease; }
-.zoom-controls:hover,.zoom-controls:focus-within { opacity:1; }
+.zoom-controls { display:none; }
 #dash-button:not(:disabled) { animation:dash-ready 2s ease-in-out infinite; }
 @keyframes dash-ready { 50% { box-shadow:0 7px 20px #0008,0 0 23px #4edfff40; } }

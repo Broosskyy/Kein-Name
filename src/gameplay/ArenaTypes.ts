@@ -40,7 +40,7 @@ export interface CombatEntityState {
 
 export interface MovementInput { x: number; y: number }
 
-export const ARENA_BOUNDS = { minX: 160, maxX: 3040, minY: 180, maxY: 1620 } as const;
+export const ARENA_BOUNDS = { minX: 180, maxX: 5420, minY: 180, maxY: 3820 } as const;
 
 export function clampToArena(position: Vec2): Vec2 {
   return {
@@ -56,7 +56,7 @@ export function createLocalPlayer(entityId: string, guestId: string): CombatEnti
   };
   return {
     entityId, kind: 'local-player', playerId: guestId, displayName: 'YOU',
-    position: { x: 1600, y: 1220 }, velocity: { x: 0, y: 0 }, facing: 'right',
+    position: { x: 2800, y: 2920 }, velocity: { x: 0, y: 0 }, facing: 'right',
     hp: stats.maxHp, maxHp: stats.maxHp, invulnerableMs: 0, mutationIds: [],
     equippedRunItemIds: [], cosmeticIds: [], buffIds: [], stats, isOnlinePlayer: false,
   };
@@ -67,6 +67,6 @@ export function createDummyAlly(index: number): CombatEntityState {
   entity.kind = 'dummy-ally';
   entity.displayName = `DEV ALLY ${index}`;
   const angle = (index - 1) / 7 * Math.PI * 2;
-  entity.position = { x: 1600 + Math.cos(angle) * 620, y: 1050 + Math.sin(angle) * 360 };
+  entity.position = { x: 2800 + Math.cos(angle) * 980, y: 2000 + Math.sin(angle) * 720 };
   return entity;
 }
