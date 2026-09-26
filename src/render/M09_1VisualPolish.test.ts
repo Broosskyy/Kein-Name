@@ -9,7 +9,7 @@ import { bossVisualKey } from './VisualDefinitions';
 
 describe('M09.1 bounded visual polish', () => {
   it('ships the Harvest Colossus master as asset-first with procedural fallback contract', () => {
-    expect(ASSET_MANIFEST['boss.halloween.base'].src).toBe('/assets/harvest-colossus-master.webp');
+    expect(ASSET_MANIFEST['boss.halloween.base'].src).toBe('/assets/boss/harvest-colossus-base.webp');
     expect(ASSET_MANIFEST['boss.halloween.base'].fallback).toBe('procedural');
     expect(new AssetRegistry().resolve('boss.standard.base').mode).toBe('procedural');
   });

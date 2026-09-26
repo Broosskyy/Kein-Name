@@ -15,6 +15,11 @@ import type { RunUpgradeDefinition } from '../gameplay/RunUpgrades';
 
 export type DebugAction = 'break-1' | 'break-2' | 'kill' | 'choose-crystal' | 'choose-void' | 'choose-wings' | 'choose-pumpkin' | 'build-cv' | 'build-cw' | 'build-vw' | 'build-pv' | 'build-pc' | 'build-pw' | 'event-toggle' | 'event-progress' | 'event-challenge' | 'event-unlock-all' | 'event-reset' | 'event-complete' | 'quality-low' | 'quality-medium' | 'quality-high' | 'effects-reduced' | 'visual-catalog' | 'grant-xp' | 'level-up' | 'spawn-loot' | 'spawn-rare' | 'next-cycle' | 'cycle-1' | 'cycle-2' | 'cycle-3' | 'region-core' | 'region-crystal' | 'region-ruins' | 'region-edge' | 'distance-near' | 'distance-medium' | 'distance-far' | 'zoom-action' | 'zoom-standard' | 'zoom-tactical' | 'attack-slam' | 'attack-beam' | 'attack-debris' | 'attack-cone' | 'attack-ring' | 'attack-shockwave' | 'damage-player' | 'heal-player' | 'dummy-add' | 'dummy-clear' | 'dummy-1' | 'dummy-2' | 'dummy-4' | 'dummy-8' | 'pickup-radius' | 'collision-bounds' | 'telegraphs' | 'performance' | 'save' | 'clear-snapshot' | 'inspect-progress' | 'inspect-run' | 'restart';
 
+export function announcementLifecycle(requestedMs: number): Readonly<{ totalMs: number; enterMs: number; exitMs: number }> {
+  const totalMs = Math.max(650, Math.min(1500, Math.round(requestedMs)));
+  return { totalMs, enterMs: Math.round(totalMs * .16), exitMs: Math.round(totalMs * .28) };
+}
+
 export class GameUI {
   private readonly hpFill = requiredElement<HTMLElement>('hp-fill');
   private readonly hpShine = requiredElement<HTMLElement>('hp-shine');
@@ -181,7 +186,7 @@ export class GameUI {
     this.choiceCallback = undefined;
   }
 
-  announce(title: string, subtitle: string, color: string, durationMs = 1400): void {
+  announce(title: string, subtitle: string, color: string, durationMs = 1050): void {
     const strong = this.announcement.querySelector('strong');
     const span = this.announcement.querySelector('span');
     if (strong) strong.textContent = title;
@@ -191,7 +196,7 @@ export class GameUI {
     void this.announcement.offsetWidth;
     this.announcement.classList.add('show');
     window.clearTimeout(this.announcementTimeout);
-    this.announcementTimeout = window.setTimeout(() => this.announcement.classList.remove('show'), durationMs);
+    this.announcementTimeout = window.setTimeout(() => this.announcement.classList.remove('show'), announcementLifecycle(durationMs).totalMs);
   }
 
   showResult(result: RunResult): void {

@@ -130,3 +130,33 @@ These remain deferred and always have procedural fallbacks.
 The current generated master is a near-production vertical-slice asset. Damage stages deliberately reuse the aligned base master plus code overlays until artist-generated stage files are supplied. Do not independently regenerate stages: derive them from the same layered boss master to preserve anatomy and pixel alignment.
 
 New deferred M09.1 slots: `vfx.powerHit`, `vfx.crack` and `vfx.scorch`. Every slot remains optional and fails back to bounded code rendering.
+
+## M09.2 coherent master-kit pipeline
+
+M09.2 supersedes the one-off M09.1 runtime master with eight true-RGBA production sources in `production-assets/source/`. Related art is generated together so perspective, material, light and scale remain coherent. `npm run assets:extract` produces isolated WebP files with transparent padding for `public/assets/`; gameplay loads only these extracted files.
+
+| Master source | Contents | Runtime destination | Status |
+|---|---|---|---|
+| `creature-base-modular-kit-01.png` | base master plus same-anatomy modular studies | `assets/creature/creature-base.webp` | Active |
+| `arena-ruins-colossus-kit-01.png` | 8 ruin/rock assets | `assets/environment/arena-*.webp` | Active |
+| `arena-crystal-corruption-kit-01.png` | 8 crystal/corruption assets | `assets/environment/arena-*.webp` | Active |
+| `arena-ground-details-kit-01.png` | 8 floor-perspective decals | `assets/ground/ground-*.webp` | Active |
+| `loot-kit-01.png` | Common A/B, Rare A/B, Epic A/B | `assets/loot/loot-*.webp` | Active |
+| `combat-vfx-kit-01.png` | projectile, impacts and material masks | `assets/vfx/vfx-*.webp` | Projectile active; other masks integration-ready |
+| `harvest-colossus-states-kit-01.png` | aligned Base/Break I/Break II/Core | `assets/boss/harvest-colossus-*.webp` | Active |
+| `ember-wisp-master.png` | compact companion master | `assets/pet/ember-wisp.webp` | Active |
+
+All sources and runtime exports are technically validated as RGBA with alpha 0 outside the art. No source has a checkerboard, presentation background, text, label or frame. The archived `harvest-colossus-m09-1-master.webp` remains under `production-assets/source/` as provenance and is not shipped to the browser.
+
+### Active anchors and sizing
+
+- Creature: center x50%, ground y77%; runtime height ~235 world units. Gameplay radius is unchanged.
+- Ruins/crystals: center-bottom footpoint; authored target height controls world scale. Shadows are code-driven.
+- Ground decals: center anchor; rotation and non-uniform scale are authored in `ArenaProductionArt.ts`.
+- Loot: center with code-driven contact shadow, beam, bounce and magnet motion.
+- Boss states: center x50%, ground y91%; all states share the same world footprint and collision.
+- VFX: centered; projectile travel rotation remains code-driven. Trails and screen feedback remain code-driven.
+
+### Remaining production gaps
+
+The following slots intentionally retain procedural rendering until a coherent derived kit exists: modular Crystal/Void/Wings/Pumpkin attachments, six full evolution heroes, non-Halloween boss states, mutation icons, arena-wide background/foreground planes and UI art. Telegraph boundaries, trails, fog, dust, shadows, damage numbers, shockwaves and aftermath animation remain intentionally code-driven because they must react to gameplay state.

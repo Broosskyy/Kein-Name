@@ -31,9 +31,33 @@ export type AssetKey =
   | 'arena.landmark.rock'
   | 'arena.landmark.fissure'
   | 'arena.landmark.corruption'
+  | 'arena.landmark.arch'
+  | 'arena.landmark.brokenArch'
+  | 'arena.landmark.brokenPillar'
+  | 'arena.landmark.wall'
+  | 'arena.landmark.rubble'
+  | 'arena.landmark.altar'
+  | 'arena.crystal.small'
+  | 'arena.crystal.medium'
+  | 'arena.crystal.large'
+  | 'arena.crystal.corrupted'
+  | 'arena.corruption.stone'
+  | 'arena.corruption.ruin'
+  | 'arena.crystal.shards'
+  | 'ground.crack'
+  | 'ground.impactCrack'
+  | 'ground.fissure.orange'
+  | 'ground.fissure.dormant'
+  | 'ground.scorch'
+  | 'ground.corruption'
+  | 'ground.rubble'
+  | 'ground.crystalFragments'
   | 'loot.common'
   | 'loot.rare'
   | 'loot.epic'
+  | 'loot.common.alt'
+  | 'loot.rare.alt'
+  | 'loot.epic.alt'
   | 'loot.legendaryReady'
   | 'pet.emberWisp'
   | 'icon.mutation.crystal'
@@ -50,6 +74,9 @@ export type AssetKey =
   | 'vfx.telegraphNoise'
   | 'vfx.crack'
   | 'vfx.scorch'
+  | 'vfx.shockwave'
+  | 'vfx.corruption'
+  | 'vfx.pickup'
   | 'ui.powerHit';
 
 export type AssetKind = 'character' | 'mutation-part' | 'boss' | 'background' | 'foreground' | 'icon' | 'effect' | 'ui';
@@ -74,7 +101,7 @@ const entry = (kind: AssetKind, size: readonly [number, number], alpha = true, p
 // Add a local WebP/PNG src to any slot. Rendering prefers it automatically and
 // preserves a coherent procedural fallback when it is absent or fails to load.
 export const ASSET_MANIFEST: AssetManifest = {
-  'creature.base': entry('character', [768, 768]),
+  'creature.base': { ...entry('character', [768, 768]), src: '/assets/creature/creature-base.webp' },
   'creature.mutation.crystal': entry('mutation-part', [768, 768]),
   'creature.mutation.void': entry('mutation-part', [768, 768]),
   'creature.mutation.wings': entry('mutation-part', [1024, 768]),
@@ -88,27 +115,51 @@ export const ASSET_MANIFEST: AssetManifest = {
   'boss.standard.base': entry('boss', [1280, 1280]),
   'boss.standard.damage1': entry('boss', [1280, 1280]),
   'boss.standard.damage2': entry('boss', [1280, 1280]),
-  'boss.halloween.base': { ...entry('boss', [1280, 1280]), src: '/assets/harvest-colossus-master.webp' },
-  'boss.halloween.damage1': entry('boss', [1280, 1280]),
-  'boss.halloween.damage2': entry('boss', [1280, 1280]),
+  'boss.halloween.base': { ...entry('boss', [1280, 1280]), src: '/assets/boss/harvest-colossus-base.webp' },
+  'boss.halloween.damage1': { ...entry('boss', [1280, 1280]), src: '/assets/boss/harvest-colossus-break1.webp' },
+  'boss.halloween.damage2': { ...entry('boss', [1280, 1280]), src: '/assets/boss/harvest-colossus-break2.webp' },
   'boss.core': entry('effect', [384, 384]),
-  'boss.core.unstable': entry('effect', [512, 512], true, 'deferred'),
+  'boss.core.unstable': { ...entry('boss', [1280, 1280]), src: '/assets/boss/harvest-colossus-core.webp' },
   'boss.armor.fragments': entry('foreground', [1024, 768], true, 'deferred'),
   'arena.standard.background': entry('background', [1600, 1200], false),
   'arena.halloween.background': entry('background', [1600, 1200], false),
   'arena.halloween.foreground': entry('foreground', [1600, 1200], true, 'deferred'),
-  'arena.landmark.crystal': entry('foreground', [512, 768], true, 'deferred'),
-  'arena.landmark.pillar': entry('foreground', [512, 1024], true, 'deferred'),
-  'arena.landmark.harvestRoot': entry('foreground', [768, 768], true, 'deferred'),
+  'arena.landmark.crystal': { ...entry('foreground', [512, 768], true, 'deferred'), src: '/assets/environment/arena-crystal-large-01.webp' },
+  'arena.landmark.pillar': { ...entry('foreground', [512, 1024], true, 'deferred'), src: '/assets/environment/arena-ruin-pillar-01.webp' },
+  'arena.landmark.harvestRoot': { ...entry('foreground', [768, 768], true, 'deferred'), src: '/assets/environment/arena-corruption-root-01.webp' },
   'arena.floor.detail': entry('background', [1024, 1024], true, 'deferred'),
-  'arena.landmark.rock': entry('foreground', [512, 512], true, 'deferred'),
-  'arena.landmark.fissure': entry('foreground', [768, 384], true, 'deferred'),
-  'arena.landmark.corruption': entry('foreground', [768, 768], true, 'deferred'),
-  'loot.common': entry('icon', [192, 192], true, 'deferred'),
-  'loot.rare': entry('icon', [256, 256], true, 'deferred'),
-  'loot.epic': entry('icon', [320, 320], true, 'deferred'),
+  'arena.landmark.rock': { ...entry('foreground', [512, 512], true, 'deferred'), src: '/assets/environment/arena-rock-formation-01.webp' },
+  'arena.landmark.fissure': { ...entry('foreground', [768, 384], true, 'deferred'), src: '/assets/ground/ground-fissure-orange-01.webp' },
+  'arena.landmark.corruption': { ...entry('foreground', [768, 768], true, 'deferred'), src: '/assets/environment/arena-corruption-ruin-01.webp' },
+  'arena.landmark.arch': { ...entry('foreground', [1024, 1024], true, 'deferred'), src: '/assets/environment/arena-ruined-arch-01.webp' },
+  'arena.landmark.brokenArch': { ...entry('foreground', [768, 768], true, 'deferred'), src: '/assets/environment/arena-broken-arch-01.webp' },
+  'arena.landmark.brokenPillar': { ...entry('foreground', [512, 768], true, 'deferred'), src: '/assets/environment/arena-broken-pillar-01.webp' },
+  'arena.landmark.wall': { ...entry('foreground', [768, 512], true, 'deferred'), src: '/assets/environment/arena-collapsed-wall-01.webp' },
+  'arena.landmark.rubble': { ...entry('foreground', [512, 384], true, 'deferred'), src: '/assets/environment/arena-rubble-cluster-01.webp' },
+  'arena.landmark.altar': { ...entry('foreground', [768, 768], true, 'deferred'), src: '/assets/environment/arena-altar-fragment-01.webp' },
+  'arena.crystal.small': { ...entry('foreground', [384, 384], true, 'deferred'), src: '/assets/environment/arena-crystal-small-01.webp' },
+  'arena.crystal.medium': { ...entry('foreground', [512, 512], true, 'deferred'), src: '/assets/environment/arena-crystal-medium-01.webp' },
+  'arena.crystal.large': { ...entry('foreground', [768, 768], true, 'deferred'), src: '/assets/environment/arena-crystal-large-01.webp' },
+  'arena.crystal.corrupted': { ...entry('foreground', [768, 768], true, 'deferred'), src: '/assets/environment/arena-crystal-corrupted-01.webp' },
+  'arena.corruption.stone': { ...entry('foreground', [512, 512], true, 'deferred'), src: '/assets/environment/arena-corruption-stone-01.webp' },
+  'arena.corruption.ruin': { ...entry('foreground', [768, 768], true, 'deferred'), src: '/assets/environment/arena-corruption-ruin-01.webp' },
+  'arena.crystal.shards': { ...entry('foreground', [384, 384], true, 'deferred'), src: '/assets/environment/arena-crystal-shards-01.webp' },
+  'ground.crack': { ...entry('foreground', [512, 512], true, 'deferred'), src: '/assets/ground/ground-crack-01.webp' },
+  'ground.impactCrack': { ...entry('foreground', [512, 512], true, 'deferred'), src: '/assets/ground/ground-impact-crack-01.webp' },
+  'ground.fissure.orange': { ...entry('foreground', [768, 384], true, 'deferred'), src: '/assets/ground/ground-fissure-orange-01.webp' },
+  'ground.fissure.dormant': { ...entry('foreground', [768, 384], true, 'deferred'), src: '/assets/ground/ground-fissure-dormant-01.webp' },
+  'ground.scorch': { ...entry('foreground', [512, 512], true, 'deferred'), src: '/assets/ground/ground-scorch-01.webp' },
+  'ground.corruption': { ...entry('foreground', [512, 512], true, 'deferred'), src: '/assets/ground/ground-corruption-patch-01.webp' },
+  'ground.rubble': { ...entry('foreground', [512, 512], true, 'deferred'), src: '/assets/ground/ground-rubble-debris-01.webp' },
+  'ground.crystalFragments': { ...entry('foreground', [512, 512], true, 'deferred'), src: '/assets/ground/ground-crystal-fragments-01.webp' },
+  'loot.common': { ...entry('icon', [192, 192], true, 'deferred'), src: '/assets/loot/loot-common-a.webp' },
+  'loot.rare': { ...entry('icon', [256, 256], true, 'deferred'), src: '/assets/loot/loot-rare-a.webp' },
+  'loot.epic': { ...entry('icon', [320, 320], true, 'deferred'), src: '/assets/loot/loot-epic-a.webp' },
+  'loot.common.alt': { ...entry('icon', [192, 192], true, 'deferred'), src: '/assets/loot/loot-common-b.webp' },
+  'loot.rare.alt': { ...entry('icon', [256, 256], true, 'deferred'), src: '/assets/loot/loot-rare-b.webp' },
+  'loot.epic.alt': { ...entry('icon', [320, 320], true, 'deferred'), src: '/assets/loot/loot-epic-b.webp' },
   'loot.legendaryReady': entry('icon', [384, 384], true, 'deferred'),
-  'pet.emberWisp': entry('character', [384, 384], true, 'deferred'),
+  'pet.emberWisp': { ...entry('character', [384, 384], true, 'deferred'), src: '/assets/pet/ember-wisp.webp' },
   'icon.mutation.crystal': entry('icon', [256, 256]),
   'icon.mutation.void': entry('icon', [256, 256]),
   'icon.mutation.wings': entry('icon', [256, 256]),
@@ -117,12 +168,15 @@ export const ASSET_MANIFEST: AssetManifest = {
   'essence.void': entry('effect', [256, 256]),
   'essence.wings': entry('effect', [256, 256]),
   'essence.pumpkin': entry('effect', [256, 256]),
-  'vfx.projectile': entry('effect', [256, 128], true, 'deferred'),
-  'vfx.powerHit': entry('effect', [512, 256], true, 'deferred'),
-  'vfx.impact': entry('effect', [512, 512], true, 'deferred'),
+  'vfx.projectile': { ...entry('effect', [256, 128], true, 'deferred'), src: '/assets/vfx/vfx-projectile-normal.webp' },
+  'vfx.powerHit': { ...entry('effect', [512, 256], true, 'deferred'), src: '/assets/vfx/vfx-projectile-power.webp' },
+  'vfx.impact': { ...entry('effect', [512, 512], true, 'deferred'), src: '/assets/vfx/vfx-impact-large.webp' },
   'vfx.telegraphNoise': entry('effect', [512, 512], true, 'deferred'),
-  'vfx.crack': entry('effect', [512, 512], true, 'deferred'),
-  'vfx.scorch': entry('effect', [512, 512], true, 'deferred'),
+  'vfx.crack': { ...entry('effect', [512, 512], true, 'deferred'), src: '/assets/vfx/vfx-crack-impact.webp' },
+  'vfx.scorch': { ...entry('effect', [512, 512], true, 'deferred'), src: '/assets/ground/ground-scorch-01.webp' },
+  'vfx.shockwave': { ...entry('effect', [512, 512], true, 'deferred'), src: '/assets/vfx/vfx-shockwave.webp' },
+  'vfx.corruption': { ...entry('effect', [512, 512], true, 'deferred'), src: '/assets/vfx/vfx-corruption.webp' },
+  'vfx.pickup': { ...entry('effect', [512, 512], true, 'deferred'), src: '/assets/vfx/vfx-pickup.webp' },
   'ui.powerHit': entry('ui', [512, 192]),
 };
 

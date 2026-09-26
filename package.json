@@ -1,9 +1,10 @@
 {
   "name": "mutation-boss",
   "private": true,
-  "version": "0.9.1",
+  "version": "0.9.2",
   "type": "module",
   "scripts": {
+    "assets:extract": "bash scripts/extract-production-kits.sh",
     "dev": "vite --host 0.0.0.0",
     "dev:local": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build --emptyOutDir",

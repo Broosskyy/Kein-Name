@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
     <meta name="theme-color" content="#090b16" />
     <title>Mutation Boss</title>
-    <script type="module" crossorigin src="/assets/index-4HMvj6N2.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CP4AELeY.css">
+    <script type="module" crossorigin src="/assets/index-n4TU9TMO.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DwECLZao.css">
   </head>
   <body>
     <main id="game-shell">
@@ -40,10 +40,10 @@
           <div id="joystick" aria-label="Move"><i id="joystick-knob"></i></div>
           <div class="player-vitals"><span>YOU</span><i><b id="player-hp-fill"></b></i><small id="player-hp-text">100 / 100</small></div>
           <div class="mutation-strip">
-            <span id="mut-crystal">CRYSTAL</span>
-            <span id="mut-void">VOID</span>
-            <span id="mut-wings">WINGS</span>
-            <span id="mut-pumpkin">PUMPKIN</span>
+            <span id="mut-crystal" title="Crystal" aria-label="Crystal acquired"><i></i></span>
+            <span id="mut-void" title="Void" aria-label="Void acquired"><i></i></span>
+            <span id="mut-wings" title="Wings" aria-label="Wings acquired"><i></i></span>
+            <span id="mut-pumpkin" title="Pumpkin" aria-label="Pumpkin acquired"><i></i></span>
           </div>
           <button id="power-button" type="button" aria-label="Power Hit">
             <span class="power-label">POWER HIT</span>
@@ -129,6 +129,10 @@
           <button data-debug="spawn-loot">Spawn Loot</button>
           <button data-debug="spawn-rare">Spawn Rare Loot</button>
           <button data-debug="next-cycle">Next Cycle</button>
+          <button data-debug="cycle-1">Cycle 1</button><button data-debug="cycle-2">Cycle 2</button><button data-debug="cycle-3">Cycle 3</button>
+          <button data-debug="region-core">Teleport Core</button><button data-debug="region-crystal">Teleport Crystal</button><button data-debug="region-ruins">Teleport Ruins</button><button data-debug="region-edge">Teleport Edge</button>
+          <button data-debug="distance-near">Boss Near</button><button data-debug="distance-medium">Boss Medium</button><button data-debug="distance-far">Boss Far</button>
+          <button data-debug="zoom-action">Zoom Action</button><button data-debug="zoom-standard">Zoom Standard</button><button data-debug="zoom-tactical">Zoom Tactical</button>
           <button data-debug="attack-slam">Ground Slam</button>
           <button data-debug="attack-beam">Core Beam</button>
           <button data-debug="attack-debris">Falling Debris</button>

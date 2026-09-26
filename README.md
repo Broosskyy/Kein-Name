@@ -1,11 +1,12 @@
-# Mutation Boss — M09.1 Visual Vertical Slice
+# Mutation Boss — M09.2 Production Art Convergence
 
-Browser-first PixiJS boss-arena vertical slice: circle a physical world-space Harvest Colossus inside a 5600×4000 dark-fantasy arena, freely look and zoom, read floor-attached danger, dash for physical loot, mutate and break escalating boss cycles. M09.1 adds the first integrated production boss master and a focused world/combat presentation pass without changing gameplay scope.
+Browser-first PixiJS boss-arena vertical slice: circle a physical world-space Harvest Colossus inside a 5600×4000 dark-fantasy arena, freely look and zoom, read floor-attached danger, dash for physical loot, mutate and break escalating boss cycles. M09.2 closes the visual gap around the production Colossus with a coherent creature, ruins, crystal/corruption, ground, loot, VFX, boss-state and pet art pipeline. Gameplay math and the M09 world/camera foundation are unchanged.
 
 ## Start and validate
 
 ```bash
 npm install
+npm run assets:extract
 npm run dev
 npx tsc -b
 npm test
@@ -44,18 +45,17 @@ npm run preview
 - Browser Fullscreen API wrapper with graceful fallback
 - M04 Halloween systems and M05 AssetManifest V2 retained
 
-## M09.1 visual convergence
+## M09.2 production-art convergence
 
-- Integrated transparent Harvest Colossus production master with aligned procedural core, damage, hit and death layers
-- Asset-first landmark/floor hooks with safe procedural fallback
-- Irregular cached stone plates, macro terrain patches and stronger boss grounding instead of the repeated grid cadence
-- Broken-edge, crack-driven floor telegraphs with low-opacity centers and readable Warning/Imminent/Impact states
-- Bounded reusable ground aftermath decals and pooled VFX lifecycle diagnostics
-- Stronger boss anticipation, impact compression, recoil, debris and localized shockwave response
-- More desirable world loot scale, rarity beams and Ember Wisp presence
-- Calmer camera follow/look-ahead and faster-decaying controlled shake
-- Subtle off-screen boss direction marker
-- Compact premium HUD polish; permanent zoom buttons remain removed
+- Eight coherent transparent production masters under `production-assets/source/`, generated as kits rather than unrelated one-off props
+- 44 optimized individual WebP runtime assets extracted by `scripts/extract-production-kits.sh`
+- A readable cream/charcoal Base Creature with blue eyes; locomotion, collision and mutation logic remain code-driven
+- An authored 22-prop arena composition plus 16 ground-detail placements across ruin, crystal and corruption sectors
+- Footpoint-based depth/occlusion, cheap prop shadows, camera culling and quality-aware detail density
+- Distinct Common/Rare/Epic loot silhouettes, an Ember Wisp master and production projectile bodies
+- Four aligned Harvest Colossus states from one master sheet: Base, Break I, Break II and Core Unstable
+- Every production slot retains a safe procedural fallback and failed loads never affect gameplay
+- Compact, shorter announcements keep mobile combat space visible
 
 No backend, authentication, cloud save, real multiplayer, country/world aggregation, store, ads or fake online data exists.
 
@@ -72,12 +72,14 @@ No backend, authentication, cloud save, real multiplayer, country/world aggregat
 - `src/online/Contracts.ts` — contracts only; intentionally no network
 - `src/gameplay/ArenaCamera.ts` — world camera, transforms, zoom, follow and shake
 - `src/render/ArenaLayer.ts` — cached/camera-masked floor, regions, landmarks, telegraphs, aftermath, loot, dummies and pet
+- `src/render/ArenaProductionArt.ts` — deterministic authored production prop/decal composition
 - `src/render/BossWorldPresentation.ts` — giant world-projected boss pose
 - `src/render/CreatureLocomotion.ts` — movement pose and grounding
 - `src/render/GameScene.ts` — M05 presentation plus M06 arena integration
 - `src/ui/GameUI.ts` / `src/styles.css` — joystick, run HUD, choices, resume/failure and fullscreen
 - `M09_TRUE_BOSS_ARENA.md` — M09 architecture, parameters, validation and known risks
 - `M09_1_VISUAL_COMBAT_POLISH.md` — M09.1 visual audit, asset integration, caps and validation
+- `M09_2_PRODUCTION_ART_CONVERGENCE.md` — kit pipeline, runtime integration and validation
 
 ## Save/resume strategy
 
@@ -91,4 +93,4 @@ Portrait is master; test 360×780 through 430×932 plus landscape. Validate joys
 
 Group encounters, authoritative boss/loot, reconnect, ranked results, Country/World contribution and account progression require a real server clock, validation and server-owned rewards. The browser client must never be authoritative for competitive damage, aggregate HP, economy or valuable claims.
 
-Production assets remain optional semantic slots. Missing files use M05 procedural fallbacks; assets and LOW/MEDIUM/HIGH quality never alter gameplay math.
+Production assets remain optional semantic slots. Missing or failed files use procedural fallbacks; LOW/MEDIUM/HIGH changes presentation density only and never gameplay math.

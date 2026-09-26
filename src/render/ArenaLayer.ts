@@ -8,6 +8,7 @@ import type { LootDrop, LootKind } from '../gameplay/LootSystem';
 import type { Vec2 } from '../gameplay/ArenaTypes';
 import { GroundDecalSystem } from './GroundDecalSystem';
 import { TelegraphRenderer } from './TelegraphRenderer';
+import { PRODUCTION_GROUND_DETAILS, PRODUCTION_PROPS, type ProductionProp } from './ArenaProductionArt';
 
 const LOOT_COLORS: Record<LootKind, number> = {
   'run-xp': 0x75eaff, 'crystal-essence': 0x67e7ff, 'void-essence': 0xc667ff,
@@ -16,22 +17,20 @@ const LOOT_COLORS: Record<LootKind, number> = {
 };
 
 interface Landmark { x: number; y: number; type: 'crystal' | 'pillar' | 'root' | 'statue' | 'fissure' | 'arch' | 'rock'; scale: number }
-const LANDMARKS: readonly Landmark[] = [
-  { x: 520, y: 720, type: 'arch', scale: 1.75 }, { x: 980, y: 1280, type: 'statue', scale: 1.25 },
-  { x: 720, y: 2380, type: 'crystal', scale: 1.55 }, { x: 1180, y: 3380, type: 'pillar', scale: 1.35 },
-  { x: 1900, y: 650, type: 'root', scale: 1.4 }, { x: 2800, y: 520, type: 'statue', scale: 1.65 },
-  { x: 3800, y: 610, type: 'fissure', scale: 1.55 }, { x: 4780, y: 820, type: 'root', scale: 1.55 },
-  { x: 4600, y: 1700, type: 'arch', scale: 1.7 }, { x: 5000, y: 2860, type: 'crystal', scale: 1.65 },
-  { x: 4320, y: 3500, type: 'crystal', scale: 1.25 }, { x: 3300, y: 3400, type: 'fissure', scale: 1.45 },
-  { x: 2180, y: 3380, type: 'rock', scale: 1.25 }, { x: 1520, y: 2100, type: 'fissure', scale: 1.15 },
-] as const;
+
+interface LootView { root: Container; fallback: Graphics; sprite: Sprite; key?: AssetKey }
+interface ProductionPropView { root: Container; definition: ProductionProp }
 
 /** Camera-transformed world presentation; static geometry is cached and never rebuilt per frame. */
 export class ArenaLayer extends Container {
+  /** Added to GameScene as a separate depth plane so tall authored props can
+   * occlude the player only when their footpoint is in front of it. */
+  readonly foregroundWorld = new Container();
   readonly camera = new ArenaCamera(GAME_CONFIG.arena.width, GAME_CONFIG.arena.height, GAME_CONFIG.arena.cameraMinZoom, GAME_CONFIG.arena.cameraMaxZoom);
   private readonly viewportMask = new Graphics();
   private readonly worldRoot = new Container();
   private readonly floor = new Graphics();
+  private readonly productionGroundDetails = new Container();
   private readonly bossPresence = new Graphics();
   private readonly staticProps = new Graphics();
   private readonly productionLandmarks = new Container();
@@ -41,9 +40,12 @@ export class ArenaLayer extends Container {
   private readonly guides = new Graphics();
   private readonly atmosphere = new Graphics();
   private readonly bossIndicator = new Graphics();
-  private readonly lootViews: Graphics[] = [];
+  private readonly lootViews: LootView[] = [];
   private readonly dummyViews: Graphics[] = [];
-  private readonly petView = new Graphics();
+  private readonly petView = new Container();
+  private readonly petFallback = new Graphics();
+  private petSprite?: Sprite;
+  private readonly productionPropViews: ProductionPropView[] = [];
   private readonly brokenLandmarks = new Set<number>();
   private readonly decals = new GroundDecalSystem(24);
   private readonly telegraphRenderer = new TelegraphRenderer();
@@ -54,15 +56,18 @@ export class ArenaLayer extends Container {
 
   constructor(private readonly assets?: AssetRegistry) {
     super();
+    this.worldRoot.sortableChildren = true;
+    this.foregroundWorld.sortableChildren = true;
     this.addChild(this.worldRoot, this.viewportMask);
     this.worldRoot.mask = this.viewportMask;
     this.worldRoot.addChild(this.floor);
     const floorTexture=this.assets?.texture('arena.floor.detail');
     if(floorTexture){this.floorDetail=new Sprite(floorTexture);this.floorDetail.width=GAME_CONFIG.arena.width;this.floorDetail.height=GAME_CONFIG.arena.height;this.floorDetail.alpha=.3;this.worldRoot.addChild(this.floorDetail)}
-    this.worldRoot.addChild(this.bossPresence, this.staticProps, this.productionLandmarks, this.aftermath, this.telegraphs, this.guides);
+    this.worldRoot.addChild(this.productionGroundDetails, this.bossPresence, this.staticProps, this.productionLandmarks, this.aftermath, this.telegraphs, this.guides);
     this.drawStaticWorld();
     for (let index = 0; index < GAME_CONFIG.arena.maxLoot; index += 1) {
-      const view = new Graphics(); view.visible = false; this.lootViews.push(view); this.worldRoot.addChild(view);
+      const root = new Container(); const fallback = new Graphics(); const sprite = new Sprite(); sprite.anchor.set(.5);
+      root.addChild(fallback, sprite); root.visible = false; this.lootViews.push({ root, fallback, sprite }); this.worldRoot.addChild(root);
     }
     for (let index = 0; index < 7; index += 1) {
       const view = new Graphics(); this.drawDummy(view, index); view.visible = false; this.dummyViews.push(view); this.worldRoot.addChild(view);
@@ -79,7 +84,11 @@ export class ArenaLayer extends Container {
     this.applyCameraTransform();
   }
 
-  setQuality(name: QualityName, reduced: boolean): void { this.quality = name; this.reducedEffects = reduced; this.drawAtmosphere(); }
+  setQuality(name: QualityName, reduced: boolean): void {
+    this.quality = name; this.reducedEffects = reduced;
+    this.productionGroundDetails.alpha = reduced ? .62 : name === 'low' ? .74 : name === 'high' ? 1 : .9;
+    this.drawAtmosphere();
+  }
   setTheme(eventTheme: boolean): void { if (eventTheme === this.eventTheme) return; this.eventTheme = eventTheme; this.drawStaticWorld(); }
   setCycle(cycle: number): void { if (cycle === this.cycle) return; this.cycle = cycle; this.drawStaticWorld(); }
   toScreen(position: Vec2): Vec2 { return this.camera.worldToScreen(position); }
@@ -90,7 +99,7 @@ export class ArenaLayer extends Container {
 
   reactToImpact(position: Vec2, radius: number, kind = 'slam'): boolean {
     let changed = false;
-    LANDMARKS.forEach((landmark, index) => {
+    PRODUCTION_PROPS.forEach((landmark, index) => {
       if (!this.brokenLandmarks.has(index) && Math.hypot(position.x - landmark.x, position.y - landmark.y) <= radius + 120) {
         this.brokenLandmarks.add(index); changed = true;
       }
@@ -109,9 +118,9 @@ export class ArenaLayer extends Container {
     this.drawGuides(arena);
     const drops = arena.loot.drops.filter((drop) => drop.phase !== 'collected');
     this.lootViews.forEach((view, index) => {
-      const drop = drops[index]; view.visible = Boolean(drop); if (!drop) return;
-      this.drawLoot(view, drop, seconds); view.position.set(drop.position.x, drop.position.y);
-      view.visible = this.worldVisible(drop.position, 220);
+      const drop = drops[index]; view.root.visible = Boolean(drop); if (!drop) return;
+      this.drawLoot(view, drop, seconds); view.root.position.set(drop.position.x, drop.position.y);
+      view.root.visible = this.worldVisible(drop.position, 220);
     });
     this.dummyViews.forEach((view, index) => {
       const dummy = arena.dummyAllies[index]; view.visible = Boolean(dummy); if (!dummy) return;
@@ -123,12 +132,13 @@ export class ArenaLayer extends Container {
       this.petView.rotation = Math.sin(seconds * 2.3) * 0.08;
       this.petView.scale.set(2.05+Math.sin(seconds*4)*.05);
     }
+    this.updatePropDepth(arena.player.position.y);
     this.atmosphere.alpha = this.reducedEffects ? 0.35 : this.quality === 'low' ? 0.5 : 1;
   }
 
   clearTransient(): void {
     this.telegraphs.clear(); this.guides.clear(); this.aftermath.clear(); this.bossIndicator.clear(); this.decals.clear(); this.brokenLandmarks.clear();
-    this.lootViews.forEach((view) => { view.visible = false; }); this.dummyViews.forEach((view) => { view.visible = false; }); this.petView.visible = false;
+    this.lootViews.forEach((view) => { view.root.visible = false; }); this.dummyViews.forEach((view) => { view.visible = false; }); this.petView.visible = false;
     this.drawStaticWorld();
   }
 
@@ -136,11 +146,15 @@ export class ArenaLayer extends Container {
     const viewport = this.camera.viewport, scale = this.camera.scale;
     this.worldRoot.scale.set(scale);
     this.worldRoot.position.set(viewport.x + viewport.width / 2 - this.camera.position.x * scale, viewport.y + viewport.height / 2 - this.camera.position.y * scale);
+    this.foregroundWorld.scale.set(scale);
+    this.foregroundWorld.position.copyFrom(this.worldRoot.position);
   }
 
   private drawStaticWorld(): void {
-    this.floor.clear(); this.staticProps.clear();
+    this.floor.clear(); this.staticProps.clear(); this.productionGroundDetails.removeChildren().forEach((child) => child.destroy());
     for(const child of this.productionLandmarks.removeChildren())child.destroy();
+    for(const child of this.foregroundWorld.removeChildren())child.destroy();
+    this.productionPropViews.length = 0;
     this.floor.rect(0, 0, GAME_CONFIG.arena.width, GAME_CONFIG.arena.height).fill(this.eventTheme ? 0x100c16 : 0x0d1220);
     for (const region of ARENA_REGIONS) {
       const cycleTint = this.cycle >= 3 ? 0x391925 : this.cycle === 2 ? 0x271521 : region.ground;
@@ -148,17 +162,45 @@ export class ArenaLayer extends Container {
       this.floor.ellipse(region.center.x, region.center.y, region.radius.x * 0.78, region.radius.y * 0.76).stroke({ color: region.accent, width: 12, alpha: 0.045 + this.cycle * 0.015 });
     }
     this.drawStoneFloor();
-    LANDMARKS.forEach((landmark, index) => {if(!this.drawProductionLandmark(landmark,index))this.drawLandmark(landmark,index)});
+    this.drawProductionGroundDetails();
+    PRODUCTION_PROPS.forEach((prop, index) => { if (!this.drawProductionProp(prop, index)) this.drawLandmark(this.fallbackLandmark(prop), index); });
   }
 
-  private drawProductionLandmark(landmark: Landmark,index:number):boolean{
-    if(this.brokenLandmarks.has(index)||!this.assets)return false;
-    const keys:Partial<Record<Landmark['type'],AssetKey>>={crystal:'arena.landmark.crystal',pillar:'arena.landmark.pillar',arch:'arena.landmark.pillar',root:'arena.landmark.harvestRoot',rock:'arena.landmark.rock',fissure:'arena.landmark.fissure'};
-    const key=keys[landmark.type];if(!key)return false;
-    const texture=this.assets.texture(key);if(!texture)return false;
-    const sprite=new Sprite(texture);sprite.anchor.set(.5,1);sprite.position.set(landmark.x,landmark.y+28*landmark.scale);
-    const targetHeight=(landmark.type==='fissure'?150:landmark.type==='rock'?230:landmark.type==='crystal'?330:420)*landmark.scale;
-    sprite.scale.set(targetHeight/Math.max(1,texture.height));this.productionLandmarks.addChild(sprite);return true;
+  private drawProductionGroundDetails(): void {
+    if (!this.assets) return;
+    for (const detail of PRODUCTION_GROUND_DETAILS) {
+      const texture = this.assets.texture(detail.key); if (!texture) continue;
+      const sprite = new Sprite(texture); sprite.anchor.set(.5); sprite.position.set(detail.x, detail.y);
+      sprite.rotation = detail.rotation; sprite.alpha = detail.alpha;
+      sprite.scale.set(detail.width / Math.max(1, texture.width));
+      this.productionGroundDetails.addChild(sprite);
+    }
+  }
+
+  private drawProductionProp(prop: ProductionProp, index: number): boolean {
+    if (this.brokenLandmarks.has(index) || !this.assets) return false;
+    const texture = this.assets.texture(prop.key); if (!texture) return false;
+    const root = new Container(); root.position.set(prop.x, prop.y);
+    const shadow = new Graphics().ellipse(0, 10, prop.height * .29, prop.height * .075).fill({ color:0x020309, alpha:.48 });
+    const sprite = new Sprite(texture); sprite.anchor.set(.5, 1); sprite.scale.set(prop.height / Math.max(1, texture.height));
+    if (prop.mirror) sprite.scale.x *= -1;
+    root.addChild(shadow, sprite); root.zIndex = Math.round(prop.y);
+    this.productionLandmarks.addChild(root); this.productionPropViews.push({ root, definition:prop }); return true;
+  }
+
+  private fallbackLandmark(prop: ProductionProp): Landmark {
+    const key = prop.key;
+    const type: Landmark['type'] = key.includes('crystal') ? 'crystal' : key.includes('root') ? 'root' : key.includes('arch') ? 'arch' : key.includes('pillar') || key.includes('altar') ? 'pillar' : 'rock';
+    return { x:prop.x, y:prop.y, type, scale:Math.max(.7, prop.height / 420) };
+  }
+
+  private updatePropDepth(playerY: number): void {
+    for (const item of this.productionPropViews) {
+      item.root.visible = this.worldVisible({ x:item.definition.x, y:item.definition.y }, item.definition.height * .65);
+      const shouldOcclude = Boolean(item.definition.occludes) && item.definition.y > playerY + 70;
+      const target = shouldOcclude ? this.foregroundWorld : this.productionLandmarks;
+      if (item.root.parent !== target) target.addChild(item.root);
+    }
   }
 
   private drawStoneFloor(): void {
@@ -266,24 +308,37 @@ export class ArenaLayer extends Container {
     this.bossIndicator.poly([x+dx*size*1.4,y+dy*size*1.4,x-dy*size-dx*size,y+dx*size-dy*size,x+dy*size-dx*size,y-dx*size-dy*size]).fill({color:0xffa457,alpha:.72});
   }
 
-  private drawLoot(view: Graphics, drop: LootDrop, seconds: number): void {
+  private drawLoot(view: LootView, drop: LootDrop, seconds: number): void {
     const color = LOOT_COLORS[drop.kind], rare = drop.rarity !== 'common', epic = drop.rarity === 'epic';
-    view.clear().ellipse(0, 12, epic ? 32 : rare ? 25 : 17, epic ? 10 : 7).fill({ color: 0x02030a, alpha: 0.55 });
-    if (rare) view.circle(0, -5, epic ? 32 : 24).fill({ color, alpha: epic ? 0.19 : 0.11 });
-    if (drop.kind === 'relic') view.roundRect(-18, -22, 36, 31, 6).fill(0x5d321d).stroke({ color, width: epic ? 7 : 5 }).rect(-9, -30, 18, 10).fill(0x8c5e2e);
-    else view.poly([0,-28,19,-8,12,20,-13,18,-21,-7]).fill(color).poly([-1,-21,9,-5,4,9,-7,7]).fill({ color: 0xffffff, alpha: .64 }).stroke({ color: epic ? 0xffffff : color, width: epic ? 4 : 2, alpha: .8 });
-    if (rare && drop.phase !== 'airborne') {
-      view.rect(epic ? -5 : -3, epic ? -220 : -150, epic ? 10 : 6, epic ? 188 : 124).fill({ color, alpha: epic ? .28 : .2 });
-      view.circle(0, epic ? -218 : -148, epic ? 11 : 7).fill({ color: 0xffffff, alpha: .55 });
+    const alternate = Number(drop.id.split('-')[1] ?? 0) % 2 === 1;
+    const key: AssetKey = epic ? (alternate ? 'loot.epic.alt' : 'loot.epic') : rare ? (alternate ? 'loot.rare.alt' : 'loot.rare') : (alternate ? 'loot.common.alt' : 'loot.common');
+    const texture = this.assets?.texture(key);
+    view.fallback.clear().ellipse(0, 14, epic ? 34 : rare ? 27 : 19, epic ? 11 : 8).fill({ color: 0x02030a, alpha: 0.58 });
+    if (texture) {
+      if (view.key !== key) { view.sprite.texture = texture; view.key = key; }
+      const target = epic ? 72 : rare ? 58 : 45;
+      view.sprite.scale.set(target / Math.max(1, texture.width)); view.sprite.visible = true;
+      view.sprite.y = -8;
+    } else {
+      view.sprite.visible = false;
+      if (drop.kind === 'relic') view.fallback.roundRect(-18, -22, 36, 31, 6).fill(0x5d321d).stroke({ color, width: epic ? 7 : 5 }).rect(-9, -30, 18, 10).fill(0x8c5e2e);
+      else view.fallback.poly([0,-28,19,-8,12,20,-13,18,-21,-7]).fill(color).poly([-1,-21,9,-5,4,9,-7,7]).fill({ color: 0xffffff, alpha: .64 });
     }
+    if (rare && drop.phase !== 'airborne') view.fallback.rect(epic ? -4 : -3, epic ? -205 : -142, epic ? 8 : 6, epic ? 176 : 116).fill({ color, alpha: epic ? .25 : .18 });
     const pulse = 1 + Math.sin(seconds * (epic ? 6 : 4) + Number(drop.id.split('-')[1])) * (epic ? .09 : .045);
-    view.scale.set(pulse*(epic?2.5:rare?2.15:1.75));
+    view.root.scale.set(pulse * (epic ? 1.22 : rare ? 1.13 : 1));
   }
 
   private drawPet(): void {
-    this.petView.clear().ellipse(0, 18, 28, 9).fill({ color: 0x03040a, alpha: .48 }).circle(0, 0, 24).fill({ color: 0xff7e2e, alpha: .15 })
+    this.petFallback.clear().ellipse(0, 18, 28, 9).fill({ color: 0x03040a, alpha: .48 }).circle(0, 0, 24).fill({ color: 0xff7e2e, alpha: .15 })
       .poly([0,-25,18,-5,11,18,0,10,-12,19,-19,-5]).fill(0xff8938).circle(0,-4,8).fill(0xffefbd)
       .circle(-4,-6,2).fill(0x3a1830).circle(4,-6,2).fill(0x3a1830);
+    this.petView.addChild(this.petFallback);
+    const texture = this.assets?.texture('pet.emberWisp');
+    if (texture) {
+      this.petSprite = new Sprite(texture); this.petSprite.anchor.set(.5); this.petSprite.scale.set(62 / Math.max(1, texture.width));
+      this.petView.addChild(this.petSprite); this.petFallback.visible = false;
+    }
   }
 
   private drawDummy(view: Graphics, index: number): void {

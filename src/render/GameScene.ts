@@ -36,7 +36,9 @@ export interface GameSceneM06Options {
 }
 
 interface Projectile {
-  view: Graphics;
+  view: Container;
+  art: Graphics;
+  asset: Sprite;
   active: boolean;
   kind: AttackKind;
   elapsed: number;
@@ -173,14 +175,14 @@ export class GameScene {
     this.world.addChild(this.background);
     if (this.backgroundAsset) this.world.addChild(this.backgroundAsset);
     if (this.halloweenBackgroundAsset) this.world.addChild(this.halloweenBackgroundAsset);
-    this.world.addChild(this.arenaBack, this.ambient, this.arenaFloor, this.arenaLayer, this.boss, this.creature, this.essence, this.effects, this.arenaForeground);
+    this.world.addChild(this.arenaBack, this.ambient, this.arenaFloor, this.arenaLayer, this.boss, this.creature, this.arenaLayer.foregroundWorld, this.essence, this.effects, this.arenaForeground);
     if (this.halloweenForegroundAsset) this.world.addChild(this.halloweenForegroundAsset);
     this.world.addChild(this.vignette, this.screenFlash);
     this.background.zIndex=-100;
     if(this.backgroundAsset)this.backgroundAsset.zIndex=-99;
     if(this.halloweenBackgroundAsset)this.halloweenBackgroundAsset.zIndex=-98;
     this.arenaBack.zIndex=-90;this.ambient.zIndex=-80;this.arenaFloor.zIndex=-70;this.arenaLayer.zIndex=0;
-    this.boss.zIndex=12;this.creature.zIndex=14;this.essence.zIndex=25;this.effects.zIndex=30;this.arenaForeground.zIndex=40;
+    this.boss.zIndex=12;this.creature.zIndex=14;this.arenaLayer.foregroundWorld.zIndex=18;this.essence.zIndex=25;this.effects.zIndex=30;this.arenaForeground.zIndex=40;
     if(this.halloweenForegroundAsset)this.halloweenForegroundAsset.zIndex=41;
     this.vignette.zIndex=50;this.screenFlash.zIndex=60;
     this.createBoss();
@@ -369,8 +371,8 @@ export class GameScene {
     const baseTexture = this.assets.texture('creature.base');
     if (baseTexture) {
       const sprite = new Sprite(baseTexture);
-      sprite.anchor.set(0.5);
-      sprite.scale.set(215 / Math.max(1, baseTexture.width));
+      sprite.anchor.set(0.5, 0.77);
+      sprite.scale.set(235 / Math.max(1, baseTexture.height));
       this.creatureProductionBase.addChild(sprite);
       this.creatureFallbackBase.visible = false;
     }
@@ -460,11 +462,11 @@ export class GameScene {
 
   private createProjectilePool(): void {
     for (let index = 0; index < GAME_CONFIG.quality.high.maxProjectiles; index += 1) {
-      const view = new Graphics();
+      const view = new Container(); const art = new Graphics(); const asset = new Sprite(); asset.anchor.set(.5); view.addChild(art, asset);
       view.visible = false;
       view.zIndex = 24;
       this.world.addChild(view);
-      this.projectiles.push({ view, active: false, kind: 'normal', elapsed: 0, duration: 0, sx: 0, sy: 0, tx: 0, ty: 0, sourceKind: 'normal', trailElapsed: 0 });
+      this.projectiles.push({ view, art, asset, active: false, kind: 'normal', elapsed: 0, duration: 0, sx: 0, sy: 0, tx: 0, ty: 0, sourceKind: 'normal', trailElapsed: 0 });
     }
     this.world.setChildIndex(this.effects, this.world.children.length - 1);
   }
@@ -488,7 +490,8 @@ export class GameScene {
   }
 
   private syncBossProductionVisual(stage: BossDamageStage): boolean {
-    const requestedKey = bossVisualKey(this.model.isEventRun, stage);
+    const coreUnstable = this.model.isEventRun && stage === 'critical' && this.model.bossHp / Math.max(1, this.model.maxHp) <= .18 && this.assets.has('boss.core.unstable');
+    const requestedKey = coreUnstable ? 'boss.core.unstable' : bossVisualKey(this.model.isEventRun, stage);
     const baseKey = bossVisualKey(this.model.isEventRun, 'intact');
     const key = this.assets.has(requestedKey) ? requestedKey : this.assets.has(baseKey) ? baseKey : undefined;
     if (!key) {
@@ -733,48 +736,56 @@ export class GameScene {
     projectile.sy = this.creature.y - 45 * this.creatureBaseScale + extraIndex * 10;
     projectile.tx = this.boss.x;
     projectile.ty = this.boss.y + this.model.activeBoss.weakpoint.y * this.bossBaseScale;
-    projectile.view.clear();
+    projectile.art.clear();
     if (kind === 'power') {
       const crystal = this.model.mutations.has('crystal');
       const voided = this.model.mutations.has('void');
       const pumpkin = this.model.mutations.has('pumpkin');
       const color = pumpkin ? 0xff762d : crystal ? 0x65e7ff : voided ? 0xc56cff : 0xffd65b;
-      projectile.view.poly([-64, 0, -22, -9, -22, 9]).fill({ color, alpha: 0.16 })
+      projectile.art.poly([-64, 0, -22, -9, -22, 9]).fill({ color, alpha: 0.16 })
         .circle(0, 0, crystal || pumpkin ? 33 : 25).fill({ color, alpha: 0.2 })
         .poly(pumpkin ? [-31, -22, 19, -28, 36, 0, 18, 28, -31, 21, -40, 0] : crystal ? [-42, 0, -10, -21, 35, 0, -10, 21] : [-34, 0, -9, -16, 29, 0, -9, 16]).fill(pumpkin ? 0xb64720 : crystal ? 0x8cecff : voided ? 0x9e46db : 0xffef97)
         .circle(9, 0, 8).fill(0xffffff);
-      if (crystal && voided) projectile.view.moveTo(-18, -13).lineTo(22, 0).lineTo(-18, 13).stroke({ color: 0xa94cff, width: 5, alpha: 0.9 });
-      if (pumpkin) projectile.view.moveTo(-22, -13).lineTo(12, -4).lineTo(-22, 7).stroke({ color: voided ? 0xb84cff : crystal ? 0x7cecff : 0xffc45e, width: 5, alpha: 0.92 });
+      if (crystal && voided) projectile.art.moveTo(-18, -13).lineTo(22, 0).lineTo(-18, 13).stroke({ color: 0xa94cff, width: 5, alpha: 0.9 });
+      if (pumpkin) projectile.art.moveTo(-22, -13).lineTo(12, -4).lineTo(-22, 7).stroke({ color: voided ? 0xb84cff : crystal ? 0x7cecff : 0xffc45e, width: 5, alpha: 0.92 });
     } else if (kind === 'voidEcho') {
       const strong = sourceKind === 'power';
-      projectile.view.circle(0, 0, strong ? 27 : 20).fill({ color: 0x5c1b93, alpha: 0.22 })
+      projectile.art.circle(0, 0, strong ? 27 : 20).fill({ color: 0x5c1b93, alpha: 0.22 })
         .circle(0, 0, strong ? 15 : 10).stroke({ color: 0xd475ff, width: strong ? 6 : 4, alpha: 0.92 })
         .circle(0, 0, 4).fill(0xf3d7ff);
     } else if (kind === 'wingVolley') {
-      projectile.view.poly([-35, 0, -9, -4, -9, 4]).fill({ color: 0xffd56f, alpha: 0.18 })
+      projectile.art.poly([-35, 0, -9, -4, -9, 4]).fill({ color: 0xffd56f, alpha: 0.18 })
         .poly([-15, 0, -4, -8, 17, 0, -4, 8]).fill(0xffd56f).circle(3, 0, 4).fill(0xffffff);
     } else if (kind === 'pumpkinBurst') {
-      projectile.view.circle(0, 0, sourceKind === 'power' ? 22 : 15).fill({ color: 0xff6f27, alpha: 0.24 })
+      projectile.art.circle(0, 0, sourceKind === 'power' ? 22 : 15).fill({ color: 0xff6f27, alpha: 0.24 })
         .poly([-15, -10, 8, -14, 17, 0, 8, 14, -15, 10, -20, 0]).fill(0xb7471f)
         .circle(3, 0, 6).fill(0xffc04f);
-      if (this.model.mutations.has('void')) projectile.view.circle(0, 0, 23).stroke({ color: 0xb94fff, width: 4, alpha: 0.75 });
-      if (this.model.mutations.has('crystal')) projectile.view.poly([10, -13, 25, 0, 10, 13]).fill(0x7cecff);
+      if (this.model.mutations.has('void')) projectile.art.circle(0, 0, 23).stroke({ color: 0xb94fff, width: 4, alpha: 0.75 });
+      if (this.model.mutations.has('crystal')) projectile.art.poly([10, -13, 25, 0, 10, 13]).fill(0x7cecff);
     } else if (this.model.mutations.has('pumpkin')) {
-      projectile.view.poly([-34, 0, -12, -6, -12, 6]).fill({ color: 0xff7b2d, alpha: 0.22 })
+      projectile.art.poly([-34, 0, -12, -6, -12, 6]).fill({ color: 0xff7b2d, alpha: 0.22 })
         .ellipse(1, 0, 14, 11).fill(0x9f3b1c).circle(5, -1, 5).fill(0xffa93f)
         .moveTo(-3, -10).lineTo(2, -18).stroke({ color: 0x627039, width: 4, alpha: 0.9 });
     } else if (this.model.mutations.has('crystal')) {
       const voided = this.model.mutations.has('void');
-      projectile.view.poly([-42, 0, -14, -6, -14, 6]).fill({ color: voided ? 0xa849e6 : 0x5edff2, alpha: 0.2 })
+      projectile.art.poly([-42, 0, -14, -6, -14, 6]).fill({ color: voided ? 0xa849e6 : 0x5edff2, alpha: 0.2 })
         .poly([-21, 0, -5, -15, 24, 0, -5, 15]).fill(0x68e5f7)
         .poly([-8, -5, 18, 0, -8, 5]).fill(0xffffff);
-      if (voided) projectile.view.moveTo(-12, -8).lineTo(13, 0).lineTo(-12, 8).stroke({ color: 0xa643df, width: 4, alpha: 0.9 });
+      if (voided) projectile.art.moveTo(-12, -8).lineTo(13, 0).lineTo(-12, 8).stroke({ color: 0xa643df, width: 4, alpha: 0.9 });
     } else if (this.model.mutations.has('void')) {
-      projectile.view.poly([-34, 0, -10, -5, -10, 5]).fill({ color: 0xa648e4, alpha: 0.2 })
+      projectile.art.poly([-34, 0, -10, -5, -10, 5]).fill({ color: 0xa648e4, alpha: 0.2 })
         .circle(0, 0, 11).fill(0x32164b).circle(2, 0, 6).fill(0xc76dff).circle(4, -2, 2).fill(0xffffff);
     } else {
-      projectile.view.poly([-28, 0, -9, -4, -9, 4]).fill({ color: 0xaeb8ff, alpha: 0.16 })
+      projectile.art.poly([-28, 0, -9, -4, -9, 4]).fill({ color: 0xaeb8ff, alpha: 0.16 })
         .circle(0, 0, 8).fill(0xe5e8ff).circle(0, 0, 13).stroke({ color: 0x9fa9ff, width: 3, alpha: 0.38 });
+    }
+    const productionKey: AssetKey = sourceKind === 'power' ? 'vfx.powerHit' : 'vfx.projectile';
+    const productionTexture = this.assets.texture(productionKey);
+    projectile.asset.visible = Boolean(productionTexture);
+    projectile.art.visible = !productionTexture;
+    if (productionTexture) {
+      projectile.asset.texture = productionTexture;
+      projectile.asset.scale.set((sourceKind === 'power' ? 82 : 52) / Math.max(1, productionTexture.width));
     }
     projectile.view.position.set(projectile.sx, projectile.sy);
     projectile.view.scale.set(this.m06?.arena.player.stats.projectileScale ?? 1);
@@ -864,7 +875,8 @@ export class GameScene {
       this.boss.zIndex = depth.boss;
       this.creature.zIndex = depth.player;
     }
-    const breath = 1 + Math.sin(seconds * 1.45) * 0.009;
+    const rasterBoss = this.bossProductionArt.visible;
+    const breath = 1 + Math.sin(seconds * 1.45) * (rasterBoss ? 0.0035 : 0.009);
     const activeAttack=this.m06?.arena.bossAttacks.active[0];
     let attackLift=0,attackSquash=0,attackLean=0;
     if(activeAttack){
@@ -874,7 +886,7 @@ export class GameScene {
         const anticipation=Math.sin(progress*Math.PI*.5);
         attackLift=-10*anticipation;
         attackLean=(activeAttack.direction.x||0)*.026*anticipation;
-      }else if(activeAttack.phase==='impact'){attackSquash=.055;attackLift=8}
+      }else if(activeAttack.phase==='impact'){attackSquash=rasterBoss ? .018 : .055;attackLift=8}
     }
     const facingLean=this.m06?.arena?Math.max(-.5,Math.min(.5,(this.creatureBaseX-this.bossBaseX)/Math.max(1,this.width)))*.035:0;
     this.boss.scale.set(this.bossBaseScale * breath * (1 + this.bossRecoil * 0.018+attackSquash), this.bossBaseScale * (2 - breath) * (1 - this.bossRecoil * 0.012-attackSquash*.72));
@@ -1079,7 +1091,7 @@ export class GameScene {
     this.essence.position.set(this.bossBaseX, this.bossBaseY);
     this.essence.scale.set(0.1);
     this.essence.visible = true;
-    this.ui.announce(data.title, data.subtitle, data.css, 1200);
+    this.ui.announce(data.title, data.subtitle, data.css, 1050);
     this.audio.play('essenceAbsorb');
     this.bossFlash.alpha = 1;
     this.bossRecoil = 1.25;
@@ -1100,7 +1112,7 @@ export class GameScene {
     this.transition = { kind: 'final', elapsed: 0, duration: GAME_CONFIG.timing.finalDurationMs, absorbed: false };
     this.ui.hideChoices();
     document.getElementById('bp-core')?.classList.add('broken');
-    this.ui.announce('COLOSSUS BROKEN', 'EVOLUTION COMPLETE', '#ffe29a', 1800);
+    this.ui.announce('COLOSSUS BROKEN', 'EVOLUTION COMPLETE', '#ffe29a', 1250);
     this.audio.play(this.model.isEventRun ? 'eventBossKill' : 'bossKill');
     this.hitStopMs = GAME_CONFIG.timing.finalHitStopMs;
     this.bossFlash.alpha = 1;

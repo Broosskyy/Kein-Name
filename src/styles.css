@@ -66,15 +66,16 @@ button { font: inherit; }
 
 #announcement {
   --accent: #fff;
-  position: absolute; top: 23%; left: 50%; width: min(90vw, 600px);
+  position: absolute; top: 20%; left: 50%; width: min(78vw, 460px);
   transform: translate(-50%, -12px) scale(.92); opacity: 0;
-  display: grid; gap: 5px; text-align: center;
-  filter: drop-shadow(0 5px 14px rgba(0,0,0,.8));
+  display: grid; gap: 3px; text-align: center; padding: 7px 14px;
+  border-radius: 14px; background: linear-gradient(90deg, transparent, rgba(5,6,13,.48), transparent);
+  filter: drop-shadow(0 4px 11px rgba(0,0,0,.75));
 }
-#announcement strong { color: var(--accent); font-size: clamp(22px, 6vw, 44px); letter-spacing: .08em; }
-#announcement span { color: #fff; font-size: clamp(10px, 2.8vw, 15px); font-weight: 850; letter-spacing: .18em; }
-#announcement.show { animation: announce 1.35s ease both; }
-@keyframes announce { 0% { opacity: 0; transform: translate(-50%, 8px) scale(.8); } 18%,70% { opacity: 1; transform: translate(-50%, 0) scale(1); } 100% { opacity: 0; transform: translate(-50%, -14px) scale(1.03); } }
+#announcement strong { color: var(--accent); font-size: clamp(16px, 4.1vw, 28px); line-height: 1.05; letter-spacing: .075em; }
+#announcement span { color: #f5f3ff; font-size: clamp(8px, 2.1vw, 12px); font-weight: 850; letter-spacing: .15em; }
+#announcement.show { animation: announce 1.05s ease both; }
+@keyframes announce { 0% { opacity: 0; transform: translate(-50%, 5px) scale(.9); } 16%,72% { opacity: 1; transform: translate(-50%, 0) scale(1); } 100% { opacity: 0; transform: translate(-50%, -8px) scale(1.01); } }
 
 #choice-panel { position: absolute; inset: 0; display: grid; align-content: center; justify-items: center; gap: 16px; padding: max(70px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(110px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); background: radial-gradient(circle at 50% 55%, rgba(74,52,112,.18), rgba(3,4,10,.68)); opacity: 0; visibility: hidden; transition: opacity .22s ease, visibility .22s; }
 #choice-panel.visible { opacity: 1; visibility: visible; pointer-events: auto; }
