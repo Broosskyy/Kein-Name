@@ -22,6 +22,13 @@ export type AssetKey =
   | 'arena.standard.background'
   | 'arena.halloween.background'
   | 'arena.halloween.foreground'
+  | 'arena.landmark.crystal'
+  | 'arena.landmark.pillar'
+  | 'arena.landmark.harvestRoot'
+  | 'loot.common'
+  | 'loot.rare'
+  | 'loot.epic'
+  | 'pet.emberWisp'
   | 'icon.mutation.crystal'
   | 'icon.mutation.void'
   | 'icon.mutation.wings'
@@ -75,6 +82,13 @@ export const ASSET_MANIFEST: AssetManifest = {
   'arena.standard.background': entry('background', [1600, 1200], false),
   'arena.halloween.background': entry('background', [1600, 1200], false),
   'arena.halloween.foreground': entry('foreground', [1600, 1200], true, 'deferred'),
+  'arena.landmark.crystal': entry('foreground', [512, 768], true, 'deferred'),
+  'arena.landmark.pillar': entry('foreground', [512, 1024], true, 'deferred'),
+  'arena.landmark.harvestRoot': entry('foreground', [768, 768], true, 'deferred'),
+  'loot.common': entry('icon', [192, 192], true, 'deferred'),
+  'loot.rare': entry('icon', [256, 256], true, 'deferred'),
+  'loot.epic': entry('icon', [320, 320], true, 'deferred'),
+  'pet.emberWisp': entry('character', [384, 384], true, 'deferred'),
   'icon.mutation.crystal': entry('icon', [256, 256]),
   'icon.mutation.void': entry('icon', [256, 256]),
   'icon.mutation.wings': entry('icon', [256, 256]),

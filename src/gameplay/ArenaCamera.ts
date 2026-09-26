@@ -12,13 +12,14 @@ export class ArenaCamera {
   private shakePower = 0;
   constructor(readonly worldWidth: number, readonly worldHeight: number, readonly minZoom: number, readonly maxZoom: number) {}
   resize(width: number, height: number): void {
-    this.viewport = height >= width ? { x: 0, y: height * 0.34, width, height: height * 0.56 } : { x: width * 0.16, y: height * 0.28, width: width * 0.68, height: height * 0.68 };
+    this.viewport = height >= width ? { x: 0, y: height * 0.285, width, height: height * 0.635 } : { x: width * 0.1, y: height * 0.22, width: width * 0.8, height: height * 0.74 };
     this.clampPosition();
   }
   setZoom(value: number): number { this.targetZoom = Math.max(this.minZoom, Math.min(this.maxZoom, value)); return this.targetZoom; }
   update(deltaMs: number, player: Vec2, velocity: Vec2): void {
     const speed = Math.hypot(velocity.x, velocity.y), look = Math.min(190, speed * 0.28), nx = speed > 1 ? velocity.x / speed : 0, ny = speed > 1 ? velocity.y / speed : 0;
-    this.target = { x: player.x + nx * look, y: player.y + ny * look - 90 };
+    const bossBias = Math.max(0, Math.min(145, (player.y - 520) * 0.09));
+    this.target = { x: player.x + nx * look, y: player.y + ny * look - 70 - bossBias };
     const dx = this.target.x - this.position.x, dy = this.target.y - this.position.y, follow = 1 - Math.exp(-deltaMs / 220);
     if (Math.abs(dx) > 90 / this.zoom) this.position.x += (dx - Math.sign(dx) * 90 / this.zoom) * follow;
     if (Math.abs(dy) > 60 / this.zoom) this.position.y += (dy - Math.sign(dy) * 60 / this.zoom) * follow;

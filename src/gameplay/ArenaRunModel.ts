@@ -9,6 +9,7 @@ import { LootSystem, type LootKind, type LootPickup, type LootRarity } from './L
 import { RUN_MODES, type RunModeId } from './RunModes';
 import { RUN_UPGRADES, applyUpgrades, eligibleUpgrades, type RunUpgradeDefinition, type SelectedUpgrade } from './RunUpgrades';
 import { clampToArena, createDummyAlly, createLocalPlayer, type CombatEntityState, type MovementInput } from './ArenaTypes';
+import { BOSS_WORLD_ANCHOR, constrainOutsideBossZone } from './ArenaRegions';
 
 export interface RunInventoryState {
   equipmentIds: string[]; temporaryBuffIds: string[]; petId?: string; resources: Record<string, number>;
@@ -106,7 +107,7 @@ export class ArenaRunModel {
     const ny = magnitude > 1 ? input.y / magnitude : input.y;
     const active = magnitude >= GAME_CONFIG.arena.movementDeadZone; const tx = active ? nx * this.player.stats.moveSpeed : 0, ty = active ? ny * this.player.stats.moveSpeed : 0;
     const smoothing = 1 - Math.exp(-deltaMs / (active ? 65 : 90)); this.player.velocity.x += (tx - this.player.velocity.x) * smoothing; this.player.velocity.y += (ty - this.player.velocity.y) * smoothing;
-    this.player.position = clampToArena({ x: this.player.position.x + this.player.velocity.x * deltaMs / 1000, y: this.player.position.y + this.player.velocity.y * deltaMs / 1000 });
+    this.player.position = clampToArena(constrainOutsideBossZone({ x: this.player.position.x + this.player.velocity.x * deltaMs / 1000, y: this.player.position.y + this.player.velocity.y * deltaMs / 1000 }));
     if (Math.abs(nx) > 0.05) this.player.facing = nx < 0 ? 'left' : 'right';
     if (active) { this.lastMoveDirection = { x: nx, y: ny }; this.emit({ type: 'PLAYER_MOVED', position: { ...this.player.position } }); }
   }
@@ -115,7 +116,7 @@ export class ArenaRunModel {
     if (this.combat.phase !== 'playing' || this.pausedForUpgrade || this.dashCooldownMs > 0) return false;
     const mag = Math.hypot(input.x, input.y); const direction = mag > GAME_CONFIG.arena.movementDeadZone ? { x: input.x / mag, y: input.y / mag } : this.lastMoveDirection;
     const from = { ...this.player.position };
-    this.player.position = clampToArena({ x: from.x + direction.x * GAME_CONFIG.arena.dashDistance, y: from.y + direction.y * GAME_CONFIG.arena.dashDistance });
+    this.player.position = clampToArena(constrainOutsideBossZone({ x: from.x + direction.x * GAME_CONFIG.arena.dashDistance, y: from.y + direction.y * GAME_CONFIG.arena.dashDistance }));
     this.player.velocity = { x: direction.x * this.player.stats.moveSpeed * 1.7, y: direction.y * this.player.stats.moveSpeed * 1.7 };
     this.player.invulnerableMs = Math.max(this.player.invulnerableMs, GAME_CONFIG.arena.dashInvulnerabilityMs); this.dashCooldownMs = GAME_CONFIG.arena.dashCooldownMs;
     this.emit({ type: 'PLAYER_DASHED', from, to: { ...this.player.position } }); return true;
@@ -179,7 +180,7 @@ export class ArenaRunModel {
   grantUpgrade(upgradeId: string, nowMs: number): boolean { this.pendingUpgradeIds = [upgradeId]; this.combat.pauseForUpgrade(nowMs); return this.chooseUpgrade(upgradeId, nowMs); }
 
   spawnLoot(kind: LootKind = 'run-xp', rarity: LootRarity = 'common', value = 10): void {
-    const spawned = this.loot.spawn(kind, rarity, { x: 1600, y: 240 }, value);
+    const spawned = this.loot.spawn(kind, rarity, BOSS_WORLD_ANCHOR, value);
     if (spawned) this.emit({ type: 'LOOT_SPAWNED', kind, rarity });
   }
 
@@ -187,6 +188,15 @@ export class ArenaRunModel {
   spawnDummy(): boolean { if (this.dummyAllies.length >= GAME_CONFIG.arena.maxDummyAllies) return false; this.dummyAllies.push(createDummyAlly(this.dummyAllies.length + 1)); return true; }
   setVisualPlayerCount(count: 1 | 2 | 4 | 8): void { this.clearDummies(); while (this.dummyAllies.length < count - 1) this.spawnDummy(); }
   clearDummies(): void { this.dummyAllies.length = 0; }
+
+  debugSetCycle(cycle: 1 | 2 | 3, nowMs: number): void {
+    this.bossCycle = cycle;
+    this.bossCyclesCleared = Math.max(0, cycle - 1);
+    const hp = this.combat.activeBoss.maxHp * Math.pow(GAME_CONFIG.cycles.hpMultiplier, cycle - 1);
+    this.combat.startNextCycle(nowMs, hp);
+    this.bossAttacks.active.length = 0;
+    this.emit({ type: 'BOSS_CYCLE_STARTED', cycle });
+  }
 
   equip(itemId: string): boolean {
     if (!EQUIPMENT.some((item) => item.id === itemId) || this.inventory.equipmentIds.includes(itemId)) return false;

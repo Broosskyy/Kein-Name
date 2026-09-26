@@ -88,3 +88,18 @@ For boss stage production: paint stage 0 once, then derive stage 1 and 2 from th
 4. Remaining five integrated evolution heroes from the same master.
 5. Four mutation icons, then arena background and modular mutation parts.
 
+## M08 world-production slots
+
+M08 adds a deliberately small set of deferred semantic slots. All use procedural world fallbacks today.
+
+| Asset ID | Recommended | Alpha | Direction / alignment | Fallback |
+|---|---:|:---:|---|---|
+| `arena.landmark.crystal` | 512×768 | Yes | One large readable corrupted crystal formation; ground at y92%; moon rim from upper left | Faceted world landmark |
+| `arena.landmark.pillar` | 512×1024 | Yes | Broken monumental dark-stone pillar, no baked floor; 10% side margin | Layered stone pillar |
+| `arena.landmark.harvestRoot` | 768×768 | Yes | Cursed branching root silhouette, restrained ember vein | Bezier root structure |
+| `loot.common` | 192×192 | Yes | Compact essence pickup, readable at 18–24 CSS px | Material-specific procedural gem |
+| `loot.rare` | 256×256 | Yes | Stronger outer silhouette; no beam baked in | Gem/relic plus code beam |
+| `loot.epic` | 320×320 | Yes | Premium relic silhouette with generous glow-safe margin | Procedural chest/relic plus beam |
+| `pet.emberWisp` | 384×384 | Yes | Small warm spirit, clear face/core, no trail/shadow baked in | Procedural ember wisp |
+
+Code retains rarity beams, bounce, shadows, fog, landmark break dust and lighting. Assets must not bake effects that need to react to world state.

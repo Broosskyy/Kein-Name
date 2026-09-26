@@ -284,3 +284,20 @@ body.halloween-event .hp-frame { border-color:rgba(255,139,61,.24); }body.hallow
   .result-stats { padding: 10px 6px; }
   .event-hero { min-height:184px; }.event-moon{width:104px;height:104px}.event-colossus{transform:translateX(-50%) scale(.85);transform-origin:top center}.event-section,.event-progress-block{padding:10px}.collection-entry{min-height:94px}
 }
+
+/* M08 contextual combat HUD: only acquired build identity remains in combat. */
+.mutation-strip { top: 24px; min-height: 34px; gap: 6px; padding: 4px; border-radius: 14px; background: rgba(5,7,14,.34); backdrop-filter: blur(3px); }
+.mutation-strip span { display: none; width: 30px; height: 30px; padding: 0; place-items: center; border-radius: 10px; }
+.mutation-strip span.active { display: grid; animation: acquired-icon .35s cubic-bezier(.2,.85,.25,1.25) both; }
+.mutation-strip i { position: relative; display: block; width: 17px; height: 17px; }
+#mut-crystal i { clip-path: polygon(50% 0,94% 32%,72% 100%,28% 100%,6% 32%); background: linear-gradient(135deg,#e8ffff,#45d7ef 45%,#3a55be); }
+#mut-void i { border: 3px solid #c86cff; border-radius: 50%; box-shadow: inset 0 0 8px #671c91,0 0 8px #a53ee5; }
+#mut-void i::after { content:"";position:absolute;inset:4px;border-radius:50%;background:#f2d2ff; }
+#mut-wings i::before,#mut-wings i::after { content:"";position:absolute;top:3px;width:10px;height:13px;background:linear-gradient(#fff2b0,#e9a942);clip-path:polygon(100% 0,86% 100%,0 60%); }
+#mut-wings i::before { right:8px; } #mut-wings i::after { left:8px;transform:scaleX(-1); }
+#mut-pumpkin i { border-radius:46%;background:radial-gradient(circle at 50% 55%,#ffc25f 0 18%,#d35524 21% 65%,#632538);box-shadow:0 0 8px #ff762e; }
+@keyframes acquired-icon { from { opacity:0;transform:scale(.45) rotate(-12deg); } }
+.zoom-controls { opacity:.28; transition:opacity .2s ease; }
+.zoom-controls:hover,.zoom-controls:focus-within { opacity:1; }
+#dash-button:not(:disabled) { animation:dash-ready 2s ease-in-out infinite; }
+@keyframes dash-ready { 50% { box-shadow:0 7px 20px #0008,0 0 23px #4edfff40; } }

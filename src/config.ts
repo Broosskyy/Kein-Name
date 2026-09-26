@@ -14,8 +14,8 @@ export interface QualityProfile {
 }
 
 export const GAME_CONFIG = {
-  schemaVersion: 3,
-  clientVersion: '0.7.0',
+  schemaVersion: 4,
+  clientVersion: '0.8.0',
   combat: {
     normalDamage: 42,
     attackIntervalMs: 950,
@@ -55,9 +55,9 @@ export const GAME_CONFIG = {
     dashCooldownMs: 2400,
     dashInvulnerabilityMs: 340,
     movementDeadZone: 0.12,
-    cameraMinZoom: 0.78,
-    cameraMaxZoom: 1.22,
-    cameraDefaultZoom: 0.92,
+    cameraMinZoom: 0.68,
+    cameraMaxZoom: 1.3,
+    cameraDefaultZoom: 0.88,
   },
   cycles: {
     max: 3,

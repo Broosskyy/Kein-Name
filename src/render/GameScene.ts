@@ -18,6 +18,8 @@ import type { ArenaRunEvent, ArenaRunSnapshot } from '../gameplay/ArenaRunModel'
 import { ArenaRunModel } from '../gameplay/ArenaRunModel';
 import { RUN_UPGRADES } from '../gameplay/RunUpgrades';
 import type { MovementInput } from '../gameplay/ArenaTypes';
+import { BossWorldPresentation } from './BossWorldPresentation';
+import { BOSS_WORLD_ANCHOR } from '../gameplay/ArenaRegions';
 
 export interface GameSceneM06Options {
   arena: ArenaRunModel;
@@ -77,6 +79,7 @@ export class GameScene {
   private readonly bossDamageFractured = new Graphics();
   private readonly bossDamageCritical = new Graphics();
   private readonly bossEventLayer = new Graphics();
+  private readonly bossRimLight = new Graphics();
   private readonly coreGlow = new Graphics();
   private readonly coreGem = new Graphics();
   private readonly creature = new Container();
@@ -102,6 +105,7 @@ export class GameScene {
   private readonly visualState = new VisualState();
   private readonly effects = new EffectsLayer(this.quality);
   private readonly arenaLayer = new ArenaLayer();
+  private readonly bossWorldPresentation = new BossWorldPresentation();
   private readonly projectiles: Projectile[] = [];
   private readonly motes: Graphics[] = [];
   private readonly temporaryTimers = new Set<number>();
@@ -138,6 +142,7 @@ export class GameScene {
   private readonly keys = new Set<string>();
   private autosaveMs = 0;
   private finalLootGranted = false;
+  private movementDustMs = 0;
   private readonly keyDown = (event: KeyboardEvent): void => { const key=event.key.toLowerCase(); this.keys.add(key); if(key===' '){event.preventDefault();this.tryDash();} if(key==='+'||key==='=')this.changeZoom(.08);if(key==='-')this.changeZoom(-.08);this.syncKeyboardMovement(); };
   private readonly keyUp = (event: KeyboardEvent): void => { this.keys.delete(event.key.toLowerCase()); this.syncKeyboardMovement(); };
 
@@ -218,6 +223,14 @@ export class GameScene {
   private createBoss(): void {
     this.bossShadow.ellipse(0, 165, 205, 48).fill({ color: 0x02030a, alpha: 0.62 });
     this.boss.addChild(this.bossShadow, this.bossFallbackArt, this.bossProductionArt);
+
+    this.bossRimLight
+      .poly([-244, -67, -164, -143, -81, -126, -67, -214, -13, -247, 54, -224, 75, -135, 171, -148, 251, -63, 224, 54, 158, 25, 139, 141, 0, 190, -139, 141, -157, 32, -223, 54])
+      .fill({ color: 0x090a12, alpha: 0.94 })
+      .moveTo(-239, -65).lineTo(-164, -139).lineTo(-83, -123)
+      .moveTo(72, -132).lineTo(170, -145).lineTo(246, -61)
+      .stroke({ color: 0xd29b78, width: 8, alpha: 0.18 });
+    this.bossFallbackArt.addChild(this.bossRimLight);
 
     const back = new Graphics()
       .poly([-208, 28, -256, 108, -204, 174, -144, 121, -135, 22]).fill(0x171a25)
@@ -555,7 +568,7 @@ export class GameScene {
   private handleArenaEvent(event: ArenaRunEvent): void {
     if (event.type === 'PLAYER_DAMAGED') { this.creaturePunch = -0.8; this.flash(0.16); this.shake(150, 5); }
     if (event.type === 'PLAYER_DASHED') { const from=this.arenaLayer.toScreen(event.from),to=this.arenaLayer.toScreen(event.to);for(let i=0;i<7;i++){const t=i/6;this.effects.trail(from.x+(to.x-from.x)*t,from.y+(to.y-from.y)*t,0x8feaff,7-i*.65);} }
-    if (event.type === 'BOSS_ATTACK_IMPACT') { const p=this.arenaLayer.toScreen(event.impact.position);this.effects.burst(p.x,p.y,0xff7045,event.impact.kind==='falling-debris'?10:16,.7);this.arenaLayer.camera.impulse(event.impact.hit?8:5);if(this.arenaLayer.reactToImpact(event.impact.position,event.impact.radius))this.effects.burst(p.x,p.y,0x918ba5,8,.45); }
+    if (event.type === 'BOSS_ATTACK_IMPACT') { const p=this.arenaLayer.toScreen(event.impact.position);this.effects.burst(p.x,p.y,0xff7045,event.impact.kind==='falling-debris'?10:16,.7);this.arenaLayer.camera.impulse(event.impact.hit?8:5);if(this.arenaLayer.reactToImpact(event.impact.position,event.impact.radius,event.impact.kind))this.effects.burst(p.x,p.y,0x918ba5,8,.45); }
     if (event.type === 'PLAYER_DEFEATED') { this.clearProjectiles(); this.ui.showFailure(); this.m06?.clearSnapshot?.(); }
     if (event.type === 'LOOT_PICKED') {
       const point = this.arenaLayer.toScreen(this.m06!.arena.player.position);
@@ -566,7 +579,7 @@ export class GameScene {
       const choices = event.choices.map((id) => RUN_UPGRADES.find((upgrade) => upgrade.id === id)).filter((item): item is NonNullable<typeof item> => Boolean(item));
       this.ui.showUpgradeChoices(choices, (id) => { if (this.m06?.arena.chooseUpgrade(id, performance.now())) { this.ui.hideUpgradeChoices(); this.syncPowerGrowth(); this.ui.announce('POWER EVOLVED', RUN_UPGRADES.find((upgrade) => upgrade.id === id)?.name ?? '', '#ffe28a'); } });
     }
-    if (event.type === 'BOSS_CYCLE_STARTED') { this.ui.announce(`CYCLE ${event.cycle}`, 'THE COLOSSUS RETURNS STRONGER', '#ffb35f', 1500); this.arenaLayer.camera.emphasize('cycle'); }
+    if (event.type === 'BOSS_CYCLE_STARTED') { this.ui.announce(`CYCLE ${event.cycle}`, event.cycle === 2 ? 'THE ARENA CORRUPTS' : 'FINAL INSTABILITY', '#ffb35f', 1500); this.arenaLayer.setCycle(event.cycle); this.arenaLayer.camera.emphasize('cycle'); }
   }
 
   private handleDebug(action: DebugAction): void {
@@ -576,6 +589,15 @@ export class GameScene {
     if (action === 'grant-xp' || action === 'level-up') { arena?.grantXp(action === 'level-up' ? arena.xpToNext : 100, now); return; }
     if (action === 'spawn-loot' || action === 'spawn-rare') { arena?.spawnLoot(action === 'spawn-rare' ? 'relic' : 'run-xp', action === 'spawn-rare' ? 'epic' : 'common', action === 'spawn-rare' ? 1 : 25); return; }
     if (action === 'next-cycle') { arena?.advanceCycle(now); this.resetBossForCycle(); return; }
+    if ((action === 'cycle-1' || action === 'cycle-2' || action === 'cycle-3') && arena) { arena.debugSetCycle(Number(action.slice(-1)) as 1|2|3, now); this.resetBossForCycle(); return; }
+    if (action.startsWith('zoom-')) { const values={ 'zoom-action':1.22,'zoom-standard':.88,'zoom-tactical':.7 } as const;this.arenaLayer.setZoom(values[action as keyof typeof values]);return; }
+    if ((action.startsWith('region-') || action.startsWith('distance-')) && arena) {
+      const positions: Record<string,{x:number;y:number}> = {
+        'region-core':{x:1600,y:670},'region-crystal':{x:480,y:730},'region-ruins':{x:2670,y:760},'region-edge':{x:540,y:1480},
+        'distance-near':{x:1600,y:690},'distance-medium':{x:1150,y:1080},'distance-far':{x:420,y:1550},
+      };
+      arena.player.position={...positions[action]}; arena.player.velocity={x:0,y:0}; return;
+    }
     if (action.startsWith('attack-')) { const attacks={ 'attack-slam':'ground-slam','attack-beam':'core-beam','attack-debris':'falling-debris','attack-cone':'void-cone','attack-ring':'corruption-ring','attack-shockwave':'shockwave'} as const;arena?.forceBossAttack(attacks[action as keyof typeof attacks]);return; }
     if (action === 'damage-player') { arena?.takeDamage(25, 'ground-slam', now); return; }
     if (action === 'heal-player') { arena?.heal(50); return; }
@@ -659,6 +681,7 @@ export class GameScene {
     this.arenaForeground.alpha = this.quality.name === 'low' ? 0.68 : this.quality.name === 'medium' ? 0.84 : 1;
     if (this.halloweenForegroundAsset) this.halloweenForegroundAsset.alpha = this.quality.name === 'low' ? 0.72 : 1;
     this.app.resize();
+    this.arenaLayer.setQuality(this.quality.name, this.quality.reducedEffects);
     this.ui.setQuality(this.quality.name, this.quality.reducedEffects);
   }
 
@@ -765,7 +788,7 @@ export class GameScene {
       this.arenaLayer.updateCamera(deltaMs, arena);
       const point = this.arenaLayer.toScreen(arena.player.position);
       this.creatureBaseX = point.x; this.creatureBaseY = point.y;
-      this.arenaLayer.sync(arena, now / 1000);
+      this.arenaLayer.sync(arena, now / 1000, deltaMs);
       this.autosaveMs += deltaMs;
       if (this.autosaveMs >= GAME_CONFIG.arena.autosaveIntervalMs) { this.autosaveMs = 0; this.m06?.saveSnapshot?.(arena.snapshot(now)); }
     }
@@ -808,6 +831,12 @@ export class GameScene {
 
   private animateScene(deltaMs: number, now: number): void {
     const seconds = now / 1000;
+    if (this.model.phase !== 'result' && this.m06?.arena) {
+      const pose = this.bossWorldPresentation.pose(this.arenaLayer.camera, this.m06.arena.player.position, this.width, this.height, this.portrait);
+      this.bossBaseX = pose.x;
+      this.bossBaseY = pose.y;
+      this.bossBaseScale = pose.scale;
+    }
     const breath = 1 + Math.sin(seconds * 1.45) * 0.009;
     this.boss.scale.set(this.bossBaseScale * breath * (1 + this.bossRecoil * 0.018), this.bossBaseScale * (2 - breath) * (1 - this.bossRecoil * 0.012));
     this.boss.x = this.bossBaseX + this.bossRecoil * 8;
@@ -820,6 +849,10 @@ export class GameScene {
     const corePulse = 1 + Math.sin(seconds * coreSpeed) * coreAmplitude;
     this.coreGlow.scale.set(corePulse);
     this.coreGlow.alpha = 0.7 + Math.sin(seconds * coreSpeed) * 0.18;
+    const cycle = this.m06?.arena.bossCycle ?? 1;
+    this.bossRimLight.tint = cycle === 3 ? 0x9f4d72 : cycle === 2 ? 0xb46c58 : 0xffffff;
+    this.bossEventLayer.alpha = Math.min(1, .68 + cycle * .1 + (1 - this.model.bossHp / this.model.maxHp) * .14);
+    this.bossFallbackArt.rotation = Math.sin(seconds * 1.17) * .004 * cycle;
 
     const creatureBreath = 1 + Math.sin(seconds * 3.1) * 0.018;
     const punch = Math.max(0, this.creaturePunch);
@@ -830,13 +863,15 @@ export class GameScene {
       this.creatureBaseScale * cameraScale * progressScale * (creatureBreath + punch * 0.08),
       this.creatureBaseScale * cameraScale * progressScale * (2 - creatureBreath - punch * 0.11),
     );
-    if (this.model.phase !== 'result' && this.m06?.arena) this.creature.rotation = this.m06.arena.player.velocity.x / Math.max(1, this.m06.arena.player.stats.moveSpeed) * 0.07;
+    const moveSpeed = this.model.phase !== 'result' && this.m06?.arena ? Math.hypot(this.m06.arena.player.velocity.x, this.m06.arena.player.velocity.y) : 0;
+    const moveRatio = this.m06?.arena ? Math.min(1, moveSpeed / Math.max(1, this.m06.arena.player.stats.moveSpeed)) : 0;
     const wingLift = this.wingMutation.visible ? -5 + Math.sin(seconds * 3.4) * 4 : 0;
-    this.creature.y = this.creatureBaseY + Math.sin(seconds * 2.4) * 3 + wingLift + punch * 7;
-    this.creature.rotation = Math.sin(seconds * 2) * 0.012 - punch * 0.025;
+    this.creature.y = this.creatureBaseY + Math.sin(seconds * (2.4 + moveRatio * 4)) * (3 + moveRatio * 2.2) + wingLift + punch * 7;
+    const directionalLean = this.m06?.arena ? this.m06.arena.player.velocity.x / Math.max(1, this.m06.arena.player.stats.moveSpeed) * 0.085 : 0;
+    this.creature.rotation = directionalLean + Math.sin(seconds * 2) * 0.01 - punch * 0.025;
     this.creaturePunch = Math.max(0, this.creaturePunch - deltaMs / 190);
     const hovering = this.wingMutation.visible || evolution === 'skyshard' || evolution === 'nightwing' || evolution === 'hollowwing';
-    this.creatureShadow.scale.set(hovering ? 0.78 : 1, hovering ? 0.72 : 1);
+    this.creatureShadow.scale.set((hovering ? 0.78 : 1) * (1 + moveRatio * .14), (hovering ? 0.72 : 1) * (1 - moveRatio * .1));
     this.creatureShadow.alpha = hovering ? 0.34 : 0.52;
     if (this.wingMutation.visible && this.visualState.sequence !== 'mutation') {
       const flap = 1 + Math.sin(seconds * 5.6) * 0.035;
@@ -857,6 +892,11 @@ export class GameScene {
       this.creatureAura.alpha = 0.56 + Math.sin(seconds * 3.8) * 0.15;
     }
     this.powerGrowth.rotation += deltaMs * 0.0009;
+    this.movementDustMs -= deltaMs;
+    if (moveRatio > .45 && this.movementDustMs <= 0 && !this.quality.reducedEffects) {
+      this.movementDustMs = this.quality.name === 'low' ? 170 : 105;
+      this.effects.trail(this.creatureBaseX, this.creatureBaseY + 20, this.model.isEventRun ? 0xb26a48 : 0x7787aa, 4 + moveRatio * 3);
+    }
     this.flashAlpha = Math.max(0, this.flashAlpha - deltaMs / 180);
     this.screenFlash.alpha = this.flashAlpha;
 
@@ -964,6 +1004,7 @@ export class GameScene {
     this.effects.shockwave(this.bossBaseX, this.bossBaseY, 0xff8b4b, 1.35);
     this.effects.burst(this.bossBaseX, this.bossBaseY, 0xffa057, 30, 1.15);
     this.effects.debrisBurst(this.bossBaseX, this.bossBaseY, 0x454b5c, 16, 1.15);
+    this.arenaLayer.reactToImpact(BOSS_WORLD_ANCHOR, id === 'break-1' ? 520 : 720, id === 'break-1' ? 'ground-slam' : 'corruption-ring');
     this.shake(430, 15);
   }
 
@@ -1483,7 +1524,7 @@ export class GameScene {
       this.halloweenForegroundAsset.position.set((this.width - this.halloweenForegroundAsset.width) / 2, (this.height - this.halloweenForegroundAsset.height) / 2);
     }
     this.bossBaseScale = this.portrait ? Math.min(1.05, this.width / 540) : Math.min(1.02, this.height / 600);
-    this.creatureBaseScale = this.model.phase === 'result' ? (this.portrait ? Math.min(0.86, this.width / 620) : Math.min(0.82, this.height / 760)) : (this.portrait ? Math.min(0.46, this.width / 980) : Math.min(0.48, this.height / 1250));
+    this.creatureBaseScale = this.model.phase === 'result' ? (this.portrait ? Math.min(0.86, this.width / 620) : Math.min(0.82, this.height / 760)) : (this.portrait ? Math.min(0.36, this.width / 1160) : Math.min(0.39, this.height / 1420));
     this.bossBaseX = this.portrait ? this.width * 0.5 : this.width * 0.66;
     this.bossBaseY = this.portrait ? this.height * 0.37 : this.height * 0.43;
     this.arenaLayer.resize(this.width, this.height);

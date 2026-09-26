@@ -1,6 +1,6 @@
-# Mutation Boss — M07 Expanded Arena & Active Combat
+# Mutation Boss — M08 World & Combat Experience
 
-Browser-first PixiJS action prototype: explore a camera-driven 3200×1800 arena beneath the looming Harvest Colossus, dodge phase attacks, dash for physical loot, level a visible run build, mutate and clear escalating boss cycles.
+Browser-first PixiJS boss-arena prototype: travel through a camera-driven 3200×1800 dark-fantasy arena, read world-space danger, dash for physical loot, grow a visible mutation build and break increasingly unstable Harvest Colossus cycles.
 
 ## Start and validate
 
@@ -21,18 +21,20 @@ npm run preview
 - Mutation and level-up choices pause active time and danger timing.
 - `D`, backtick or `?debug=1` opens DEV controls for attacks, loot, XP, cycles, dummies, quality and state.
 
-## Implemented M07 scope
+## Implemented M08 scope
 
-- Bounded 3200×1800 world arena, independent screen-space UI and smooth boss-aware camera
-- Soft follow/dead-zone/look-ahead, additive shake, clamped 0.78–1.22 zoom and saved zoom preference
+- Six visually distinct connected arena regions with large landmarks, cached floor detail, break reactions and bounded attack aftermath
+- Hybrid world-anchored giant boss whose pose responds to player distance, lateral camera travel and zoom
+- Soft follow/dead-zone/look-ahead, additive shake, clamped 0.68–1.30 zoom and saved zoom preference
 - Full X/Y/diagonal movement with normalized speed plus cooldown/invulnerability dash
 - One real local player; bounded DEV-only dummy allies are explicitly non-network entities
-- Ground Slam, Beam, Debris, Cone, Ring, Shockwave and Moving Hazard phase vocabulary
+- Distance-aware, repetition-resistant Ground Slam, Beam, Debris, Cone, Ring, Shockwave and Moving Hazard vocabulary
 - Player HP, mitigation, brief invulnerability, failure and retry
-- Physical bounded loot with boss-origin arcs, bounce, rarity beams, magnet range and world-space Ember Wisp pickup
+- Physical bounded loot with boss-origin arcs, bounce, contact shadows, rarity silhouettes/beams, risk-weighted landings and world-space Ember Wisp pickup
 - Run XP, levels and 11 data-driven upgrades across attack, defense, movement, utility and synergy
 - Visible projectile scale/count and orbiting power-growth presentation
-- Three finite escalating boss cycles
+- Three finite cycles with presentation escalation: persistent damage, corruption, lighting/core instability and attack-pool differences
+- Contextual combat HUD showing only acquired mutation identities; no permanent four-label strip
 - Lightweight run inventory, representative equipment/pet/cosmetic boundaries
 - Versioned local guest progress, autosave and resumable Solo/Event state at a clean combat boundary
 - Solo/Event run modes plus contract-only Group/Country/World definitions
@@ -46,16 +48,17 @@ No backend, authentication, cloud save, real multiplayer, country/world aggregat
 
 - `src/core/CombatModel.ts` — combat values, mutation choices, cooldowns and result
 - `src/gameplay/ArenaRunModel.ts` — arena player, XP/build, loot, cycles and run snapshot
-- `src/gameplay/ArenaTypes.ts` — combat entity and arena coordinates
+- `src/gameplay/ArenaTypes.ts` / `ArenaRegions.ts` — combat coordinates, regions and boss zone
 - `src/gameplay/BossAttackSystem.ts` / `LootSystem.ts` — bounded spatial systems
 - `src/gameplay/RunUpgrades.ts` / `Equipment.ts` / `RunModes.ts` — content and future boundaries
 - `src/progress/PlayerProgress.ts` / `GamePersistence.ts` — guest persistence and resume
 - `src/online/Contracts.ts` — contracts only; intentionally no network
 - `src/gameplay/ArenaCamera.ts` — world camera, transforms, zoom, follow and shake
-- `src/render/ArenaLayer.ts` — culled world floor, landmarks, telegraphs, loot, dummies and pet
+- `src/render/ArenaLayer.ts` — cached/camera-masked floor, regions, landmarks, telegraphs, aftermath, loot, dummies and pet
+- `src/render/BossWorldPresentation.ts` — giant hybrid boss world/screen pose
 - `src/render/GameScene.ts` — M05 presentation plus M06 arena integration
 - `src/ui/GameUI.ts` / `src/styles.css` — joystick, run HUD, choices, resume/failure and fullscreen
-- `M07_ARENA_CAMERA_COMBAT.md` — M07 world, controls, pacing and compatibility
+- `M08_WORLD_VISUAL_COMBAT.md` — visual audit, world convergence, presentation and performance strategy
 
 ## Save/resume strategy
 
