@@ -1,11 +1,13 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Sprite } from 'pixi.js';
+import type { AssetKey, AssetRegistry } from '../assets';
 import { GAME_CONFIG, type QualityName } from '../config';
 import { ArenaCamera } from '../gameplay/ArenaCamera';
 import { ARENA_REGIONS, BOSS_WORLD_ANCHOR } from '../gameplay/ArenaRegions';
 import type { ArenaRunModel } from '../gameplay/ArenaRunModel';
-import { BOSS_ATTACKS, type BossTelegraph } from '../gameplay/BossAttackSystem';
 import type { LootDrop, LootKind } from '../gameplay/LootSystem';
 import type { Vec2 } from '../gameplay/ArenaTypes';
+import { GroundDecalSystem } from './GroundDecalSystem';
+import { TelegraphRenderer } from './TelegraphRenderer';
 
 const LOOT_COLORS: Record<LootKind, number> = {
   'run-xp': 0x75eaff, 'crystal-essence': 0x67e7ff, 'void-essence': 0xc667ff,
@@ -13,18 +15,16 @@ const LOOT_COLORS: Record<LootKind, number> = {
   relic: 0xffc850, 'harvest-energy': 0xff8a38,
 };
 
-interface Landmark { x: number; y: number; type: 'crystal' | 'pillar' | 'root' | 'statue' | 'fissure'; scale: number }
+interface Landmark { x: number; y: number; type: 'crystal' | 'pillar' | 'root' | 'statue' | 'fissure' | 'arch' | 'rock'; scale: number }
 const LANDMARKS: readonly Landmark[] = [
-  { x: 520, y: 720, type: 'pillar', scale: 1.75 }, { x: 980, y: 1280, type: 'statue', scale: 1.25 },
+  { x: 520, y: 720, type: 'arch', scale: 1.75 }, { x: 980, y: 1280, type: 'statue', scale: 1.25 },
   { x: 720, y: 2380, type: 'crystal', scale: 1.55 }, { x: 1180, y: 3380, type: 'pillar', scale: 1.35 },
   { x: 1900, y: 650, type: 'root', scale: 1.4 }, { x: 2800, y: 520, type: 'statue', scale: 1.65 },
   { x: 3800, y: 610, type: 'fissure', scale: 1.55 }, { x: 4780, y: 820, type: 'root', scale: 1.55 },
-  { x: 4600, y: 1700, type: 'pillar', scale: 1.7 }, { x: 5000, y: 2860, type: 'crystal', scale: 1.65 },
+  { x: 4600, y: 1700, type: 'arch', scale: 1.7 }, { x: 5000, y: 2860, type: 'crystal', scale: 1.65 },
   { x: 4320, y: 3500, type: 'crystal', scale: 1.25 }, { x: 3300, y: 3400, type: 'fissure', scale: 1.45 },
-  { x: 2180, y: 3380, type: 'statue', scale: 1.1 }, { x: 1520, y: 2100, type: 'fissure', scale: 1.15 },
+  { x: 2180, y: 3380, type: 'rock', scale: 1.25 }, { x: 1520, y: 2100, type: 'fissure', scale: 1.15 },
 ] as const;
-
-interface AftermathDecal { position: Vec2; kind: string; ageMs: number; durationMs: number; radius: number }
 
 /** Camera-transformed world presentation; static geometry is cached and never rebuilt per frame. */
 export class ArenaLayer extends Container {
@@ -34,25 +34,32 @@ export class ArenaLayer extends Container {
   private readonly floor = new Graphics();
   private readonly bossPresence = new Graphics();
   private readonly staticProps = new Graphics();
+  private readonly productionLandmarks = new Container();
+  private readonly floorDetail?: Sprite;
   private readonly aftermath = new Graphics();
   private readonly telegraphs = new Graphics();
   private readonly guides = new Graphics();
   private readonly atmosphere = new Graphics();
+  private readonly bossIndicator = new Graphics();
   private readonly lootViews: Graphics[] = [];
   private readonly dummyViews: Graphics[] = [];
   private readonly petView = new Graphics();
   private readonly brokenLandmarks = new Set<number>();
-  private readonly decals: AftermathDecal[] = [];
+  private readonly decals = new GroundDecalSystem(24);
+  private readonly telegraphRenderer = new TelegraphRenderer();
   private quality: QualityName = 'medium';
   private reducedEffects = false;
   private eventTheme = true;
   private cycle = 1;
 
-  constructor() {
+  constructor(private readonly assets?: AssetRegistry) {
     super();
     this.addChild(this.worldRoot, this.viewportMask);
     this.worldRoot.mask = this.viewportMask;
-    this.worldRoot.addChild(this.floor, this.bossPresence, this.staticProps, this.aftermath, this.telegraphs, this.guides);
+    this.worldRoot.addChild(this.floor);
+    const floorTexture=this.assets?.texture('arena.floor.detail');
+    if(floorTexture){this.floorDetail=new Sprite(floorTexture);this.floorDetail.width=GAME_CONFIG.arena.width;this.floorDetail.height=GAME_CONFIG.arena.height;this.floorDetail.alpha=.3;this.worldRoot.addChild(this.floorDetail)}
+    this.worldRoot.addChild(this.bossPresence, this.staticProps, this.productionLandmarks, this.aftermath, this.telegraphs, this.guides);
     this.drawStaticWorld();
     for (let index = 0; index < GAME_CONFIG.arena.maxLoot; index += 1) {
       const view = new Graphics(); view.visible = false; this.lootViews.push(view); this.worldRoot.addChild(view);
@@ -61,7 +68,7 @@ export class ArenaLayer extends Container {
       const view = new Graphics(); this.drawDummy(view, index); view.visible = false; this.dummyViews.push(view); this.worldRoot.addChild(view);
     }
     this.drawPet(); this.petView.visible = false; this.worldRoot.addChild(this.petView);
-    this.addChild(this.atmosphere);
+    this.addChild(this.atmosphere, this.bossIndicator);
   }
 
   resize(width: number, height: number): void {
@@ -88,8 +95,7 @@ export class ArenaLayer extends Container {
         this.brokenLandmarks.add(index); changed = true;
       }
     });
-    this.decals.push({ position: { ...position }, kind, ageMs: 0, durationMs: 10000, radius: Math.min(260, Math.max(90, radius)) });
-    if (this.decals.length > 24) this.decals.splice(0, this.decals.length - 24);
+    this.decals.add(position, radius, kind);
     if (changed) this.drawStaticWorld();
     return changed;
   }
@@ -98,7 +104,8 @@ export class ArenaLayer extends Container {
     this.setTheme(arena.combat.isEventRun); this.setCycle(arena.bossCycle);
     this.drawBossPresence(seconds, arena.combat.bossHp / arena.combat.maxHp);
     this.updateDecals(deltaMs);
-    this.drawTelegraphs(arena.bossAttacks.active, arena.telegraphsVisible, seconds);
+    this.telegraphRenderer.draw(this.telegraphs, arena.bossAttacks.active, arena.telegraphsVisible, seconds);
+    this.drawBossIndicator(arena.bossWorld.position);
     this.drawGuides(arena);
     const drops = arena.loot.drops.filter((drop) => drop.phase !== 'collected');
     this.lootViews.forEach((view, index) => {
@@ -114,12 +121,13 @@ export class ArenaLayer extends Container {
     if (this.petView.visible) {
       this.petView.position.set(arena.petPosition.x, arena.petPosition.y + Math.sin(seconds * 4) * 12);
       this.petView.rotation = Math.sin(seconds * 2.3) * 0.08;
+      this.petView.scale.set(2.05+Math.sin(seconds*4)*.05);
     }
     this.atmosphere.alpha = this.reducedEffects ? 0.35 : this.quality === 'low' ? 0.5 : 1;
   }
 
   clearTransient(): void {
-    this.telegraphs.clear(); this.guides.clear(); this.aftermath.clear(); this.decals.length = 0; this.brokenLandmarks.clear();
+    this.telegraphs.clear(); this.guides.clear(); this.aftermath.clear(); this.bossIndicator.clear(); this.decals.clear(); this.brokenLandmarks.clear();
     this.lootViews.forEach((view) => { view.visible = false; }); this.dummyViews.forEach((view) => { view.visible = false; }); this.petView.visible = false;
     this.drawStaticWorld();
   }
@@ -132,6 +140,7 @@ export class ArenaLayer extends Container {
 
   private drawStaticWorld(): void {
     this.floor.clear(); this.staticProps.clear();
+    for(const child of this.productionLandmarks.removeChildren())child.destroy();
     this.floor.rect(0, 0, GAME_CONFIG.arena.width, GAME_CONFIG.arena.height).fill(this.eventTheme ? 0x100c16 : 0x0d1220);
     for (const region of ARENA_REGIONS) {
       const cycleTint = this.cycle >= 3 ? 0x391925 : this.cycle === 2 ? 0x271521 : region.ground;
@@ -139,18 +148,43 @@ export class ArenaLayer extends Container {
       this.floor.ellipse(region.center.x, region.center.y, region.radius.x * 0.78, region.radius.y * 0.76).stroke({ color: region.accent, width: 12, alpha: 0.045 + this.cycle * 0.015 });
     }
     this.drawStoneFloor();
-    LANDMARKS.forEach((landmark, index) => this.drawLandmark(landmark, index));
+    LANDMARKS.forEach((landmark, index) => {if(!this.drawProductionLandmark(landmark,index))this.drawLandmark(landmark,index)});
+  }
+
+  private drawProductionLandmark(landmark: Landmark,index:number):boolean{
+    if(this.brokenLandmarks.has(index)||!this.assets)return false;
+    const keys:Partial<Record<Landmark['type'],AssetKey>>={crystal:'arena.landmark.crystal',pillar:'arena.landmark.pillar',arch:'arena.landmark.pillar',root:'arena.landmark.harvestRoot',rock:'arena.landmark.rock',fissure:'arena.landmark.fissure'};
+    const key=keys[landmark.type];if(!key)return false;
+    const texture=this.assets.texture(key);if(!texture)return false;
+    const sprite=new Sprite(texture);sprite.anchor.set(.5,1);sprite.position.set(landmark.x,landmark.y+28*landmark.scale);
+    const targetHeight=(landmark.type==='fissure'?150:landmark.type==='rock'?230:landmark.type==='crystal'?330:420)*landmark.scale;
+    sprite.scale.set(targetHeight/Math.max(1,texture.height));this.productionLandmarks.addChild(sprite);return true;
   }
 
   private drawStoneFloor(): void {
-    for (let row = 0; row < 20; row += 1) {
-      for (let column = 0; column < 25; column += 1) {
-        const x = 120 + column * 230 + (row % 2) * 95;
-        const y = 110 + row * 205;
-        const variation = (row * 17 + column * 31) % 5;
-        const points = [x - 98, y - 70, x + 78 + variation * 5, y - 78, x + 108, y + 48, x + 34, y + 82, x - 90, y + 65];
-        this.floor.poly(points).fill({ color: variation % 2 ? 0x20202c : 0x1b1c28, alpha: 0.44 }).stroke({ color: 0x6e6372, width: 4, alpha: 0.09 });
+    // Irregular large plates avoid the obvious debug-grid cadence of M09.
+    for (let index = 0; index < 176; index += 1) {
+      const x = 90 + hash(index, 11) * (GAME_CONFIG.arena.width - 180);
+      const y = 90 + hash(index, 29) * (GAME_CONFIG.arena.height - 180);
+      const width = 115 + hash(index, 43) * 250;
+      const height = 75 + hash(index, 67) * 170;
+      const rotation = hash(index, 83) * Math.PI * 2;
+      const points: number[] = [];
+      const sides = 5 + index % 3;
+      for (let side = 0; side < sides; side += 1) {
+        const angle = rotation + side / sides * Math.PI * 2;
+        const wobble = .72 + hash(index * 7 + side, 101) * .32;
+        points.push(x + Math.cos(angle) * width * wobble, y + Math.sin(angle) * height * wobble);
       }
+      const tone = index % 4 === 0 ? 0x282734 : index % 3 === 0 ? 0x20212d : 0x1a1b26;
+      this.floor.poly(points).fill({ color: tone, alpha: .27 + hash(index, 109) * .18 })
+        .stroke({ color: 0x777180, width: 3 + hash(index, 127) * 3, alpha: .035 + hash(index, 131) * .045 });
+    }
+    for (let patch = 0; patch < 46; patch += 1) {
+      const x = hash(patch, 151) * GAME_CONFIG.arena.width;
+      const y = hash(patch, 163) * GAME_CONFIG.arena.height;
+      const size = 28 + hash(patch, 173) * 62;
+      this.floor.ellipse(x, y, size * 1.8, size * .48).fill({ color: patch % 5 === 0 ? 0x4d2631 : 0x070911, alpha: .08 + hash(patch, 181) * .12 });
     }
     const cracks = [[270,420,790,790],[1280,530,1750,980],[2480,1080,2870,1570],[3380,1370,4260,1680],[610,2790,1440,3340],[3820,2780,5020,3300],[2050,3500,3040,3700]];
     for (const [x1,y1,x2,y2] of cracks) this.floor.moveTo(x1,y1).lineTo((x1+x2)/2+40,(y1+y2)/2-35).lineTo(x2,y2).stroke({ color: this.eventTheme ? 0xb5482c : 0x485a85, width: 13, alpha: 0.18 + this.cycle * 0.04 });
@@ -180,6 +214,15 @@ export class ArenaLayer extends Container {
       this.staticProps.poly([x-90*scale,y,x-58*scale,y-124*scale,x,y-176*scale,x+74*scale,y-105*scale,x+95*scale,y]).fill(0x292b37)
         .poly([x-24*scale,y-174*scale,x+7*scale,y-246*scale,x+39*scale,y-169*scale]).fill(0x454552)
         .circle(x-18*scale,y-146*scale,8*scale).fill({color:0xff7138,alpha:0.72});
+    } else if (landmark.type === 'arch') {
+      this.staticProps.poly([x-150*scale,y,x-124*scale,y-248*scale,x-70*scale,y-282*scale,x-34*scale,y-38*scale]).fill(0x252631)
+        .poly([x+34*scale,y-38*scale,x+73*scale,y-282*scale,x+128*scale,y-244*scale,x+151*scale,y]).fill(0x20212b)
+        .poly([x-126*scale,y-246*scale,x-70*scale,y-282*scale,x+73*scale,y-282*scale,x+128*scale,y-244*scale,x+94*scale,y-204*scale,x-91*scale,y-204*scale]).fill(0x393946)
+        .moveTo(x-98*scale,y-194*scale).lineTo(x-28*scale,y-232*scale).lineTo(x+42*scale,y-208*scale).stroke({color:0xff7740,width:7*scale,alpha:.24});
+    } else if (landmark.type === 'rock') {
+      this.staticProps.poly([x-144*scale,y,x-108*scale,y-103*scale,x-28*scale,y-156*scale,x+83*scale,y-127*scale,x+142*scale,y-34*scale,x+102*scale,y+8*scale]).fill(0x282936)
+        .poly([x-108*scale,y-103*scale,x-28*scale,y-156*scale,x-9*scale,y-44*scale,x-95*scale,y-18*scale]).fill(0x41414e)
+        .poly([x-9*scale,y-44*scale,x-28*scale,y-156*scale,x+83*scale,y-127*scale,x+53*scale,y-39*scale]).fill(0x343541);
     } else {
       this.staticProps.moveTo(x-160*scale,y).lineTo(x-52*scale,y-44*scale).lineTo(x+22*scale,y-17*scale).lineTo(x+152*scale,y-72*scale).stroke({color:0xff6630,width:24*scale,alpha:0.2+this.cycle*.06})
         .moveTo(x-160*scale,y).lineTo(x-52*scale,y-44*scale).lineTo(x+22*scale,y-17*scale).lineTo(x+152*scale,y-72*scale).stroke({color:0xffaa58,width:6*scale,alpha:0.72});
@@ -188,57 +231,39 @@ export class ArenaLayer extends Container {
 
   private drawBossPresence(seconds: number, hpRatio: number): void {
     this.bossPresence.clear(); const instability = 1 - hpRatio;
-    this.bossPresence.ellipse(BOSS_WORLD_ANCHOR.x, BOSS_WORLD_ANCHOR.y + 170, 610, 245).fill({ color: 0x020208, alpha: 0.58 + instability * 0.15 });
-    this.bossPresence.ellipse(BOSS_WORLD_ANCHOR.x, BOSS_WORLD_ANCHOR.y, 520, 360).stroke({ color: this.eventTheme ? 0xff6d32 : 0x7d5fa7, width: 20, alpha: 0.06 + instability * 0.08 });
+    this.bossPresence.ellipse(BOSS_WORLD_ANCHOR.x, BOSS_WORLD_ANCHOR.y + 180, 675, 260).fill({ color: 0x010107, alpha: 0.45 + instability * 0.13 });
+    this.bossPresence.ellipse(BOSS_WORLD_ANCHOR.x, BOSS_WORLD_ANCHOR.y + 145, 515, 185).fill({ color: 0x05040a, alpha: 0.62 + instability * 0.1 });
+    this.bossPresence.ellipse(BOSS_WORLD_ANCHOR.x, BOSS_WORLD_ANCHOR.y, 520, 360).stroke({ color: this.eventTheme ? 0xff6d32 : 0x7d5fa7, width: 11, alpha: 0.035 + instability * 0.07 });
+    for(let rock=0;rock<12;rock+=1){const angle=rock/12*Math.PI*2+.18;const radius=410+(rock%3)*52;const x=BOSS_WORLD_ANCHOR.x+Math.cos(angle)*radius,y=BOSS_WORLD_ANCHOR.y+Math.sin(angle)*radius*.56;const size=16+(rock%4)*7;this.bossPresence.poly([x-size,y,x-5,y-size*.7,x+size,y-2,x+4,y+size*.55]).fill({color:0x292834,alpha:.62})}
     const pulse = 25 + Math.sin(seconds * (2 + this.cycle)) * 8;
     this.bossPresence.circle(BOSS_WORLD_ANCHOR.x, BOSS_WORLD_ANCHOR.y + 130, 130 + pulse).fill({ color: this.eventTheme ? 0xff6b2d : 0x9258d1, alpha: 0.025 + instability * 0.035 });
   }
 
-  private drawTelegraphs(attacks: readonly BossTelegraph[], visible: boolean, seconds: number): void {
-    this.telegraphs.clear(); if (!visible) return;
-    for (const attack of attacks) {
-      const definition = BOSS_ATTACKS[attack.kind];
-      const progress = attack.phase === 'telegraph' ? Math.min(1, attack.elapsedMs / definition.telegraphMs) : 1;
-      const imminent = progress > 0.68, impact = attack.phase === 'impact';
-      const color = attack.kind.includes('corruption') || attack.kind === 'moving-hazard' ? 0xa94dff : attack.kind === 'core-beam' ? 0xffa13f : 0xff4d35;
-      const fillAlpha = impact ? 0.36 : 0.08 + progress * 0.13;
-      if (definition.shape === 'circle') {
-        this.telegraphs.circle(attack.position.x, attack.position.y, attack.radius).fill({ color, alpha: fillAlpha })
-          .circle(attack.position.x, attack.position.y, attack.radius).stroke({ color: imminent ? 0xffd590 : color, width: 10 + progress * 7, alpha: 0.86 })
-          .circle(attack.position.x, attack.position.y, attack.radius * (1 - progress * 0.88)).stroke({ color: 0xfff0c8, width: 7, alpha: 0.72 });
-        for (let ray = 0; ray < 8; ray += 1) { const angle = ray / 8 * Math.PI * 2 + seconds; this.telegraphs.moveTo(attack.position.x + Math.cos(angle) * attack.radius * .25, attack.position.y + Math.sin(angle) * attack.radius * .25).lineTo(attack.position.x + Math.cos(angle) * attack.radius * .8, attack.position.y + Math.sin(angle) * attack.radius * .8).stroke({ color, width: 5, alpha: .16 + progress * .16 }); }
-      } else if (definition.shape === 'ring') {
-        this.telegraphs.circle(attack.position.x, attack.position.y, attack.radius).stroke({ color, width: Math.max(30, attack.radius - attack.innerRadius), alpha: 0.09 + progress * 0.12 })
-          .circle(attack.position.x, attack.position.y, attack.radius).stroke({ color: imminent ? 0xffd6a0 : color, width: 12, alpha: 0.9 })
-          .circle(attack.position.x, attack.position.y, attack.innerRadius).stroke({ color, width: 8, alpha: 0.7 });
-      } else {
-        const length = definition.shape === 'line' ? 1900 : attack.radius;
-        const end = { x: attack.origin.x + attack.direction.x * length, y: attack.origin.y + attack.direction.y * length };
-        const halfWidth = definition.shape === 'line' ? attack.radius : length * 0.38;
-        const px = -attack.direction.y, py = attack.direction.x;
-        const startWidth = definition.shape === 'line' ? halfWidth : 26;
-        const polygon = [
-          attack.origin.x + px * startWidth, attack.origin.y + py * startWidth,
-          end.x + px * halfWidth, end.y + py * halfWidth,
-          end.x - px * halfWidth, end.y - py * halfWidth,
-          attack.origin.x - px * startWidth, attack.origin.y - py * startWidth,
-        ];
-        this.telegraphs.poly(polygon).fill({ color, alpha: fillAlpha }).stroke({ color: imminent ? 0xffedc2 : color, width: 10 + progress * 6, alpha: 0.82 });
-        for(let stripe=1;stripe<=3;stripe+=1){const t=stripe/4;const sx=attack.origin.x+(end.x-attack.origin.x)*t,sy=attack.origin.y+(end.y-attack.origin.y)*t,w=startWidth+(halfWidth-startWidth)*t;this.telegraphs.moveTo(sx+px*w,sy+py*w).lineTo(sx-px*w,sy-py*w).stroke({color,width:5,alpha:.12+progress*.12})}
-      }
+  private updateDecals(deltaMs: number): void {
+    this.decals.update(deltaMs);
+    this.aftermath.clear();
+    for (const decal of this.decals.items) {
+      const alpha = Math.min(0.34, (1 - decal.ageMs / decal.durationMs) * 0.34);
+      const color = decal.kind.includes('corruption') || decal.kind === 'moving-hazard' ? 0x59276f : decal.kind === 'core-beam' ? 0x5a241b : 0x40343a;
+      this.aftermath.ellipse(decal.position.x, decal.position.y, decal.radius, decal.radius * 0.42).fill({ color, alpha: alpha * .42 });
+      for (let ray = 0; ray < 5 + decal.variant; ray += 1) { const a = decal.rotation + ray / (5 + decal.variant) * Math.PI * 2; const inner=decal.radius*.14,outer=decal.radius*(.55+(ray%3)*.18);this.aftermath.moveTo(decal.position.x+Math.cos(a)*inner,decal.position.y+Math.sin(a)*inner*.55).lineTo(decal.position.x+Math.cos(a+.08)*outer,decal.position.y+Math.sin(a+.08)*outer*.55).stroke({ color: decal.kind.includes('corruption')?0x8f47b0:0x9b5b45, width: 5+decal.variant*2, alpha }); }
     }
   }
 
-  private updateDecals(deltaMs: number): void {
-    this.aftermath.clear();
-    for (let index = this.decals.length - 1; index >= 0; index -= 1) {
-      const decal = this.decals[index]; decal.ageMs += deltaMs;
-      if (decal.ageMs >= decal.durationMs) { this.decals.splice(index, 1); continue; }
-      const alpha = Math.min(0.34, (1 - decal.ageMs / decal.durationMs) * 0.34);
-      const color = decal.kind.includes('corruption') || decal.kind === 'moving-hazard' ? 0x59276f : decal.kind === 'core-beam' ? 0x5a241b : 0x40343a;
-      this.aftermath.ellipse(decal.position.x, decal.position.y, decal.radius, decal.radius * 0.45).fill({ color, alpha });
-      if (decal.kind === 'ground-slam' || decal.kind === 'shockwave') for (let ray = 0; ray < 6; ray += 1) { const a = ray / 6 * Math.PI * 2; this.aftermath.moveTo(decal.position.x, decal.position.y).lineTo(decal.position.x + Math.cos(a) * decal.radius, decal.position.y + Math.sin(a) * decal.radius * .55).stroke({ color: 0x9b5b45, width: 8, alpha }); }
-    }
+  private drawBossIndicator(position: Vec2): void {
+    this.bossIndicator.clear();
+    const viewport=this.camera.viewport,point=this.camera.worldToScreen(position),margin=26;
+    const inside=point.x>=viewport.x&&point.x<=viewport.x+viewport.width&&point.y>=viewport.y&&point.y<=viewport.y+viewport.height;
+    if(inside)return;
+    const center={x:viewport.x+viewport.width/2,y:viewport.y+viewport.height/2};
+    const angle=Math.atan2(point.y-center.y,point.x-center.x);
+    const dx=Math.cos(angle),dy=Math.sin(angle);
+    const tx=dx===0?Infinity:(dx>0?(viewport.x+viewport.width-margin-center.x)/dx:(viewport.x+margin-center.x)/dx);
+    const ty=dy===0?Infinity:(dy>0?(viewport.y+viewport.height-margin-center.y)/dy:(viewport.y+margin-center.y)/dy);
+    const t=Math.min(Math.abs(tx),Math.abs(ty));
+    const x=center.x+dx*t,y=center.y+dy*t;
+    const size=9;
+    this.bossIndicator.poly([x+dx*size*1.4,y+dy*size*1.4,x-dy*size-dx*size,y+dx*size-dy*size,x+dy*size-dx*size,y-dx*size-dy*size]).fill({color:0xffa457,alpha:.72});
   }
 
   private drawLoot(view: Graphics, drop: LootDrop, seconds: number): void {
@@ -251,7 +276,8 @@ export class ArenaLayer extends Container {
       view.rect(epic ? -5 : -3, epic ? -220 : -150, epic ? 10 : 6, epic ? 188 : 124).fill({ color, alpha: epic ? .28 : .2 });
       view.circle(0, epic ? -218 : -148, epic ? 11 : 7).fill({ color: 0xffffff, alpha: .55 });
     }
-    const pulse = 1 + Math.sin(seconds * (epic ? 6 : 4) + Number(drop.id.split('-')[1])) * (epic ? .09 : .045); view.scale.set(pulse);
+    const pulse = 1 + Math.sin(seconds * (epic ? 6 : 4) + Number(drop.id.split('-')[1])) * (epic ? .09 : .045);
+    view.scale.set(pulse*(epic?2.5:rare?2.15:1.75));
   }
 
   private drawPet(): void {
@@ -287,4 +313,9 @@ export class ArenaLayer extends Container {
     const halfWidth = viewport.width / (2 * this.camera.scale) + margin, halfHeight = viewport.height / (2 * this.camera.scale) + margin;
     return Math.abs(position.x - this.camera.position.x) <= halfWidth && Math.abs(position.y - this.camera.position.y) <= halfHeight;
   }
+}
+
+function hash(index: number, salt: number): number {
+  const value = Math.sin(index * 127.1 + salt * 311.7) * 43758.5453;
+  return value - Math.floor(value);
 }

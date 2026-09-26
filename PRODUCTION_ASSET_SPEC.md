@@ -120,3 +120,13 @@ These remain deferred and always have procedural fallbacks.
 | `vfx.projectile` | 256×128 | Yes | Optional neutral projectile body, horizontal travel |
 | `vfx.impact` | 512×512 | Yes | Optional impact material mask, no full-screen flash |
 | `vfx.telegraphNoise` | 512×512 | Yes | Tileable monochrome telegraph noise/mask |
+
+## M09.1 integrated production asset
+
+| Asset ID | File | Status | Integration |
+|---|---|---|---|
+| `boss.halloween.base` | `public/assets/harvest-colossus-master.webp` | Integrated | 1280×1139 transparent WebP, 241 KB; world-projected boss master. Code retains ground shadow, core response, aligned damage cracks, recoil, debris and death effects. |
+
+The current generated master is a near-production vertical-slice asset. Damage stages deliberately reuse the aligned base master plus code overlays until artist-generated stage files are supplied. Do not independently regenerate stages: derive them from the same layered boss master to preserve anatomy and pixel alignment.
+
+New deferred M09.1 slots: `vfx.powerHit`, `vfx.crack` and `vfx.scorch`. Every slot remains optional and fails back to bounded code rendering.

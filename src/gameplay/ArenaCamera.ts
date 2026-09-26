@@ -19,17 +19,17 @@ export class ArenaCamera {
   update(deltaMs:number,player:Vec2,velocity:Vec2):void{
     this.manualIdleMs+=deltaMs;
     const speed=Math.hypot(velocity.x,velocity.y),nx=speed>1?velocity.x/speed:0,ny=speed>1?velocity.y/speed:0;
-    const look=Math.min(260,speed*.31);
+    const look=Math.min(205,speed*.255);
     if(this.mode==='boss-focus'&&this.focusTarget){this.target={x:(player.x+this.focusTarget.x)/2,y:(player.y+this.focusTarget.y)/2}}
     else this.target={x:player.x+nx*look+this.manualOffset.x,y:player.y+ny*look+this.manualOffset.y};
     if(this.mode==='follow'&&this.manualIdleMs>1500){const decay=Math.exp(-deltaMs/520);this.manualOffset.x*=decay;this.manualOffset.y*=decay;if(Math.abs(this.manualOffset.x)+Math.abs(this.manualOffset.y)<2){this.manualOffset.x=0;this.manualOffset.y=0}}
     const dx=this.target.x-this.position.x,dy=this.target.y-this.position.y;
-    const deadX=(this.mode==='look'?18:74)/this.zoom,deadY=(this.mode==='look'?18:56)/this.zoom;
-    const follow=1-Math.exp(-deltaMs/(this.mode==='look'?105:165));
+    const deadX=(this.mode==='look'?18:82)/this.zoom,deadY=(this.mode==='look'?18:64)/this.zoom;
+    const follow=1-Math.exp(-deltaMs/(this.mode==='look'?112:188));
     if(Math.abs(dx)>deadX)this.position.x+=(dx-Math.sign(dx)*deadX)*follow;
     if(Math.abs(dy)>deadY)this.position.y+=(dy-Math.sign(dy)*deadY)*follow;
     this.zoom+=(this.targetZoom-this.zoom)*(1-Math.exp(-deltaMs/130));
-    this.shakePower*=Math.exp(-deltaMs/88);this.shake={x:(Math.random()*2-1)*this.shakePower,y:(Math.random()*2-1)*this.shakePower};this.clampPosition();
+    this.shakePower*=Math.exp(-deltaMs/76);this.shake={x:(Math.random()*2-1)*this.shakePower,y:(Math.random()*2-1)*this.shakePower};this.clampPosition();
   }
   impulse(power:number):void{this.shakePower=Math.max(this.shakePower,power)}
   emphasize(kind:'breakpoint'|'mutation'|'kill'|'cycle'):void{const delta=kind==='mutation'?.05:kind==='kill'?-.09:-.04;this.zoom=clamp(this.zoom+delta,this.minZoom,this.maxZoom)}

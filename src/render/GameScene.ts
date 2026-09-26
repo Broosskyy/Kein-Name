@@ -22,6 +22,7 @@ import { BossWorldPresentation } from './BossWorldPresentation';
 import { BOSS_WORLD_ANCHOR } from '../gameplay/ArenaRegions';
 import { CreatureLocomotion } from './CreatureLocomotion';
 import { ArenaDepthSystem } from '../gameplay/ArenaDepthSystem';
+import { BOSS_ATTACKS } from '../gameplay/BossAttackSystem';
 
 export interface GameSceneM06Options {
   arena: ArenaRunModel;
@@ -106,7 +107,7 @@ export class GameScene {
   private readonly quality = new VisualQualityController();
   private readonly visualState = new VisualState();
   private readonly effects = new EffectsLayer(this.quality);
-  private readonly arenaLayer = new ArenaLayer();
+  private readonly arenaLayer: ArenaLayer;
   private readonly bossWorldPresentation = new BossWorldPresentation();
   private readonly creatureLocomotion = new CreatureLocomotion();
   private readonly depthSystem = new ArenaDepthSystem();
@@ -161,6 +162,7 @@ export class GameScene {
     private readonly m06?: GameSceneM06Options,
   ) {
     this.app.stage.addChild(this.world);
+    this.arenaLayer = new ArenaLayer(this.assets);
     this.world.sortableChildren = true;
     const backgroundTexture = this.assets.texture('arena.standard.background');
     if (backgroundTexture) this.backgroundAsset = new Sprite(backgroundTexture);
@@ -583,7 +585,14 @@ export class GameScene {
   private handleArenaEvent(event: ArenaRunEvent): void {
     if (event.type === 'PLAYER_DAMAGED') { this.creaturePunch = -0.8; this.flash(0.16); this.shake(150, 5); }
     if (event.type === 'PLAYER_DASHED') { const from=this.arenaLayer.toScreen(event.from),to=this.arenaLayer.toScreen(event.to);for(let i=0;i<7;i++){const t=i/6;this.effects.trail(from.x+(to.x-from.x)*t,from.y+(to.y-from.y)*t,0x8feaff,7-i*.65);} }
-    if (event.type === 'BOSS_ATTACK_IMPACT') { const p=this.arenaLayer.toScreen(event.impact.position);this.effects.burst(p.x,p.y,0xff7045,event.impact.kind==='falling-debris'?10:16,.7);this.arenaLayer.camera.impulse(event.impact.hit?8:5);if(this.arenaLayer.reactToImpact(event.impact.position,event.impact.radius,event.impact.kind))this.effects.burst(p.x,p.y,0x918ba5,8,.45); }
+    if (event.type === 'BOSS_ATTACK_IMPACT') {
+      const p=this.arenaLayer.toScreen(event.impact.position);
+      const major=event.impact.kind==='ground-slam'||event.impact.kind==='rear-slam'||event.impact.kind==='radial-shockwave';
+      this.effects.burst(p.x,p.y,event.impact.kind.includes('corruption')?0xb65cff:0xff7748,major?22:event.impact.kind==='falling-debris'?10:15,major?1:.68);
+      if(major){this.effects.debrisBurst(p.x,p.y,0x494553,14,.82);this.effects.shockwave(p.x,p.y,0xff8b4d,1.18);this.bossRecoil=Math.max(this.bossRecoil,1.25)}
+      this.arenaLayer.camera.impulse(event.impact.hit?8:major?6:4);
+      if(this.arenaLayer.reactToImpact(event.impact.position,event.impact.radius,event.impact.kind))this.effects.debrisBurst(p.x,p.y,0x918ba5,9,.48);
+    }
     if (event.type === 'PLAYER_DEFEATED') { this.clearProjectiles(); this.ui.showFailure(); this.m06?.clearSnapshot?.(); }
     if (event.type === 'LOOT_PICKED') {
       const point = this.arenaLayer.toScreen(this.m06!.arena.player.position);
@@ -856,9 +865,22 @@ export class GameScene {
       this.creature.zIndex = depth.player;
     }
     const breath = 1 + Math.sin(seconds * 1.45) * 0.009;
-    this.boss.scale.set(this.bossBaseScale * breath * (1 + this.bossRecoil * 0.018), this.bossBaseScale * (2 - breath) * (1 - this.bossRecoil * 0.012));
+    const activeAttack=this.m06?.arena.bossAttacks.active[0];
+    let attackLift=0,attackSquash=0,attackLean=0;
+    if(activeAttack){
+      const definition=BOSS_ATTACKS[activeAttack.kind];
+      if(activeAttack.phase==='telegraph'){
+        const progress=Math.min(1,activeAttack.elapsedMs/definition.telegraphMs);
+        const anticipation=Math.sin(progress*Math.PI*.5);
+        attackLift=-10*anticipation;
+        attackLean=(activeAttack.direction.x||0)*.026*anticipation;
+      }else if(activeAttack.phase==='impact'){attackSquash=.055;attackLift=8}
+    }
+    const facingLean=this.m06?.arena?Math.max(-.5,Math.min(.5,(this.creatureBaseX-this.bossBaseX)/Math.max(1,this.width)))*.035:0;
+    this.boss.scale.set(this.bossBaseScale * breath * (1 + this.bossRecoil * 0.018+attackSquash), this.bossBaseScale * (2 - breath) * (1 - this.bossRecoil * 0.012-attackSquash*.72));
     this.boss.x = this.bossBaseX + this.bossRecoil * 8;
-    this.boss.y = this.bossBaseY + Math.sin(seconds * 1.45) * 2 * this.bossBaseScale;
+    this.boss.y = this.bossBaseY + Math.sin(seconds * 1.45) * 2 * this.bossBaseScale+attackLift*this.bossBaseScale;
+    this.boss.rotation=facingLean+attackLean-this.bossRecoil*.003;
     this.bossRecoil = Math.max(0, this.bossRecoil - deltaMs / 130);
     this.bossFlash.alpha = Math.max(0, this.bossFlash.alpha - deltaMs / 95);
     const damageStage = this.visualState.damageStage;
@@ -1478,10 +1500,13 @@ export class GameScene {
     this.height = this.app.screen.height;
     this.portrait = this.height >= this.width;
     const halloween = this.model.isEventRun;
+    const moonX=this.width*(this.portrait ? .72 : .78),moonY=this.height*(this.portrait ? .18 : .24),moonRadius=Math.min(this.width*.24,this.height*.13);
     this.background.clear()
       .rect(0, 0, this.width, this.height).fill(halloween ? 0x080811 : 0x090b16)
-      .circle(this.width * (this.portrait ? 0.5 : 0.68), this.height * (halloween ? 0.19 : 0.33), Math.max(this.width, this.height) * (halloween ? 0.17 : 0.35)).fill({ color: halloween ? 0xc09aa8 : 0x23172e, alpha: halloween ? 0.32 : 0.36 })
-      .circle(this.width * (this.portrait ? 0.5 : 0.68), this.height * (halloween ? 0.19 : 0.33), Math.max(this.width, this.height) * (halloween ? 0.13 : 0.28)).fill({ color: halloween ? 0xe7c39e : 0x1b1426, alpha: halloween ? 0.2 : 0.15 })
+      .circle(moonX,moonY,moonRadius*1.08).fill({color:halloween?0x6e4b58:0x23172e,alpha:.16})
+      .circle(moonX,moonY,moonRadius).fill({color:halloween?0xc19a89:0x272038,alpha:halloween?.18:.12})
+      .circle(moonX-moonRadius*.27,moonY-moonRadius*.16,moonRadius*.18).fill({color:0x342c3b,alpha:.16})
+      .circle(moonX+moonRadius*.32,moonY+moonRadius*.22,moonRadius*.12).fill({color:0x342c3b,alpha:.13})
       .rect(0, this.height * 0.68, this.width, this.height * 0.32).fill({ color: halloween ? 0x100d17 : 0x111522, alpha: 0.95 });
     for (let line = 0; line < 6; line += 1) {
       const y = this.height * (0.7 + line * 0.055);

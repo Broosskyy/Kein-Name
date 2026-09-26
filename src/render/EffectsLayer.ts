@@ -61,6 +61,14 @@ export class EffectsLayer extends Container {
     }
   }
 
+  activeCounts(): Readonly<{ particles: number; texts: number; shockwaves: number }> {
+    return {
+      particles: this.particles.filter((item) => item.active).length,
+      texts: this.texts.filter((item) => item.active).length,
+      shockwaves: this.shockwaves.filter((item) => item.active).length,
+    };
+  }
+
   burst(x: number, y: number, color: number, requestedCount: number, power = 1): void {
     const profile = this.quality.profile;
     const count = Math.max(1, Math.round(requestedCount * profile.particles));
@@ -145,7 +153,8 @@ export class EffectsLayer extends Container {
     item.view.text = `${Math.round(amount)}`;
     item.view.style.fontSize = isPower ? 43 : 27;
     item.view.style.fill = color;
-    item.view.position.set(x + visualRandom.centered(35), y - 20);
+    const nearby=this.texts.filter((candidate)=>candidate.active&&Math.abs(candidate.view.x-x)<52&&Math.abs(candidate.view.y-y)<70).length;
+    item.view.position.set(x + visualRandom.centered(24)+(nearby%2?22:-22), y - 20-nearby*15);
     item.view.scale.set(0.45);
     item.view.alpha = 1;
     item.view.visible = true;

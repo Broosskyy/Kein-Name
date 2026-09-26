@@ -1,6 +1,6 @@
-# Mutation Boss — M09 True 360° Boss Arena
+# Mutation Boss — M09.1 Visual Vertical Slice
 
-Browser-first PixiJS boss-arena vertical slice: circle a physical world-space Harvest Colossus inside a 5600×4000 dark-fantasy arena, freely look and zoom, read directional danger, dash for physical loot, mutate and break escalating boss cycles.
+Browser-first PixiJS boss-arena vertical slice: circle a physical world-space Harvest Colossus inside a 5600×4000 dark-fantasy arena, freely look and zoom, read floor-attached danger, dash for physical loot, mutate and break escalating boss cycles. M09.1 adds the first integrated production boss master and a focused world/combat presentation pass without changing gameplay scope.
 
 ## Start and validate
 
@@ -44,6 +44,19 @@ npm run preview
 - Browser Fullscreen API wrapper with graceful fallback
 - M04 Halloween systems and M05 AssetManifest V2 retained
 
+## M09.1 visual convergence
+
+- Integrated transparent Harvest Colossus production master with aligned procedural core, damage, hit and death layers
+- Asset-first landmark/floor hooks with safe procedural fallback
+- Irregular cached stone plates, macro terrain patches and stronger boss grounding instead of the repeated grid cadence
+- Broken-edge, crack-driven floor telegraphs with low-opacity centers and readable Warning/Imminent/Impact states
+- Bounded reusable ground aftermath decals and pooled VFX lifecycle diagnostics
+- Stronger boss anticipation, impact compression, recoil, debris and localized shockwave response
+- More desirable world loot scale, rarity beams and Ember Wisp presence
+- Calmer camera follow/look-ahead and faster-decaying controlled shake
+- Subtle off-screen boss direction marker
+- Compact premium HUD polish; permanent zoom buttons remain removed
+
 No backend, authentication, cloud save, real multiplayer, country/world aggregation, store, ads or fake online data exists.
 
 ## Key structure
@@ -64,6 +77,7 @@ No backend, authentication, cloud save, real multiplayer, country/world aggregat
 - `src/render/GameScene.ts` — M05 presentation plus M06 arena integration
 - `src/ui/GameUI.ts` / `src/styles.css` — joystick, run HUD, choices, resume/failure and fullscreen
 - `M09_TRUE_BOSS_ARENA.md` — M09 architecture, parameters, validation and known risks
+- `M09_1_VISUAL_COMBAT_POLISH.md` — M09.1 visual audit, asset integration, caps and validation
 
 ## Save/resume strategy
 
