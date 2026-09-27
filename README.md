@@ -1,12 +1,13 @@
-# Mutation Boss — M09.2 Production Art Convergence
+# Mutation Boss — M10 Hybrid 3D Arena Foundation
 
-Browser-first PixiJS boss-arena vertical slice: circle a physical world-space Harvest Colossus inside a 5600×4000 dark-fantasy arena, freely look and zoom, read floor-attached danger, dash for physical loot, mutate and break escalating boss cycles. M09.2 closes the visual gap around the production Colossus with a coherent creature, ruins, crystal/corruption, ground, loot, VFX, boss-state and pet art pipeline. Gameplay math and the M09 world/camera foundation are unchanged.
+Browser-first hybrid Three.js + PixiJS boss-arena prototype. The default M10 path is a deterministic 2200×2200 spatial slice with real 3D terrain, structures, perspective camera, geometry occlusion, a world-space Boss proxy, ground telegraphs and physical loot. The complete M09.3 2.5D experience remains available as a migration fallback.
 
 ## Start and validate
 
 ```bash
 npm install
 npm run assets:extract
+npm run qa:world
 npm run dev
 npx tsc -b
 npm test
@@ -14,10 +15,12 @@ npm run build
 npm run preview
 ```
 
+Use the default URL for M10 Hybrid 3D. Append `?renderer=2d` for the intact M09.3 renderer. Append `?debug3d=1` or press `F3` for spatial metrics/proxies.
+
 ## Controls
 
 - Mobile: 360° joystick + **POWER HIT** + **DASH**; drag open battlefield space to look, pinch to zoom, double-tap to reset follow.
-- Desktop: WASD/arrows, Space to dash, mouse drag to look, mouse wheel or `− / +` to zoom.
+- Desktop: WASD/arrows, Space to dash, E/F for Power Hit, mouse drag to pan, mouse wheel to dolly, R to reset Follow, T for Tactical and F3 for 3D debug.
 - Fullscreen is optional and only requested from its explicit button.
 - Mutation and level-up choices pause active time and danger timing.
 - `D`, backtick or `?debug=1` opens DEV controls for attacks, loot, XP, cycles, dummies, quality and state.
@@ -57,6 +60,41 @@ npm run preview
 - Every production slot retains a safe procedural fallback and failed loads never affect gameplay
 - Compact, shorter announcements keep mobile combat space visible
 
+## M09.2.1 real-map integration
+
+- A data-driven continuous Harvest Arena now owns dimensions, spawns, regions, authored props, decals, major collisions, loot areas and camera hints.
+- The Hero uses two coherent directional master kits: eight real directions with Idle/contact, Run, Dash and Attack poses. It no longer remains permanently front-facing or reuses a generic run pose for every action.
+- Simulation coordinates are explicitly separated from renderer transforms; gameplay never reads camera zoom or screen coordinates.
+- LOOK is a true absolute world-space camera target with substantial X/Y/diagonal inspection, smooth FOLLOW return, optional BOSS FOCUS and TACTICAL framing.
+- Normal portrait framing shows a meaningful subsection of the map; user zoom remains local presentation only.
+- A compact minimap derives Hero, boss and DEV ally markers from world coordinates.
+- Major ruins/crystals have cheap deterministic collisions; wide-zoom visual LOD removes small noise without changing simulation.
+- Procedural mutation overlays are restrained and no longer cover the production Hero.
+- DEV Master Composition and HUD-off modes support traversal and mockup-intent validation.
+- See `M09_2_1_INTEGRATION_FIX.md` for the 2.5D/hybrid/full-3D comparison and staged migration path.
+
+## M09.3 continuous Harvest Arena
+
+- The 5600×4000 map now has a continuous stone base, broad blended region fields, authored traversal corridors, 38 macro terrain patches and nine outer boundary masses.
+- Six coherent production macro pieces cover intact stone, destroyed stone, basin ring, approach, boundary wall and crystal/corruption transition needs without a monolithic world texture.
+- Colossus Basin is assembled from four shattered ring sections, fractured terrain, persistent impact damage, rubble and restrained fissure influence.
+- Ruined West Approach, Crystal Field, Corrupted East Approach, Lower Entry and the outer ring use clustered landmark assemblies rather than uniformly scattered props.
+- Terrain, structures, props, decals, collisions, regions and corridors live in reusable map-definition data; `GameScene` remains orchestration.
+- Viewport culling and wide-zoom LOD keep macro landmarks while reducing accent patches and small details.
+- `npm run qa:world` creates deterministic, explicitly labelled OFFLINE QA images for the full map, portrait master composition and Look-Up/Master/Look-Down views.
+- See `M09_3_WORLD_CONSTRUCTION.md` for the terrain pipeline, coverage audit and validation results.
+
+## M10 Hybrid 3D vertical slice
+
+- Three.js renders real floor geometry, basin slabs, boundary rocks, pillars, broken pillars, an arch and rock formations with depth-buffer occlusion.
+- Simulation retains renderer-independent 2D world coordinates; a small adapter maps simulation `x/y` to render `X/Z`, with `Y` reserved for elevation.
+- The existing 32 directional Hero frames render as a depth-tested world billboard and retain actual world-facing direction, locomotion, dash and attack poses.
+- The production Harvest Colossus is a temporary world impostor backed by a real 3D footprint/body/orientation proxy.
+- A real perspective camera supports smooth Follow, unrestricted map pan/Look, Boss Focus, Tactical distance and local dolly without changing simulation state.
+- Existing Boss attack selection drives perspective-correct ground meshes; existing loot art remains on real world positions with contact shadows and rarity beams.
+- The 5600×4000 production map is deliberately not migrated yet. This isolated 2200×2200 proof decides whether a staged full-map conversion is viable.
+- See `M10_HYBRID_3D_ARCHITECTURE.md` for the renderer gate, scale, migration matrix, measurements and limitations.
+
 No backend, authentication, cloud save, real multiplayer, country/world aggregation, store, ads or fake online data exists.
 
 ## Key structure
@@ -64,6 +102,9 @@ No backend, authentication, cloud save, real multiplayer, country/world aggregat
 - `src/core/CombatModel.ts` — combat values, mutation choices, cooldowns and result
 - `src/gameplay/ArenaRunModel.ts` — arena player, XP/build, loot, cycles and run snapshot
 - `src/gameplay/ArenaTypes.ts` / `ArenaRegions.ts` — 5600×4000 combat coordinates and eight regions
+- `src/gameplay/MapDefinition.ts` / `HarvestArenaMap.ts` — reusable map schema and authored continuous Harvest map
+- `src/gameplay/WorldCoordinates.ts` / `WorldCollisionSystem.ts` — renderer-independent units and major environment collision
+- `src/gameplay/HeroDirection.ts` — stable eight-direction mapping
 - `src/gameplay/BossWorldEntity.ts` — physical footprint, orientation and boss-relative spatial classification
 - `src/gameplay/PlayerMovementController.ts` — analog acceleration, braking, turning and timed dash
 - `src/gameplay/BossAttackSystem.ts` / `LootSystem.ts` — bounded spatial systems
@@ -75,11 +116,18 @@ No backend, authentication, cloud save, real multiplayer, country/world aggregat
 - `src/render/ArenaProductionArt.ts` — deterministic authored production prop/decal composition
 - `src/render/BossWorldPresentation.ts` — giant world-projected boss pose
 - `src/render/CreatureLocomotion.ts` — movement pose and grounding
+- `src/render/DirectionalHeroRenderer.ts` — production directional Hero animation/fallback boundary
 - `src/render/GameScene.ts` — M05 presentation plus M06 arena integration
+- `src/world3d/Hybrid3DVerticalSlice.ts` — M10 simulation/render orchestration
+- `src/world3d/HybridWorldRenderer.ts` — Three.js scene, geometry, billboards, telegraphs and loot
+- `src/world3d/HybridCameraController.ts` — true perspective world camera
+- `src/world3d/Hybrid3DTestScene.ts` — deterministic data-driven spatial slice
+- `src/world3d/HybridCollisionSystem.ts` — lightweight planar geometry collision
 - `src/ui/GameUI.ts` / `src/styles.css` — joystick, run HUD, choices, resume/failure and fullscreen
 - `M09_TRUE_BOSS_ARENA.md` — M09 architecture, parameters, validation and known risks
 - `M09_1_VISUAL_COMBAT_POLISH.md` — M09.1 visual audit, asset integration, caps and validation
 - `M09_2_PRODUCTION_ART_CONVERGENCE.md` — kit pipeline, runtime integration and validation
+- `M09_2_1_INTEGRATION_FIX.md` — world architecture decision, map/Hero/camera implementation and migration plan
 
 ## Save/resume strategy
 
@@ -94,3 +142,6 @@ Portrait is master; test 360×780 through 430×932 plus landscape. Validate joys
 Group encounters, authoritative boss/loot, reconnect, ranked results, Country/World contribution and account progression require a real server clock, validation and server-owned rewards. The browser client must never be authoritative for competitive damage, aggregate HP, economy or valuable claims.
 
 Production assets remain optional semantic slots. Missing or failed files use procedural fallbacks; LOW/MEDIUM/HIGH changes presentation density only and never gameplay math.
+
+## M10.1 Hybrid 3D Visual Proof
+M10.1 strengthens the isolated Hybrid-3D slice without migrating the full arena. See `M10_1_HYBRID_3D_VISUAL_PROOF.md`. Deterministic HUD-free visual proof presets are available via `?proof=master`, `flank`, `rear`, `occlusion`, `away`, `wide`, and `close`.

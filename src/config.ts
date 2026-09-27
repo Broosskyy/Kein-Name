@@ -15,7 +15,7 @@ export interface QualityProfile {
 
 export const GAME_CONFIG = {
   schemaVersion: 5,
-  clientVersion: '0.9.2',
+  clientVersion: '1.0.0',
   combat: {
     normalDamage: 42,
     attackIntervalMs: 950,

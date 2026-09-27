@@ -23,6 +23,10 @@ import { BOSS_WORLD_ANCHOR } from '../gameplay/ArenaRegions';
 import { CreatureLocomotion } from './CreatureLocomotion';
 import { ArenaDepthSystem } from '../gameplay/ArenaDepthSystem';
 import { BOSS_ATTACKS } from '../gameplay/BossAttackSystem';
+import { DirectionalHeroRenderer } from './DirectionalHeroRenderer';
+import { HARVEST_ARENA_MAP, MASTER_COMPOSITION_SCENARIO } from '../gameplay/HarvestArenaMap';
+
+export const MUTATION_VISUAL_SCALE:Readonly<Record<Mutation,number>>={crystal:.38,void:.46,wings:.42,pumpkin:.52};
 
 export interface GameSceneM06Options {
   arena: ArenaRunModel;
@@ -112,6 +116,7 @@ export class GameScene {
   private readonly arenaLayer: ArenaLayer;
   private readonly bossWorldPresentation = new BossWorldPresentation();
   private readonly creatureLocomotion = new CreatureLocomotion();
+  private readonly directionalHero:DirectionalHeroRenderer;
   private readonly depthSystem = new ArenaDepthSystem();
   private readonly projectiles: Projectile[] = [];
   private readonly motes: Graphics[] = [];
@@ -164,6 +169,7 @@ export class GameScene {
     private readonly m06?: GameSceneM06Options,
   ) {
     this.app.stage.addChild(this.world);
+    this.directionalHero=new DirectionalHeroRenderer(this.assets);
     this.arenaLayer = new ArenaLayer(this.assets);
     this.world.sortableChildren = true;
     const backgroundTexture = this.assets.texture('arena.standard.background');
@@ -368,14 +374,8 @@ export class GameScene {
       .circle(24, -25, 3.5).fill(0xffffff)
       .moveTo(-7, 12).quadraticCurveTo(1, 15, 10, 9).stroke({ color: 0x474a70, width: 2.5 });
     this.creatureFallbackBase.addChild(tail, feet, earFins, body, bodyMaterial, identityArmor, face);
-    const baseTexture = this.assets.texture('creature.base');
-    if (baseTexture) {
-      const sprite = new Sprite(baseTexture);
-      sprite.anchor.set(0.5, 0.77);
-      sprite.scale.set(235 / Math.max(1, baseTexture.height));
-      this.creatureProductionBase.addChild(sprite);
-      this.creatureFallbackBase.visible = false;
-    }
+    this.creatureProductionBase.addChild(this.directionalHero.sprite);
+    this.creatureFallbackBase.visible = !this.directionalHero.sprite.visible;
     this.creatureBody.addChild(this.creatureFallbackBase, this.creatureProductionBase, this.crystalMutation, this.voidMutation, this.pumpkinMutation);
 
     this.crystalMutation.addChild(
@@ -582,7 +582,7 @@ export class GameScene {
     if (keyboard.x || keyboard.y || (!this.movementInput.x && !this.movementInput.y)) this.movementInput = keyboard;
   }
 
-  private tryDash(): void { if(this.m06?.arena.dash(this.movementInput)){this.audio.unlock();this.creaturePunch=1.2;this.shake(105,3.2);this.arenaLayer.camera.impulse(4.5);} }
+  private tryDash(): void { if(this.m06?.arena.dash(this.movementInput)){this.audio.unlock();this.directionalHero.trigger('dash',230);this.creaturePunch=1.2;this.shake(105,3.2);this.arenaLayer.camera.impulse(4.5);} }
   private changeZoom(delta:number):void{const zoom=this.arenaLayer.setZoom(this.arenaLayer.camera.targetZoom+delta);this.m06?.saveZoom?.(zoom)}
 
   private handleArenaEvent(event: ArenaRunEvent): void {
@@ -618,10 +618,19 @@ export class GameScene {
     if (action === 'next-cycle') { arena?.advanceCycle(now); this.resetBossForCycle(); return; }
     if ((action === 'cycle-1' || action === 'cycle-2' || action === 'cycle-3') && arena) { arena.debugSetCycle(Number(action.slice(-1)) as 1|2|3, now); this.resetBossForCycle(); return; }
     if (action.startsWith('zoom-')) { const values={ 'zoom-action':1.22,'zoom-standard':.88,'zoom-tactical':.7 } as const;this.arenaLayer.setZoom(values[action as keyof typeof values]);return; }
+    if(action==='camera-follow'){this.arenaLayer.camera.resetFollow();return}
+    if(action==='camera-look'){this.arenaLayer.camera.setMode('look');return}
+    if(action==='camera-boss'&&arena){this.arenaLayer.camera.setMode('boss-focus',arena.bossWorld.position);return}
+    if(action==='hud-toggle'){this.ui.toggleHud();return}
+    if(action==='scenario-master'&&arena){
+      arena.player.position={...MASTER_COMPOSITION_SCENARIO.hero};arena.player.velocity={x:0,y:0};arena.setVisualPlayerCount(4);
+      arena.dummyAllies.forEach((ally,index)=>Object.assign(ally.position,MASTER_COMPOSITION_SCENARIO.dummies[index]));
+      arena.spawnLoot('run-xp','common',20);arena.spawnLoot('relic','rare',1);this.arenaLayer.camera.resetFollow();this.arenaLayer.setZoom(.82);return;
+    }
     if ((action.startsWith('region-') || action.startsWith('distance-')) && arena) {
       const positions: Record<string,{x:number;y:number}> = {
-        'region-core':{x:1600,y:670},'region-crystal':{x:480,y:730},'region-ruins':{x:2670,y:760},'region-edge':{x:540,y:1480},
-        'distance-near':{x:1600,y:690},'distance-medium':{x:1150,y:1080},'distance-far':{x:420,y:1550},
+        'region-core':{x:2800,y:2520},'region-crystal':{x:900,y:2500},'region-ruins':{x:800,y:900},'region-edge':{x:5100,y:3500},
+        'distance-near':{x:2800,y:2550},'distance-medium':{x:2800,y:3250},'distance-far':HARVEST_ARENA_MAP.playerSpawn,
       };
       arena.player.position={...positions[action]}; arena.player.velocity={x:0,y:0}; return;
     }
@@ -726,6 +735,7 @@ export class GameScene {
   private launchProjectile(kind: AttackKind, sourceKind: 'normal' | 'power' = kind === 'power' ? 'power' : 'normal', extraIndex = 0): void {
     const projectile = this.projectiles.find((candidate) => !candidate.active);
     if (!projectile || this.model.phase !== 'playing') return;
+    if(this.m06?.arena){this.directionalHero.face({x:this.m06.arena.bossWorld.position.x-this.m06.arena.player.position.x,y:this.m06.arena.bossWorld.position.y-this.m06.arena.player.position.y});if(extraIndex===0)this.directionalHero.trigger('attack',kind==='power'?260:155)}
     projectile.active = true;
     projectile.kind = kind;
     projectile.sourceKind = sourceKind;
@@ -811,6 +821,7 @@ export class GameScene {
     const arena = this.m06?.arena;
     if (arena) {
       this.ui.updateArena(arena.player.hp, arena.player.maxHp, arena.runLevel, arena.runXp, arena.xpToNext, arena.bossCycle, arena.dashCooldownMs);
+      this.ui.updateMinimap(arena.player.position,arena.bossWorld.position,arena.dummyAllies.map((ally)=>ally.position));
     }
 
     if (this.hitStopMs > 0) {
@@ -820,6 +831,7 @@ export class GameScene {
 
     if (arena && !this.inEventHub) {
       arena.update(deltaMs, this.movementInput, now);
+      this.directionalHero.update(deltaMs,arena.player.velocity);
       this.arenaLayer.updateCamera(deltaMs, arena);
       const point = this.arenaLayer.toScreen(arena.player.position);
       this.creatureBaseX = point.x; this.creatureBaseY = point.y;
@@ -928,13 +940,13 @@ export class GameScene {
     this.creatureShadow.scale.set((hovering ? 0.78 : 1) * locomotion.shadowScaleX, (hovering ? 0.72 : 1) * locomotion.shadowScaleY);
     this.creatureShadow.alpha = hovering ? 0.32 : locomotion.shadowAlpha;
     if (this.wingMutation.visible && this.visualState.sequence !== 'mutation') {
-      const flap = 1 + Math.sin(seconds * 5.6) * 0.035;
-      this.wingMutation.scale.set(flap, 2 - flap);
+      const base=MUTATION_VISUAL_SCALE.wings,flap = 1 + Math.sin(seconds * 5.6) * 0.035;
+      this.wingMutation.scale.set(base*flap, base*(2-flap));
       this.wingMutation.rotation = Math.sin(seconds * 4.2) * 0.025;
     }
     if (this.visualState.sequence !== 'mutation') {
-      if (this.crystalMutation.visible) this.crystalMutation.scale.set(1 + Math.sin(seconds * 2.1) * 0.008);
-      if (this.pumpkinMutation.visible) this.pumpkinMutation.scale.set(1 + Math.sin(seconds * 4.4) * 0.012);
+      if (this.crystalMutation.visible) this.crystalMutation.scale.set(MUTATION_VISUAL_SCALE.crystal*(1 + Math.sin(seconds * 2.1) * 0.008));
+      if (this.pumpkinMutation.visible) this.pumpkinMutation.scale.set(MUTATION_VISUAL_SCALE.pumpkin*(1 + Math.sin(seconds * 4.4) * 0.012));
       if (this.voidMutation.visible) this.voidMutation.alpha = 0.9 + Math.sin(seconds * 3.7) * 0.08;
       if (this.creatureProductionEvolution.visible) {
         this.creatureProductionEvolution.y = Math.sin(seconds * 2.8) * (hovering ? 3 : 1.5);
@@ -1218,6 +1230,7 @@ export class GameScene {
     } else if (mutation === 'void') {
       this.voidMutation.visible = true;
       this.voidMutation.alpha = 0;
+      this.voidMutation.scale.set(MUTATION_VISUAL_SCALE.void);
     } else if (mutation === 'wings') {
       this.wingMutation.visible = true;
       this.wingMutation.scale.set(0.01);
@@ -1235,22 +1248,23 @@ export class GameScene {
     this.pumpkinMutation.visible = false;
     if (this.model.mutations.has('crystal')) {
       this.crystalMutation.visible = true;
-      this.crystalMutation.scale.set(1);
+      this.crystalMutation.scale.set(MUTATION_VISUAL_SCALE.crystal);
       this.ui.setMutation('crystal');
     }
     if (this.model.mutations.has('void')) {
       this.voidMutation.visible = true;
       this.voidMutation.alpha = 1;
+      this.voidMutation.scale.set(MUTATION_VISUAL_SCALE.void);
       this.ui.setMutation('void');
     }
     if (this.model.mutations.has('wings')) {
       this.wingMutation.visible = true;
-      this.wingMutation.scale.set(1);
+      this.wingMutation.scale.set(MUTATION_VISUAL_SCALE.wings);
       this.ui.setMutation('wings');
     }
     if (this.model.mutations.has('pumpkin')) {
       this.pumpkinMutation.visible = true;
-      this.pumpkinMutation.scale.set(1);
+      this.pumpkinMutation.scale.set(MUTATION_VISUAL_SCALE.pumpkin);
       this.ui.setMutation('pumpkin');
     }
     const tint = this.model.mutations.has('pumpkin')
@@ -1276,7 +1290,7 @@ export class GameScene {
   }
 
   private animateMutationReveal(mutation: Mutation, progress: number): void {
-    const scale = easeOutBack(progress);
+    const scale = easeOutBack(progress)*MUTATION_VISUAL_SCALE[mutation];
     if (mutation === 'crystal') this.crystalMutation.scale.set(scale);
     else if (mutation === 'void') this.voidMutation.alpha = Math.min(1, progress * 1.8);
     else if (mutation === 'wings') this.wingMutation.scale.set(scale);
@@ -1286,6 +1300,7 @@ export class GameScene {
   private syncFusionVisuals(): void {
     this.fusionGraphics.clear();
     this.fusionMutation.visible = false;
+    this.fusionMutation.scale.set(.55);
     this.creatureAura.clear();
     this.creatureAura.visible = false;
     this.powerGrowth.clear();

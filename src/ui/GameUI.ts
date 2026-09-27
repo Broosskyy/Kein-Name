@@ -12,8 +12,11 @@ import type { AssetRegistry } from '../assets';
 import { renderVisualCatalog } from './VisualCatalog';
 import type { MovementInput } from '../gameplay/ArenaTypes';
 import type { RunUpgradeDefinition } from '../gameplay/RunUpgrades';
+import { HARVEST_ARENA_MAP } from '../gameplay/HarvestArenaMap';
+import { worldToMinimap } from '../gameplay/MapDefinition';
+import type { Vec2 } from '../gameplay/ArenaTypes';
 
-export type DebugAction = 'break-1' | 'break-2' | 'kill' | 'choose-crystal' | 'choose-void' | 'choose-wings' | 'choose-pumpkin' | 'build-cv' | 'build-cw' | 'build-vw' | 'build-pv' | 'build-pc' | 'build-pw' | 'event-toggle' | 'event-progress' | 'event-challenge' | 'event-unlock-all' | 'event-reset' | 'event-complete' | 'quality-low' | 'quality-medium' | 'quality-high' | 'effects-reduced' | 'visual-catalog' | 'grant-xp' | 'level-up' | 'spawn-loot' | 'spawn-rare' | 'next-cycle' | 'cycle-1' | 'cycle-2' | 'cycle-3' | 'region-core' | 'region-crystal' | 'region-ruins' | 'region-edge' | 'distance-near' | 'distance-medium' | 'distance-far' | 'zoom-action' | 'zoom-standard' | 'zoom-tactical' | 'attack-slam' | 'attack-beam' | 'attack-debris' | 'attack-cone' | 'attack-ring' | 'attack-shockwave' | 'damage-player' | 'heal-player' | 'dummy-add' | 'dummy-clear' | 'dummy-1' | 'dummy-2' | 'dummy-4' | 'dummy-8' | 'pickup-radius' | 'collision-bounds' | 'telegraphs' | 'performance' | 'save' | 'clear-snapshot' | 'inspect-progress' | 'inspect-run' | 'restart';
+export type DebugAction = 'break-1' | 'break-2' | 'kill' | 'choose-crystal' | 'choose-void' | 'choose-wings' | 'choose-pumpkin' | 'build-cv' | 'build-cw' | 'build-vw' | 'build-pv' | 'build-pc' | 'build-pw' | 'event-toggle' | 'event-progress' | 'event-challenge' | 'event-unlock-all' | 'event-reset' | 'event-complete' | 'quality-low' | 'quality-medium' | 'quality-high' | 'effects-reduced' | 'visual-catalog' | 'grant-xp' | 'level-up' | 'spawn-loot' | 'spawn-rare' | 'next-cycle' | 'cycle-1' | 'cycle-2' | 'cycle-3' | 'region-core' | 'region-crystal' | 'region-ruins' | 'region-edge' | 'distance-near' | 'distance-medium' | 'distance-far' | 'zoom-action' | 'zoom-standard' | 'zoom-tactical' | 'camera-follow' | 'camera-look' | 'camera-boss' | 'scenario-master' | 'hud-toggle' | 'attack-slam' | 'attack-beam' | 'attack-debris' | 'attack-cone' | 'attack-ring' | 'attack-shockwave' | 'damage-player' | 'heal-player' | 'dummy-add' | 'dummy-clear' | 'dummy-1' | 'dummy-2' | 'dummy-4' | 'dummy-8' | 'pickup-radius' | 'collision-bounds' | 'telegraphs' | 'performance' | 'save' | 'clear-snapshot' | 'inspect-progress' | 'inspect-run' | 'restart';
 
 export function announcementLifecycle(requestedMs: number): Readonly<{ totalMs: number; enterMs: number; exitMs: number }> {
   const totalMs = Math.max(650, Math.min(1500, Math.round(requestedMs)));
@@ -136,6 +139,13 @@ export class GameUI {
     requiredElement<HTMLButtonElement>('dash-button').disabled = dashCooldownMs > 0;
   }
 
+  updateMinimap(player:Vec2,boss:Vec2,allies:readonly Vec2[]):void{
+    const size=76,place=(element:HTMLElement,point:Vec2)=>{const p=worldToMinimap(point,HARVEST_ARENA_MAP,size);element.style.left=`${p.x}px`;element.style.top=`${p.y}px`;};
+    place(requiredElement('minimap-player'),player);place(requiredElement('minimap-boss'),boss);
+    const root=requiredElement('minimap-allies');
+    root.innerHTML=allies.map((point)=>{const p=worldToMinimap(point,HARVEST_ARENA_MAP,size);return`<em style="left:${p.x}px;top:${p.y}px"></em>`}).join('');
+  }
+
   showUpgradeChoices(choices: readonly RunUpgradeDefinition[], callback: (id: string) => void): void {
     const panel = requiredElement('upgrade-panel');
     const options = requiredElement('upgrade-options');
@@ -155,6 +165,7 @@ export class GameUI {
     this.visualCatalog.classList.toggle('visible', visible);
     this.visualCatalog.setAttribute('aria-hidden', String(!visible));
   }
+  toggleHud():void{document.body.classList.toggle('hud-hidden')}
 
   showChoices(choices: readonly Mutation[], callback: (mutation: Mutation) => void): void {
     this.choices = [...choices];

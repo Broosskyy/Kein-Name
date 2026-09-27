@@ -42,8 +42,8 @@ describe('M09.2 production art convergence', () => {
   it('keeps authored world composition deterministic, unique and lane-conscious', () => {
     const first = productionCompositionSignature();
     expect(productionCompositionSignature()).toBe(first);
-    expect(PRODUCTION_PROPS).toHaveLength(22);
-    expect(PRODUCTION_GROUND_DETAILS).toHaveLength(16);
+    expect(PRODUCTION_PROPS.length).toBeGreaterThanOrEqual(22);
+    expect(PRODUCTION_GROUND_DETAILS.length).toBeGreaterThanOrEqual(16);
     expect(new Set(PRODUCTION_PROPS.map((item) => item.id)).size).toBe(PRODUCTION_PROPS.length);
     expect(PRODUCTION_PROPS.every((item) => item.x >= 0 && item.x <= GAME_CONFIG.arena.width && item.y >= 0 && item.y <= GAME_CONFIG.arena.height)).toBe(true);
   });

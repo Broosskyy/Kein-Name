@@ -8,7 +8,8 @@ import type { LootDrop, LootKind } from '../gameplay/LootSystem';
 import type { Vec2 } from '../gameplay/ArenaTypes';
 import { GroundDecalSystem } from './GroundDecalSystem';
 import { TelegraphRenderer } from './TelegraphRenderer';
-import { PRODUCTION_GROUND_DETAILS, PRODUCTION_PROPS, type ProductionProp } from './ArenaProductionArt';
+import { HARVEST_ARENA_MAP } from '../gameplay/HarvestArenaMap';
+import type { MapGroundDetail, MapProp, MapTerrainPatch } from '../gameplay/MapDefinition';
 
 const LOOT_COLORS: Record<LootKind, number> = {
   'run-xp': 0x75eaff, 'crystal-essence': 0x67e7ff, 'void-essence': 0xc667ff,
@@ -19,17 +20,20 @@ const LOOT_COLORS: Record<LootKind, number> = {
 interface Landmark { x: number; y: number; type: 'crystal' | 'pillar' | 'root' | 'statue' | 'fissure' | 'arch' | 'rock'; scale: number }
 
 interface LootView { root: Container; fallback: Graphics; sprite: Sprite; key?: AssetKey }
-interface ProductionPropView { root: Container; definition: ProductionProp }
+interface ProductionPropView { root: Container; definition: MapProp }
+interface ProductionGroundView { sprite: Sprite; definition: MapGroundDetail }
+interface ProductionTerrainView { root: Container; sprite: Sprite; definition: MapTerrainPatch }
 
 /** Camera-transformed world presentation; static geometry is cached and never rebuilt per frame. */
 export class ArenaLayer extends Container {
   /** Added to GameScene as a separate depth plane so tall authored props can
    * occlude the player only when their footpoint is in front of it. */
   readonly foregroundWorld = new Container();
-  readonly camera = new ArenaCamera(GAME_CONFIG.arena.width, GAME_CONFIG.arena.height, GAME_CONFIG.arena.cameraMinZoom, GAME_CONFIG.arena.cameraMaxZoom);
+  readonly camera = new ArenaCamera(HARVEST_ARENA_MAP.width, HARVEST_ARENA_MAP.height, GAME_CONFIG.arena.cameraMinZoom, GAME_CONFIG.arena.cameraMaxZoom);
   private readonly viewportMask = new Graphics();
   private readonly worldRoot = new Container();
   private readonly floor = new Graphics();
+  private readonly macroTerrain = new Container();
   private readonly productionGroundDetails = new Container();
   private readonly bossPresence = new Graphics();
   private readonly staticProps = new Graphics();
@@ -46,6 +50,8 @@ export class ArenaLayer extends Container {
   private readonly petFallback = new Graphics();
   private petSprite?: Sprite;
   private readonly productionPropViews: ProductionPropView[] = [];
+  private readonly productionGroundViews: ProductionGroundView[] = [];
+  private readonly productionTerrainViews: ProductionTerrainView[] = [];
   private readonly brokenLandmarks = new Set<number>();
   private readonly decals = new GroundDecalSystem(24);
   private readonly telegraphRenderer = new TelegraphRenderer();
@@ -58,12 +64,13 @@ export class ArenaLayer extends Container {
     super();
     this.worldRoot.sortableChildren = true;
     this.foregroundWorld.sortableChildren = true;
+    this.productionLandmarks.sortableChildren = true;
     this.addChild(this.worldRoot, this.viewportMask);
     this.worldRoot.mask = this.viewportMask;
     this.worldRoot.addChild(this.floor);
     const floorTexture=this.assets?.texture('arena.floor.detail');
-    if(floorTexture){this.floorDetail=new Sprite(floorTexture);this.floorDetail.width=GAME_CONFIG.arena.width;this.floorDetail.height=GAME_CONFIG.arena.height;this.floorDetail.alpha=.3;this.worldRoot.addChild(this.floorDetail)}
-    this.worldRoot.addChild(this.productionGroundDetails, this.bossPresence, this.staticProps, this.productionLandmarks, this.aftermath, this.telegraphs, this.guides);
+    if(floorTexture){this.floorDetail=new Sprite(floorTexture);this.floorDetail.width=HARVEST_ARENA_MAP.width;this.floorDetail.height=HARVEST_ARENA_MAP.height;this.floorDetail.alpha=.3;this.worldRoot.addChild(this.floorDetail)}
+    this.worldRoot.addChild(this.macroTerrain, this.productionGroundDetails, this.bossPresence, this.staticProps, this.productionLandmarks, this.aftermath, this.telegraphs, this.guides);
     this.drawStaticWorld();
     for (let index = 0; index < GAME_CONFIG.arena.maxLoot; index += 1) {
       const root = new Container(); const fallback = new Graphics(); const sprite = new Sprite(); sprite.anchor.set(.5);
@@ -92,14 +99,14 @@ export class ArenaLayer extends Container {
   setTheme(eventTheme: boolean): void { if (eventTheme === this.eventTheme) return; this.eventTheme = eventTheme; this.drawStaticWorld(); }
   setCycle(cycle: number): void { if (cycle === this.cycle) return; this.cycle = cycle; this.drawStaticWorld(); }
   toScreen(position: Vec2): Vec2 { return this.camera.worldToScreen(position); }
-  updateCamera(deltaMs: number, arena: ArenaRunModel): void { this.camera.update(deltaMs, arena.player.position, arena.player.velocity); this.applyCameraTransform(); }
+  updateCamera(deltaMs: number, arena: ArenaRunModel): void { this.camera.update(deltaMs, arena.player.position, arena.player.velocity, arena.bossWorld.position); this.applyCameraTransform(); }
   setZoom(value: number): number { return this.camera.setZoom(value); }
   panCamera(dx:number,dy:number):void{this.camera.panByScreen(dx,dy);this.applyCameraTransform()}
   resetCamera():void{this.camera.resetFollow()}
 
   reactToImpact(position: Vec2, radius: number, kind = 'slam'): boolean {
     let changed = false;
-    PRODUCTION_PROPS.forEach((landmark, index) => {
+    HARVEST_ARENA_MAP.props.forEach((landmark, index) => {
       if (!this.brokenLandmarks.has(index) && Math.hypot(position.x - landmark.x, position.y - landmark.y) <= radius + 120) {
         this.brokenLandmarks.add(index); changed = true;
       }
@@ -133,6 +140,7 @@ export class ArenaLayer extends Container {
       this.petView.scale.set(2.05+Math.sin(seconds*4)*.05);
     }
     this.updatePropDepth(arena.player.position.y);
+    this.applyVisualLod();
     this.atmosphere.alpha = this.reducedEffects ? 0.35 : this.quality === 'low' ? 0.5 : 1;
   }
 
@@ -151,33 +159,64 @@ export class ArenaLayer extends Container {
   }
 
   private drawStaticWorld(): void {
-    this.floor.clear(); this.staticProps.clear(); this.productionGroundDetails.removeChildren().forEach((child) => child.destroy());
+    this.floor.clear(); this.staticProps.clear(); this.macroTerrain.removeChildren().forEach((child) => child.destroy());
+    this.productionGroundDetails.removeChildren().forEach((child) => child.destroy());
     for(const child of this.productionLandmarks.removeChildren())child.destroy();
     for(const child of this.foregroundWorld.removeChildren())child.destroy();
-    this.productionPropViews.length = 0;
-    this.floor.rect(0, 0, GAME_CONFIG.arena.width, GAME_CONFIG.arena.height).fill(this.eventTheme ? 0x100c16 : 0x0d1220);
+    this.productionPropViews.length = 0;this.productionGroundViews.length=0;this.productionTerrainViews.length=0;
+    this.drawContinuousTerrain();
     for (const region of ARENA_REGIONS) {
       const cycleTint = this.cycle >= 3 ? 0x391925 : this.cycle === 2 ? 0x271521 : region.ground;
-      this.floor.ellipse(region.center.x, region.center.y, region.radius.x, region.radius.y).fill({ color: cycleTint, alpha: 0.84 });
+      this.floor.ellipse(region.center.x, region.center.y, region.radius.x, region.radius.y).fill({ color: cycleTint, alpha: 0.28 });
       this.floor.ellipse(region.center.x, region.center.y, region.radius.x * 0.78, region.radius.y * 0.76).stroke({ color: region.accent, width: 12, alpha: 0.045 + this.cycle * 0.015 });
     }
     this.drawStoneFloor();
+    this.drawMacroTerrain();
     this.drawProductionGroundDetails();
-    PRODUCTION_PROPS.forEach((prop, index) => { if (!this.drawProductionProp(prop, index)) this.drawLandmark(this.fallbackLandmark(prop), index); });
+    HARVEST_ARENA_MAP.structures.forEach((prop) => { if (!this.drawProductionProp(prop, -1)) this.drawLandmark(this.fallbackLandmark(prop), -1); });
+    HARVEST_ARENA_MAP.props.forEach((prop, index) => { if (!this.drawProductionProp(prop, index)) this.drawLandmark(this.fallbackLandmark(prop), index); });
+  }
+
+  private drawContinuousTerrain():void{
+    const theme=HARVEST_ARENA_MAP.visualTheme;
+    this.floor.rect(0,0,HARVEST_ARENA_MAP.width,HARVEST_ARENA_MAP.height).fill(this.eventTheme?theme.base:0x121823);
+    // Broad overlapping fields form one place; their low contrast preserves telegraph priority.
+    for(const zone of HARVEST_ARENA_MAP.zones){
+      const color=zone.id==='crystal-field'?theme.crystal:zone.id==='corrupted-east-approach'?theme.corruption:zone.id==='colossus-basin'?theme.damaged:theme.stone;
+      this.floor.ellipse(zone.center.x,zone.center.y,zone.radius.x*1.08,zone.radius.y*1.08).fill({color,alpha:.34});
+    }
+    for(const corridor of HARVEST_ARENA_MAP.traversalCorridors){
+      this.floor.moveTo(corridor.from.x,corridor.from.y).lineTo(corridor.to.x,corridor.to.y).stroke({color:0x34323a,width:corridor.halfWidth*1.65,alpha:.18});
+      this.floor.moveTo(corridor.from.x,corridor.from.y).lineTo(corridor.to.x,corridor.to.y).stroke({color:0x777078,width:8,alpha:.055});
+    }
+    // A broken perimeter prevents camera edges from reading as empty canvas.
+    this.floor.roundRect(70,70,HARVEST_ARENA_MAP.width-140,HARVEST_ARENA_MAP.height-140,210).stroke({color:0x3c3a45,width:150,alpha:.36});
+    this.floor.roundRect(130,130,HARVEST_ARENA_MAP.width-260,HARVEST_ARENA_MAP.height-260,180).stroke({color:0x0a0a10,width:34,alpha:.6});
+  }
+
+  private drawMacroTerrain():void{
+    for(const definition of HARVEST_ARENA_MAP.terrainPatches){
+      const root=new Container();root.position.set(definition.x,definition.y);root.rotation=definition.rotation;
+      const fallback=new Graphics().ellipse(0,0,definition.width*.48,definition.width*.31).fill({color:definition.fallbackColor,alpha:.58});
+      const sprite=new Sprite();sprite.anchor.set(.5);sprite.alpha=definition.alpha;
+      const texture=this.assets?.texture(definition.key);
+      if(texture){sprite.texture=texture;sprite.scale.set(definition.width/Math.max(1,texture.width));fallback.visible=false}else sprite.visible=false;
+      root.addChild(fallback,sprite);this.macroTerrain.addChild(root);this.productionTerrainViews.push({root,sprite,definition});
+    }
   }
 
   private drawProductionGroundDetails(): void {
     if (!this.assets) return;
-    for (const detail of PRODUCTION_GROUND_DETAILS) {
+    for (const detail of HARVEST_ARENA_MAP.groundDetails) {
       const texture = this.assets.texture(detail.key); if (!texture) continue;
       const sprite = new Sprite(texture); sprite.anchor.set(.5); sprite.position.set(detail.x, detail.y);
       sprite.rotation = detail.rotation; sprite.alpha = detail.alpha;
       sprite.scale.set(detail.width / Math.max(1, texture.width));
-      this.productionGroundDetails.addChild(sprite);
+      this.productionGroundDetails.addChild(sprite);this.productionGroundViews.push({sprite,definition:detail});
     }
   }
 
-  private drawProductionProp(prop: ProductionProp, index: number): boolean {
+  private drawProductionProp(prop: MapProp, index: number): boolean {
     if (this.brokenLandmarks.has(index) || !this.assets) return false;
     const texture = this.assets.texture(prop.key); if (!texture) return false;
     const root = new Container(); root.position.set(prop.x, prop.y);
@@ -188,7 +227,7 @@ export class ArenaLayer extends Container {
     this.productionLandmarks.addChild(root); this.productionPropViews.push({ root, definition:prop }); return true;
   }
 
-  private fallbackLandmark(prop: ProductionProp): Landmark {
+  private fallbackLandmark(prop: MapProp): Landmark {
     const key = prop.key;
     const type: Landmark['type'] = key.includes('crystal') ? 'crystal' : key.includes('root') ? 'root' : key.includes('arch') ? 'arch' : key.includes('pillar') || key.includes('altar') ? 'pillar' : 'rock';
     return { x:prop.x, y:prop.y, type, scale:Math.max(.7, prop.height / 420) };
@@ -203,13 +242,25 @@ export class ArenaLayer extends Container {
     }
   }
 
+  private applyVisualLod():void{
+    const wide=this.camera.zoom<.76;
+    for(const view of this.productionTerrainViews){
+      view.root.visible=this.worldVisible({x:view.definition.x,y:view.definition.y},view.definition.width*.72);
+      view.sprite.alpha=view.definition.alpha*(wide&&view.definition.lod==='accent'?.72:1);
+    }
+    for(const view of this.productionGroundViews)view.sprite.visible=!wide||view.definition.lod==='major';
+    for(const view of this.productionPropViews){
+      if(wide&&view.definition.lod==='detail')view.root.visible=false;
+    }
+  }
+
   private drawStoneFloor(): void {
-    // Irregular large plates avoid the obvious debug-grid cadence of M09.
-    for (let index = 0; index < 176; index += 1) {
-      const x = 90 + hash(index, 11) * (GAME_CONFIG.arena.width - 180);
-      const y = 90 + hash(index, 29) * (GAME_CONFIG.arena.height - 180);
-      const width = 115 + hash(index, 43) * 250;
-      const height = 75 + hash(index, 67) * 170;
+    // Sparse large plates support the authored macro patches without becoming noise.
+    for (let index = 0; index < 74; index += 1) {
+      const x = 90 + hash(index, 11) * (HARVEST_ARENA_MAP.width - 180);
+      const y = 90 + hash(index, 29) * (HARVEST_ARENA_MAP.height - 180);
+      const width = 210 + hash(index, 43) * 390;
+      const height = 120 + hash(index, 67) * 240;
       const rotation = hash(index, 83) * Math.PI * 2;
       const points: number[] = [];
       const sides = 5 + index % 3;
@@ -219,14 +270,14 @@ export class ArenaLayer extends Container {
         points.push(x + Math.cos(angle) * width * wobble, y + Math.sin(angle) * height * wobble);
       }
       const tone = index % 4 === 0 ? 0x282734 : index % 3 === 0 ? 0x20212d : 0x1a1b26;
-      this.floor.poly(points).fill({ color: tone, alpha: .27 + hash(index, 109) * .18 })
-        .stroke({ color: 0x777180, width: 3 + hash(index, 127) * 3, alpha: .035 + hash(index, 131) * .045 });
+      this.floor.poly(points).fill({ color: tone, alpha: .13 + hash(index, 109) * .11 })
+        .stroke({ color: 0x777180, width: 3 + hash(index, 127) * 3, alpha: .025 + hash(index, 131) * .025 });
     }
-    for (let patch = 0; patch < 46; patch += 1) {
-      const x = hash(patch, 151) * GAME_CONFIG.arena.width;
-      const y = hash(patch, 163) * GAME_CONFIG.arena.height;
+    for (let patch = 0; patch < 28; patch += 1) {
+      const x = hash(patch, 151) * HARVEST_ARENA_MAP.width;
+      const y = hash(patch, 163) * HARVEST_ARENA_MAP.height;
       const size = 28 + hash(patch, 173) * 62;
-      this.floor.ellipse(x, y, size * 1.8, size * .48).fill({ color: patch % 5 === 0 ? 0x4d2631 : 0x070911, alpha: .08 + hash(patch, 181) * .12 });
+      this.floor.ellipse(x, y, size * 2.4, size * .62).fill({ color: patch % 5 === 0 ? 0x4d2631 : 0x070911, alpha: .045 + hash(patch, 181) * .07 });
     }
     const cracks = [[270,420,790,790],[1280,530,1750,980],[2480,1080,2870,1570],[3380,1370,4260,1680],[610,2790,1440,3340],[3820,2780,5020,3300],[2050,3500,3040,3700]];
     for (const [x1,y1,x2,y2] of cracks) this.floor.moveTo(x1,y1).lineTo((x1+x2)/2+40,(y1+y2)/2-35).lineTo(x2,y2).stroke({ color: this.eventTheme ? 0xb5482c : 0x485a85, width: 13, alpha: 0.18 + this.cycle * 0.04 });

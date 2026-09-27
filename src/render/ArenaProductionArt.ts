@@ -48,6 +48,20 @@ export const PRODUCTION_PROPS: readonly ProductionProp[] = [
   { id:'rock-east-edge', key:'arena.landmark.rock', x:5320, y:1580, height:340, mirror:true },
   { id:'rock-north', key:'arena.landmark.rock', x:2250, y:360, height:300 },
   { id:'rock-south', key:'arena.landmark.rock', x:2650, y:3770, height:320, mirror:true },
+
+  // Authored assemblies: supporting pieces visually bind the major landmarks
+  // to their region instead of distributing isolated props uniformly.
+  { id:'west-shrine-broken-arch', key:'arena.landmark.brokenArch', x:1210, y:790, height:480, mirror:true, occludes:true },
+  { id:'west-shrine-rubble', key:'arena.landmark.rubble', x:790, y:1110, height:250 },
+  { id:'west-shrine-altar', key:'arena.landmark.altar', x:1370, y:1180, height:340, occludes:true },
+  { id:'crystal-outcrop-medium', key:'arena.crystal.medium', x:620, y:2140, height:360, mirror:true },
+  { id:'crystal-outcrop-rock', key:'arena.landmark.rock', x:1240, y:2900, height:360, occludes:true },
+  { id:'corrupted-east-root', key:'arena.landmark.harvestRoot', x:4720, y:3250, height:430, mirror:true, occludes:true },
+  { id:'corrupted-east-stone', key:'arena.corruption.stone', x:4330, y:3050, height:310 },
+  { id:'lower-entry-pillar-left', key:'arena.landmark.brokenPillar', x:2240, y:3720, height:410, occludes:true },
+  { id:'lower-entry-pillar-right', key:'arena.landmark.brokenPillar', x:3370, y:3720, height:410, mirror:true, occludes:true },
+  { id:'basin-rubble-west', key:'arena.landmark.rubble', x:1900, y:2110, height:290 },
+  { id:'basin-rubble-east', key:'arena.landmark.rubble', x:3690, y:2100, height:290, mirror:true },
 ] as const;
 
 export const PRODUCTION_GROUND_DETAILS: readonly ProductionGroundDetail[] = [
@@ -67,6 +81,12 @@ export const PRODUCTION_GROUND_DETAILS: readonly ProductionGroundDetail[] = [
   { id:'scorch-east', key:'ground.scorch', x:4200, y:2470, width:400, rotation:.34, alpha:.32 },
   { id:'dormant-southwest', key:'ground.fissure.dormant', x:1800, y:3420, width:680, rotation:.08, alpha:.35 },
   { id:'dormant-southeast', key:'ground.fissure.dormant', x:3900, y:3520, width:650, rotation:-.18, alpha:.35 },
+  { id:'entry-wear', key:'ground.scorch', x:2800, y:3440, width:720, rotation:0, alpha:.24 },
+  { id:'west-shrine-damage', key:'ground.impactCrack', x:1050, y:1030, width:650, rotation:.22, alpha:.34 },
+  { id:'crystal-field-bed', key:'ground.crystalFragments', x:920, y:2730, width:760, rotation:-.12, alpha:.48 },
+  { id:'corrupted-east-bed', key:'ground.corruption', x:4600, y:2860, width:820, rotation:.2, alpha:.34 },
+  { id:'basin-rubble-bed-west', key:'ground.rubble', x:1960, y:2160, width:520, rotation:.32, alpha:.42 },
+  { id:'basin-rubble-bed-east', key:'ground.rubble', x:3640, y:2160, width:520, rotation:-.32, alpha:.42 },
 ] as const;
 
 export function productionCompositionSignature(): string {

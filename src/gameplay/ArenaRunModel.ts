@@ -12,6 +12,8 @@ import { clampToArena, createDummyAlly, createLocalPlayer, type CombatEntityStat
 import { BOSS_WORLD_ANCHOR } from './ArenaRegions';
 import { BossWorldEntity, type BossWorldSnapshot } from './BossWorldEntity';
 import { PlayerMovementController, type MovementFrame } from './PlayerMovementController';
+import { HARVEST_ARENA_MAP } from './HarvestArenaMap';
+import { WorldCollisionSystem } from './WorldCollisionSystem';
 
 export interface RunInventoryState {
   equipmentIds: string[]; temporaryBuffIds: string[]; petId?: string; resources: Record<string, number>;
@@ -44,6 +46,8 @@ export class ArenaRunModel {
   readonly bossWorld = new BossWorldEntity(BOSS_WORLD_ANCHOR);
   readonly movement = new PlayerMovementController();
   readonly loot: LootSystem;
+  readonly map=HARVEST_ARENA_MAP;
+  private readonly worldCollisions=new WorldCollisionSystem(HARVEST_ARENA_MAP.colliders);
   readonly inventory: RunInventoryState = { equipmentIds: [], temporaryBuffIds: [], resources: {} };
   runMode: RunModeId;
   runLevel = 1;
@@ -71,7 +75,7 @@ export class ArenaRunModel {
   constructor(readonly combat: CombatModel, guestId: string, runMode: RunModeId = 'solo', emit: (event: ArenaRunEvent) => void = () => undefined) {
     if (!RUN_MODES[runMode].implemented) throw new Error(`${runMode} is architecture-ready but not implemented.`);
     this.runMode = runMode; this.emit = emit; this.random = new RunRandom(combat.seed ^ 0xa6e06e);
-    this.player = createLocalPlayer(`player-${combat.runId}`, guestId); this.baseStats = { ...this.player.stats };
+    this.player = createLocalPlayer(`player-${combat.runId}`, guestId); this.player.position={...this.map.playerSpawn}; this.baseStats = { ...this.player.stats };
     this.bossAttacks = new BossAttackSystem(combat.seed); this.loot = new LootSystem(combat.seed, GAME_CONFIG.arena.maxLoot);
     this.equipPrototypePet(); this.syncCombatModifiers();
   }
@@ -82,6 +86,7 @@ export class ArenaRunModel {
 
   reset(guestId = this.player.playerId ?? 'guest'): void {
     Object.assign(this.player, createLocalPlayer(`player-${this.combat.runId}`, guestId));
+    this.player.position={...this.map.playerSpawn};
     this.runLevel = 1; this.runXp = 0; this.xpToNext = 100; this.selectedUpgrades = []; this.pendingUpgradeIds = [];
     this.bossCycle = 1; this.bossCyclesCleared = 0; this.pickupCount = 0; this.lootSummary = {};
     this.inventory.equipmentIds = []; this.inventory.temporaryBuffIds = []; this.inventory.resources = {}; this.dashCooldownMs = 0;
@@ -248,7 +253,7 @@ export class ArenaRunModel {
     this.syncCombatModifiers();
   }
   private syncCombatModifiers(): void { this.combat.setRunModifiers(this.player.stats.damageMultiplier, this.player.stats.attackRateMultiplier); }
-  private constrainPlayer(position:Vec2):Vec2{return clampToArena(this.bossWorld.constrain(position))}
+  private constrainPlayer(position:Vec2):Vec2{return clampToArena(this.worldCollisions.resolve(this.bossWorld.constrain(position)))}
 }
 
 function chooseDistinct(pool: readonly RunUpgradeDefinition[], random: RunRandom, count: number): RunUpgradeDefinition[] {

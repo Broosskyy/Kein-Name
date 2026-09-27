@@ -1,0 +1,3 @@
+M10.1 source package intentionally excludes node_modules and stale M10 dist output.
+Run: npm ci && npm test && npm run build
+Then validate the deterministic runtime proof URLs documented in M10_1_HYBRID_3D_VISUAL_PROOF.md.

@@ -2,6 +2,22 @@ import { Assets, Texture } from 'pixi.js';
 
 export type AssetKey =
   | 'creature.base'
+  | 'creature.direction.n.idle' | 'creature.direction.n.run'
+  | 'creature.direction.ne.idle' | 'creature.direction.ne.run'
+  | 'creature.direction.e.idle' | 'creature.direction.e.run'
+  | 'creature.direction.se.idle' | 'creature.direction.se.run'
+  | 'creature.direction.s.idle' | 'creature.direction.s.run'
+  | 'creature.direction.sw.idle' | 'creature.direction.sw.run'
+  | 'creature.direction.w.idle' | 'creature.direction.w.run'
+  | 'creature.direction.nw.idle' | 'creature.direction.nw.run'
+  | 'creature.direction.n.dash' | 'creature.direction.n.attack'
+  | 'creature.direction.ne.dash' | 'creature.direction.ne.attack'
+  | 'creature.direction.e.dash' | 'creature.direction.e.attack'
+  | 'creature.direction.se.dash' | 'creature.direction.se.attack'
+  | 'creature.direction.s.dash' | 'creature.direction.s.attack'
+  | 'creature.direction.sw.dash' | 'creature.direction.sw.attack'
+  | 'creature.direction.w.dash' | 'creature.direction.w.attack'
+  | 'creature.direction.nw.dash' | 'creature.direction.nw.attack'
   | 'creature.mutation.crystal'
   | 'creature.mutation.void'
   | 'creature.mutation.wings'
@@ -44,6 +60,12 @@ export type AssetKey =
   | 'arena.corruption.stone'
   | 'arena.corruption.ruin'
   | 'arena.crystal.shards'
+  | 'terrain.harvest.intact'
+  | 'terrain.harvest.fractured'
+  | 'terrain.harvest.ringSegment'
+  | 'terrain.harvest.approach'
+  | 'terrain.harvest.boundaryWall'
+  | 'terrain.harvest.transition'
   | 'ground.crack'
   | 'ground.impactCrack'
   | 'ground.fissure.orange'
@@ -102,6 +124,38 @@ const entry = (kind: AssetKind, size: readonly [number, number], alpha = true, p
 // preserves a coherent procedural fallback when it is absent or fails to load.
 export const ASSET_MANIFEST: AssetManifest = {
   'creature.base': { ...entry('character', [768, 768]), src: '/assets/creature/creature-base.webp' },
+  'creature.direction.n.idle': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-n-idle.webp' },
+  'creature.direction.n.run': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-n-run.webp' },
+  'creature.direction.ne.idle': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-ne-idle.webp' },
+  'creature.direction.ne.run': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-ne-run.webp' },
+  'creature.direction.e.idle': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-e-idle.webp' },
+  'creature.direction.e.run': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-e-run.webp' },
+  'creature.direction.se.idle': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-se-idle.webp' },
+  'creature.direction.se.run': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-se-run.webp' },
+  'creature.direction.s.idle': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-s-idle.webp' },
+  'creature.direction.s.run': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-s-run.webp' },
+  'creature.direction.sw.idle': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-sw-idle.webp' },
+  'creature.direction.sw.run': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-sw-run.webp' },
+  'creature.direction.w.idle': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-w-idle.webp' },
+  'creature.direction.w.run': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-w-run.webp' },
+  'creature.direction.nw.idle': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-nw-idle.webp' },
+  'creature.direction.nw.run': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-nw-run.webp' },
+  'creature.direction.n.dash': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-n-dash.webp' },
+  'creature.direction.n.attack': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-n-attack.webp' },
+  'creature.direction.ne.dash': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-ne-dash.webp' },
+  'creature.direction.ne.attack': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-ne-attack.webp' },
+  'creature.direction.e.dash': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-e-dash.webp' },
+  'creature.direction.e.attack': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-e-attack.webp' },
+  'creature.direction.se.dash': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-se-dash.webp' },
+  'creature.direction.se.attack': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-se-attack.webp' },
+  'creature.direction.s.dash': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-s-dash.webp' },
+  'creature.direction.s.attack': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-s-attack.webp' },
+  'creature.direction.sw.dash': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-sw-dash.webp' },
+  'creature.direction.sw.attack': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-sw-attack.webp' },
+  'creature.direction.w.dash': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-w-dash.webp' },
+  'creature.direction.w.attack': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-w-attack.webp' },
+  'creature.direction.nw.dash': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-nw-dash.webp' },
+  'creature.direction.nw.attack': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-nw-attack.webp' },
   'creature.mutation.crystal': entry('mutation-part', [768, 768]),
   'creature.mutation.void': entry('mutation-part', [768, 768]),
   'creature.mutation.wings': entry('mutation-part', [1024, 768]),
@@ -144,6 +198,12 @@ export const ASSET_MANIFEST: AssetManifest = {
   'arena.corruption.stone': { ...entry('foreground', [512, 512], true, 'deferred'), src: '/assets/environment/arena-corruption-stone-01.webp' },
   'arena.corruption.ruin': { ...entry('foreground', [768, 768], true, 'deferred'), src: '/assets/environment/arena-corruption-ruin-01.webp' },
   'arena.crystal.shards': { ...entry('foreground', [384, 384], true, 'deferred'), src: '/assets/environment/arena-crystal-shards-01.webp' },
+  'terrain.harvest.intact': { ...entry('background', [1024, 1024], true, 'deferred'), src: '/assets/terrain/harvest-stone-intact.webp' },
+  'terrain.harvest.fractured': { ...entry('background', [1024, 1024], true, 'deferred'), src: '/assets/terrain/harvest-stone-fractured.webp' },
+  'terrain.harvest.ringSegment': { ...entry('background', [1024, 1024], true, 'deferred'), src: '/assets/terrain/harvest-ring-segment.webp' },
+  'terrain.harvest.approach': { ...entry('background', [1024, 1024], true, 'deferred'), src: '/assets/terrain/harvest-approach.webp' },
+  'terrain.harvest.boundaryWall': { ...entry('foreground', [1024, 1024], true, 'deferred'), src: '/assets/terrain/harvest-boundary-wall.webp' },
+  'terrain.harvest.transition': { ...entry('background', [1024, 1024], true, 'deferred'), src: '/assets/terrain/harvest-crystal-corruption-transition.webp' },
   'ground.crack': { ...entry('foreground', [512, 512], true, 'deferred'), src: '/assets/ground/ground-crack-01.webp' },
   'ground.impactCrack': { ...entry('foreground', [512, 512], true, 'deferred'), src: '/assets/ground/ground-impact-crack-01.webp' },
   'ground.fissure.orange': { ...entry('foreground', [768, 384], true, 'deferred'), src: '/assets/ground/ground-fissure-orange-01.webp' },

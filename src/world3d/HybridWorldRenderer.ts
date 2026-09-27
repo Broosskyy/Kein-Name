@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { BossTelegraph } from '../gameplay/BossAttackSystem';
 import { BOSS_ATTACKS } from '../gameplay/BossAttackSystem';
-import { heroDirectionFromVector, type HeroDirection, type HeroPose } from '../gameplay/HeroDirection';
+import { heroDirectionAsset, heroDirectionFromVector, type HeroDirection, type HeroPose } from '../gameplay/HeroDirection';
 import type { LootDrop } from '../gameplay/LootSystem';
 import type { CombatEntityState, Vec2 } from '../gameplay/ArenaTypes';
 import { ASSET_MANIFEST, type AssetKey } from '../assets';
@@ -66,7 +66,7 @@ export class HybridWorldRenderer {
     this.addArenaAtmosphere();
     this.heroShadow = makeDisc(.62, 0x000000, .48);
     this.scene.add(this.heroShadow);
-    this.hero = this.makeSprite(assetUrl('creature.base'), 2.45, 2.45);
+    this.hero = this.makeSprite(assetUrl('creature.direction.n.idle'), 2.45, 2.45);
     this.hero.center.set(.5, .13);
     this.scene.add(this.hero);
     this.bossProxy = this.addBossProxy();
@@ -87,7 +87,7 @@ export class HybridWorldRenderer {
     const pose: HeroPose = state.dashing ? 'dash' : state.attacking ? 'attack' : speed > 24 ? 'run' : 'idle';
     if (direction !== this.heroDirection || pose !== this.heroPose) {
       this.heroDirection = direction; this.heroPose = pose;
-      this.hero.material.map = this.texture(assetUrl('creature.base')); // GitHub transport fallback until directional runtime art is unpacked
+      this.hero.material.map = this.texture(assetUrl(heroDirectionAsset(direction, pose)));
       this.hero.material.needsUpdate = true;
     }
     const cadence = speed > 24 ? Math.sin(this.elapsed * .018) * .07 : Math.sin(this.elapsed * .003) * .025;
