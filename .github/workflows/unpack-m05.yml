@@ -3,8 +3,7 @@ on:
   push:
     branches: [main]
     paths:
-      - '.m10/M10_1_text_patch.tar.gz'
-      - '.m10/M10_1_directional_256.tar.gz'
+      - '.m10/min.part.*'
       - '.github/workflows/unpack-m05.yml'
   workflow_dispatch:
 
@@ -16,23 +15,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Verify M10.1 staging archives
+
+      - name: Rebuild and verify M10.1 source archive
         run: |
-          sha256sum .m10/M10_1_text_patch.tar.gz
-          sha256sum .m10/M10_1_directional_256.tar.gz
-          tar -tzf .m10/M10_1_text_patch.tar.gz >/dev/null
-          tar -tzf .m10/M10_1_directional_256.tar.gz >/dev/null
+          cat .m10/min.part.* | base64 -d > /tmp/m10_min.tar.gz
+          echo "0ad7b7e14d0efed9b0d146ab4a3bc749bb2fdc2cc10ea755ff117588b9dd7345  /tmp/m10_min.tar.gz" | sha256sum -c -
+          tar -tzf /tmp/m10_min.tar.gz >/dev/null
+
       - name: Apply M10.1 source
         run: |
-          tar -xzf .m10/M10_1_text_patch.tar.gz -C .
-          mkdir -p public/assets/creature/directional
-          tar -xzf .m10/M10_1_directional_256.tar.gz -C public/assets/creature/directional
+          tar -xzf /tmp/m10_min.tar.gz -C .
+          if ! grep -q "#hybrid-3d-canvas" src/styles.css; then
+            printf '\n/* M10.1 Hybrid 3D */\n' >> src/styles.css
+            cat M10_1_STYLES_APPEND.css >> src/styles.css
+          fi
+          rm -f M10_1_STYLES_APPEND.css
+          rm -f .m10/min.part.*
           rm -f .m10/M10_1_text_patch.tar.gz .m10/M10_1_directional_256.tar.gz
           rmdir .m10 2>/dev/null || true
           test -f src/world3d/HybridWorldRenderer.ts
           test -f src/world3d/Hybrid3DVerticalSlice.ts
-          test -f public/assets/creature/directional/creature-n-idle.webp
           grep -q '"three"' package.json
+
+      - name: Refresh package lock
+        run: npm install --package-lock-only --ignore-scripts
+
       - name: Commit M10.1 Hybrid 3D source
         run: |
           git config user.name "github-actions[bot]"
