@@ -40,3 +40,5 @@ jobs:
           git commit -m "Apply M10.1 Hybrid 3D visual proof"
           git pull --rebase origin main
           git push
+
+# M10.1 staging trigger
