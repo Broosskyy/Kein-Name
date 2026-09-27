@@ -1,9 +1,10 @@
-name: Unpack M09.2 Source
+name: Apply M10.1 Hybrid 3D Source
 on:
   push:
     branches: [main]
     paths:
-      - 'Mutation_Boss_M09_2_Source.zip'
+      - '.m10/M10_1_text_patch.tar.gz'
+      - '.m10/M10_1_directional_256.tar.gz'
       - '.github/workflows/unpack-m05.yml'
   workflow_dispatch:
 
@@ -11,20 +12,31 @@ permissions:
   contents: write
 
 jobs:
-  unpack:
+  apply:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Unpack M09.2 source
+      - name: Verify M10.1 staging archives
         run: |
-          unzip -o Mutation_Boss_M09_2_Source.zip -d .
-          rm Mutation_Boss_M09_2_Source.zip
-      - name: Commit unpacked M09.2 source
+          echo "39d8c74d5eb5a4f8b003860d2887b5bbbbdc90d5aeaa2d67b8fa92dd9a52dd3a  .m10/M10_1_text_patch.tar.gz" | sha256sum -c -
+          echo "f02b6ebdedae946cfa56743f099406dfb2a2c8a83e10b28c6d04901af68c44f6  .m10/M10_1_directional_256.tar.gz" | sha256sum -c -
+      - name: Apply M10.1 source
+        run: |
+          tar -xzf .m10/M10_1_text_patch.tar.gz -C .
+          mkdir -p public/assets/creature/directional
+          tar -xzf .m10/M10_1_directional_256.tar.gz -C public/assets/creature/directional
+          rm -f .m10/M10_1_text_patch.tar.gz .m10/M10_1_directional_256.tar.gz
+          rmdir .m10 2>/dev/null || true
+          test -f src/world3d/HybridWorldRenderer.ts
+          test -f src/world3d/Hybrid3DVerticalSlice.ts
+          test -f public/assets/creature/directional/creature-n-idle.webp
+          grep -q '"three"' package.json
+      - name: Commit M10.1 Hybrid 3D source
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "Unpack M09.2 source"
+          git commit -m "Apply M10.1 Hybrid 3D visual proof"
           git pull --rebase origin main
           git push
