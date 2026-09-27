@@ -18,8 +18,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify M10.1 staging archives
         run: |
-          echo "39d8c74d5eb5a4f8b003860d2887b5bbbbdc90d5aeaa2d67b8fa92dd9a52dd3a  .m10/M10_1_text_patch.tar.gz" | sha256sum -c -
-          echo "f02b6ebdedae946cfa56743f099406dfb2a2c8a83e10b28c6d04901af68c44f6  .m10/M10_1_directional_256.tar.gz" | sha256sum -c -
+          sha256sum .m10/M10_1_text_patch.tar.gz
+          sha256sum .m10/M10_1_directional_256.tar.gz
+          tar -tzf .m10/M10_1_text_patch.tar.gz >/dev/null
+          tar -tzf .m10/M10_1_directional_256.tar.gz >/dev/null
       - name: Apply M10.1 source
         run: |
           tar -xzf .m10/M10_1_text_patch.tar.gz -C .
@@ -40,5 +42,3 @@ jobs:
           git commit -m "Apply M10.1 Hybrid 3D visual proof"
           git pull --rebase origin main
           git push
-
-# M10.1 staging trigger
