@@ -1,10 +1,13 @@
 {
   "name": "mutation-boss",
   "private": true,
-  "version": "0.9.2",
+  "version": "1.0.1",
   "type": "module",
   "scripts": {
-    "assets:extract": "bash scripts/extract-production-kits.sh",
+    "assets:extract": "bash scripts/extract-production-kits.sh && bash scripts/extract-directional-hero.sh && bash scripts/extract-m09-3-world-kit.sh",
+    "assets:extract:world": "bash scripts/extract-m09-3-world-kit.sh",
+    "assets:extract:hero": "bash scripts/extract-directional-hero.sh",
+    "qa:world": "vite-node scripts/generate-m09-3-offline-audit.ts",
     "dev": "vite --host 0.0.0.0",
     "dev:local": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build --emptyOutDir",
@@ -12,10 +15,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "pixi.js": "^8.19.0"
+    "pixi.js": "^8.19.0",
+    "three": "^0.180.0"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
+    "@types/three": "^0.180.0",
+    "sharp": "^0.35.4",
     "typescript": "^5.9.2",
     "vite": "^7.1.4",
     "vitest": "^3.2.4"

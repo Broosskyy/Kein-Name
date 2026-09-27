@@ -14,8 +14,9 @@ import { ArenaRunModel } from './gameplay/ArenaRunModel';
 import { GamePersistence } from './progress/GamePersistence';
 import { awardPersistentProgress } from './progress/PlayerProgress';
 import { FullscreenController } from './platform/FullscreenController';
+import { Hybrid3DVerticalSlice } from './world3d/Hybrid3DVerticalSlice';
 
-async function bootstrap(): Promise<void> {
+async function bootstrapLegacy(): Promise<void> {
   const mount = document.getElementById('game-canvas');
   if (!mount) throw new Error('Missing #game-canvas mount');
 
@@ -81,7 +82,36 @@ async function bootstrap(): Promise<void> {
   document.documentElement.dataset.ready = 'true';
 }
 
-bootstrap().catch((error: unknown) => {
+async function bootstrapHybrid(): Promise<void> {
+  const mount = document.getElementById('game-canvas');
+  if (!mount) throw new Error('Missing #game-canvas mount');
+  document.body.classList.add('hybrid-3d');
+  const assets = new AssetRegistry();
+  await assets.preload();
+  const ui = new GameUI(assets);
+  const events = new DomainEventBus();
+  const eventRuntime = new EventRuntime(HALLOWEEN_2026, (event) => events.emit(event));
+  const model = new CombatModel(performance.now(), {
+    emit: (event) => events.emit(event),
+    eventDefinition: HALLOWEEN_2026,
+    eventEnabled: eventRuntime.enabled,
+    seedGenerator: () => 0x10a3d,
+  });
+  const scene = new Hybrid3DVerticalSlice(mount, ui, model);
+  const fullscreen = new FullscreenController(document, document.documentElement, () => scene.resize());
+  ui.bindFullscreen(() => { void fullscreen.toggle(); });
+  const lifecycle = new AppLifecycle({
+    pause: () => scene.pause(),
+    resume: () => scene.resume(),
+    resize: () => scene.resize(),
+  });
+  window.addEventListener('beforeunload', () => { lifecycle.destroy(); scene.destroy(); }, { once: true });
+  document.documentElement.dataset.ready = 'true';
+  document.documentElement.dataset.renderer = 'hybrid-3d';
+}
+
+const useLegacyRenderer = new URLSearchParams(location.search).get('renderer') === '2d';
+(useLegacyRenderer ? bootstrapLegacy() : bootstrapHybrid()).catch((error: unknown) => {
   console.error(error);
   const shell = document.getElementById('game-shell');
   if (shell) shell.innerHTML = '<div class="fatal">Mutation Boss could not start.<br>Please reload the page.</div>';
