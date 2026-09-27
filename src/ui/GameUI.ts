@@ -41,6 +41,7 @@ export class GameUI {
   private onDash?: () => void;
   private onZoom?: (delta: number) => void;
   private onCameraPan?: (dx: number, dy: number) => void;
+  private onCameraGesture?: (dx: number, dy: number, gesture: 'orbit' | 'pan') => void;
   private onCameraReset?: () => void;
   private onRetry?: () => void;
   private onDebug?: (action: DebugAction) => void;
@@ -93,6 +94,7 @@ export class GameUI {
   bindDash(callback: () => void): void { this.onDash = callback; }
   bindZoom(callback: (delta: number) => void): void { this.onZoom = callback; }
   bindCameraPan(callback: (dx: number, dy: number) => void): void { this.onCameraPan = callback; }
+  bindCameraGesture(callback: (dx: number, dy: number, gesture: 'orbit' | 'pan') => void): void { this.onCameraGesture = callback; }
   bindCameraReset(callback: () => void): void { this.onCameraReset = callback; }
   bindRetry(callback: () => void): void { this.onRetry = callback; }
   bindDebug(callback: (action: DebugAction) => void): void { this.onDebug = callback; }
@@ -102,15 +104,15 @@ export class GameUI {
   bindFullscreen(callback: () => void): void { this.onFullscreen = callback; }
   bindResumeChoice(callback: (resume: boolean) => void): void { this.onResumeChoice = callback; }
 
-  update(hp: number, maxHp: number, elapsedMs: number, cooldownMs: number, playing: boolean): void {
+  update(hp: number, maxHp: number, elapsedMs: number, cooldownMs: number, playing: boolean, powerPending = false): void {
     const hpRatio = Math.max(0, hp / maxHp);
     this.hpFill.style.transform = `scaleX(${hpRatio})`;
     this.hpShine.style.left = `${hpRatio * 100}%`;
     this.timer.textContent = formatTime(elapsedMs);
     const cooldownRatio = Math.min(1, cooldownMs / GAME_CONFIG.combat.powerCooldownMs);
-    const ready = cooldownMs <= 0 && playing;
+    const ready = cooldownMs <= 0 && playing && !powerPending;
     this.powerCooldown.style.transform = `scaleY(${cooldownRatio})`;
-    this.powerStatus.textContent = ready ? 'READY' : playing ? `${(cooldownMs / 1000).toFixed(1)}s` : 'LOCKED';
+    this.powerStatus.textContent = ready ? 'READY' : powerPending ? 'IN FLIGHT' : playing ? `${(cooldownMs / 1000).toFixed(1)}s` : 'LOCKED';
     this.powerButton.disabled = !ready;
     this.powerButton.classList.toggle('ready', ready);
   }
@@ -314,29 +316,38 @@ export class GameUI {
   }
 
   private bindArenaZoom(): void {
-    const surface = requiredElement('game-canvas'); const pointers = new Map<number, { x: number; y: number }>(); let previousDistance = 0; let lastTap = 0;
+    const surface = requiredElement('game-canvas'); const pointers = new Map<number, { x: number; y: number; pan: boolean }>(); let previousDistance = 0; let lastTap = 0;
     surface.addEventListener('wheel', (event) => { event.preventDefault(); this.onZoom?.(event.deltaY > 0 ? -0.055 : 0.055); }, { passive: false });
     surface.addEventListener('pointerdown', (event) => {
-      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (!cameraGestureAllowed('world')) return;
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, pan: event.shiftKey || event.button === 1 });
+      surface.setPointerCapture?.(event.pointerId);
+      if (pointers.size === 2) { const [a,b]=[...pointers.values()]; previousDistance=Math.hypot(a.x-b.x,a.y-b.y); }
       const now = performance.now();
       if (now - lastTap < 310) this.onCameraReset?.();
       lastTap = now;
+      event.preventDefault();
     });
     surface.addEventListener('pointermove', (event) => {
       const previous = pointers.get(event.pointerId);
       if (!previous) return;
-      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, pan: previous.pan || event.shiftKey || event.buttons === 4 });
       if (pointers.size === 1) {
-        this.onCameraPan?.(event.clientX - previous.x, event.clientY - previous.y);
+        const dx=event.clientX-previous.x,dy=event.clientY-previous.y;
+        if(this.onCameraGesture)this.onCameraGesture(dx,dy,previous.pan?'pan':'orbit');else this.onCameraPan?.(dx,dy);
         previousDistance = 0;
+        event.preventDefault();
         return;
       }
       if (pointers.size !== 2) return;
-      const [a,b]=[...pointers.values()];const distance=Math.hypot(a.x-b.x,a.y-b.y);if(previousDistance>0&&Math.abs(distance-previousDistance)>3)this.onZoom?.((distance-previousDistance)*.0025);previousDistance=distance;
+      const [a,b]=[...pointers.values()];const distance=Math.hypot(a.x-b.x,a.y-b.y);if(previousDistance>0&&Math.abs(distance-previousDistance)>3)this.onZoom?.((distance-previousDistance)*.0025);previousDistance=distance;event.preventDefault();
     });
-    const release=(event:PointerEvent):void=>{pointers.delete(event.pointerId);previousDistance=0};surface.addEventListener('pointerup',release);surface.addEventListener('pointercancel',release);
+    const release=(event:PointerEvent):void=>{pointers.delete(event.pointerId);if(surface.hasPointerCapture?.(event.pointerId))surface.releasePointerCapture(event.pointerId);if(pointers.size<2)previousDistance=0};surface.addEventListener('pointerup',release);surface.addEventListener('pointercancel',release);
   }
 }
+
+export type CameraGestureZone='world'|'joystick'|'combat-button'|'hud';
+export function cameraGestureAllowed(zone:CameraGestureZone):boolean{return zone==='world'}
 
 function nextMilestoneText(state: EventState): string {
   const next = HALLOWEEN_MILESTONES.find((milestone) => !state.milestones.includes(milestone.id));

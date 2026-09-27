@@ -3,61 +3,99 @@ import type { Vec2 } from '../gameplay/ArenaTypes';
 import { simulationToWorld3D } from './World3DTypes';
 
 export type HybridCameraMode = 'follow' | 'look' | 'boss-focus' | 'tactical';
+export type HybridCameraGesture = 'orbit' | 'pan';
+
+const MIN_PITCH = THREE.MathUtils.degToRad(28);
+const MAX_PITCH = THREE.MathUtils.degToRad(68);
 
 export class HybridCameraController {
   readonly target = new THREE.Vector3();
-  readonly manualOffset = new THREE.Vector3();
+  readonly manualTargetOffset = new THREE.Vector3();
   mode: HybridCameraMode = 'follow';
-  distance = 14.5;
+  distance = 15.5;
   yaw = 0;
-  pitch = THREE.MathUtils.degToRad(54);
-  private readonly portraitBossBias = .14;
+  pitch = THREE.MathUtils.degToRad(52);
+  temporaryManualControlTimer = 0;
   private desiredDistance = this.distance;
-  private desiredOffset = new THREE.Vector3();
-  private lastPlayer = new THREE.Vector3();
+  private desiredYaw = this.yaw;
+  private desiredPitch = this.pitch;
+  private readonly desiredTargetOffset = new THREE.Vector3();
+  private bossBiasBlend = 1;
+  private readonly anchor = new THREE.Vector3();
+  private readonly player3 = new THREE.Vector3();
+  private readonly boss3 = new THREE.Vector3();
+  private readonly lookAhead = new THREE.Vector3();
+  private readonly right = new THREE.Vector3();
+  private readonly forward = new THREE.Vector3();
 
   constructor(readonly camera: THREE.PerspectiveCamera, private readonly worldHalfExtent = 10.6) {}
 
+  gesture(screenDx: number, screenDy: number, gesture: HybridCameraGesture = 'orbit'): void {
+    this.mode = 'look';
+    this.temporaryManualControlTimer = 2600;
+    this.bossBiasBlend = 0;
+    if (gesture === 'pan') { this.pan(screenDx, screenDy); return; }
+    this.desiredYaw = normalizeAngle(this.desiredYaw - screenDx * .0042);
+    this.desiredPitch = THREE.MathUtils.clamp(this.desiredPitch + screenDy * .0032, MIN_PITCH, MAX_PITCH);
+  }
+
   pan(screenDx: number, screenDy: number): void {
     this.mode = 'look';
-    const scale = this.distance * .0028;
-    const right = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
-    const forward = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
-    this.desiredOffset.addScaledVector(right, -screenDx * scale).addScaledVector(forward, -screenDy * scale);
-    this.clampOffset(this.desiredOffset);
+    this.temporaryManualControlTimer = 2600;
+    this.bossBiasBlend = 0;
+    const scale = this.distance * .0025;
+    this.right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
+    this.forward.set(Math.sin(this.yaw), 0, Math.cos(this.yaw));
+    this.desiredTargetOffset.addScaledVector(this.right, -screenDx * scale).addScaledVector(this.forward, -screenDy * scale);
+    this.clampOffset(this.desiredTargetOffset);
   }
 
-  orbit(screenDx: number): void { this.yaw += screenDx * .004; }
+  orbit(screenDx: number): void { this.gesture(screenDx, 0, 'orbit'); }
 
   zoom(delta: number): void {
-    this.desiredDistance = THREE.MathUtils.clamp(this.desiredDistance - delta * 12, 8.5, 21);
+    this.desiredDistance = THREE.MathUtils.clamp(this.desiredDistance - delta * 12, 9.5, 22);
+    this.temporaryManualControlTimer = 1800;
+    this.bossBiasBlend = 0;
   }
 
-  resetFollow(): void { this.mode = 'follow'; this.desiredOffset.set(0, 0, 0); }
+  resetFollow(): void {
+    this.mode = 'follow';
+    this.desiredTargetOffset.set(0, 0, 0);
+    this.desiredYaw = 0;
+    this.desiredPitch = THREE.MathUtils.degToRad(52);
+    this.temporaryManualControlTimer = 0;
+  }
+
   setMode(mode: HybridCameraMode): void {
     this.mode = mode;
-    if (mode === 'follow') this.desiredOffset.set(0, 0, 0);
-    if (mode === 'tactical') this.desiredDistance = 20;
+    if (mode === 'follow') this.desiredTargetOffset.set(0, 0, 0);
+    if (mode === 'tactical') this.desiredDistance = 21;
+    if (mode === 'look') { this.temporaryManualControlTimer = 2600; this.bossBiasBlend = 0; }
   }
 
   update(deltaMs: number, player: Vec2, velocity: Vec2, boss: Vec2): void {
     const dt = Math.min(.05, deltaMs / 1000);
-    const player3 = toGround(player);
-    const boss3 = toGround(boss);
+    this.temporaryManualControlTimer = Math.max(0, this.temporaryManualControlTimer - deltaMs);
+    const playerWorld = simulationToWorld3D(player), bossWorld = simulationToWorld3D(boss);
+    this.player3.set(playerWorld.x, playerWorld.y, playerWorld.z);
+    this.boss3.set(bossWorld.x, bossWorld.y, bossWorld.z);
     const speed = Math.hypot(velocity.x, velocity.y);
-    const lookAhead = speed > 10 ? new THREE.Vector3(velocity.x, 0, velocity.y).multiplyScalar(.0009) : new THREE.Vector3();
-    let anchor = player3.clone().add(lookAhead);
-    // In normal combat the camera looks slightly into the arena so the hero naturally
-    // sits lower in portrait framing while the boss/world remain visible above.
-    if (this.mode === 'follow') anchor.lerp(boss3, this.portraitBossBias);
-    if (this.mode === 'boss-focus') anchor.lerp(boss3, .44);
-    if (this.mode === 'tactical') anchor.lerp(boss3, .28);
-    anchor.add(this.manualOffset);
-    this.clampOffset(this.desiredOffset);
-    const offsetLerp = 1 - Math.exp(-dt * (this.mode === 'follow' ? 5 : 8));
-    this.manualOffset.lerp(this.desiredOffset, offsetLerp);
-    this.distance = THREE.MathUtils.lerp(this.distance, this.desiredDistance, 1 - Math.exp(-dt * 7));
-    this.target.lerp(anchor, 1 - Math.exp(-dt * 8));
+    this.lookAhead.set(0, 0, 0);
+    if (speed > 10) this.lookAhead.set(velocity.x * .00072, 0, velocity.y * .00072);
+    this.anchor.copy(this.player3).add(this.lookAhead);
+
+    const automaticBias = this.mode === 'boss-focus' ? .42 : this.mode === 'tactical' ? .2 : this.mode === 'follow' ? .08 : 0;
+    const desiredBiasBlend = this.temporaryManualControlTimer > 0 ? 0 : 1;
+    this.bossBiasBlend = THREE.MathUtils.lerp(this.bossBiasBlend, desiredBiasBlend, 1 - Math.exp(-dt * 1.15));
+    if (automaticBias > 0) this.anchor.lerp(this.boss3, automaticBias * this.bossBiasBlend);
+    this.anchor.add(this.manualTargetOffset);
+
+    this.clampOffset(this.desiredTargetOffset);
+    this.manualTargetOffset.lerp(this.desiredTargetOffset, 1 - Math.exp(-dt * 7));
+    this.distance = THREE.MathUtils.lerp(this.distance, this.desiredDistance, 1 - Math.exp(-dt * 6));
+    this.yaw = dampAngle(this.yaw, this.desiredYaw, 1 - Math.exp(-dt * 8));
+    this.pitch = THREE.MathUtils.lerp(this.pitch, this.desiredPitch, 1 - Math.exp(-dt * 8));
+    this.target.lerp(this.anchor, 1 - Math.exp(-dt * 7.5));
 
     const horizontal = this.distance * Math.cos(this.pitch);
     this.camera.position.set(
@@ -65,23 +103,25 @@ export class HybridCameraController {
       this.distance * Math.sin(this.pitch),
       this.target.z + Math.cos(this.yaw) * horizontal,
     );
-    this.camera.lookAt(this.target.x, .45, this.target.z);
-    this.lastPlayer.copy(player3);
+    this.camera.lookAt(this.target.x, .5, this.target.z);
   }
 
   setVisualProofView(options: { mode?: HybridCameraMode; distance?: number; yaw?: number; pitchDeg?: number; offsetX?: number; offsetZ?: number }): void {
     if (options.mode) this.mode = options.mode;
-    if (typeof options.distance === 'number') this.desiredDistance = this.distance = THREE.MathUtils.clamp(options.distance, 8.5, 21);
-    if (typeof options.yaw === 'number') this.yaw = options.yaw;
-    if (typeof options.pitchDeg === 'number') this.pitch = THREE.MathUtils.degToRad(THREE.MathUtils.clamp(options.pitchDeg, 42, 66));
-    this.desiredOffset.set(options.offsetX ?? 0, 0, options.offsetZ ?? 0);
-    this.manualOffset.copy(this.desiredOffset);
-    this.clampOffset(this.desiredOffset);
-    this.clampOffset(this.manualOffset);
+    if (typeof options.distance === 'number') this.desiredDistance = this.distance = THREE.MathUtils.clamp(options.distance, 9.5, 22);
+    if (typeof options.yaw === 'number') this.desiredYaw = this.yaw = normalizeAngle(options.yaw);
+    if (typeof options.pitchDeg === 'number') this.desiredPitch = this.pitch = THREE.MathUtils.degToRad(THREE.MathUtils.clamp(options.pitchDeg, 28, 68));
+    this.desiredTargetOffset.set(options.offsetX ?? 0, 0, options.offsetZ ?? 0);
+    this.manualTargetOffset.copy(this.desiredTargetOffset);
+    this.clampOffset(this.desiredTargetOffset); this.clampOffset(this.manualTargetOffset);
   }
 
-  snapshot(): Readonly<{ mode: HybridCameraMode; distance: number; offsetX: number; offsetZ: number }> {
-    return { mode: this.mode, distance: this.distance, offsetX: this.manualOffset.x, offsetZ: this.manualOffset.z };
+  snapshot(): Readonly<{ mode: HybridCameraMode; distance: number; yaw: number; pitchDeg: number; offsetX: number; offsetZ: number; bossBias: number; manualControlMs: number }> {
+    return {
+      mode: this.mode, distance: this.distance, yaw: this.yaw, pitchDeg: THREE.MathUtils.radToDeg(this.pitch),
+      offsetX: this.manualTargetOffset.x, offsetZ: this.manualTargetOffset.z,
+      bossBias: this.bossBiasBlend, manualControlMs: this.temporaryManualControlTimer,
+    };
   }
 
   private clampOffset(offset: THREE.Vector3): void {
@@ -90,7 +130,5 @@ export class HybridCameraController {
   }
 }
 
-function toGround(point: Vec2): THREE.Vector3 {
-  const world = simulationToWorld3D(point);
-  return new THREE.Vector3(world.x, world.y, world.z);
-}
+function normalizeAngle(angle: number): number { return Math.atan2(Math.sin(angle), Math.cos(angle)); }
+function dampAngle(current: number, target: number, factor: number): number { return current + normalizeAngle(target - current) * factor; }

@@ -1,13 +1,19 @@
 import * as THREE from 'three';
 import type { BossTelegraph } from '../gameplay/BossAttackSystem';
 import { BOSS_ATTACKS } from '../gameplay/BossAttackSystem';
-import { heroDirectionAsset, heroDirectionFromVector, type HeroDirection, type HeroPose } from '../gameplay/HeroDirection';
+import { heroDirectionAsset, type HeroDirection, type HeroPose } from '../gameplay/HeroDirection';
 import type { LootDrop } from '../gameplay/LootSystem';
 import type { CombatEntityState, Vec2 } from '../gameplay/ArenaTypes';
+import type { PlayerProjectile, PlayerProjectileImpact } from '../gameplay/PlayerProjectileSystem';
 import { ASSET_MANIFEST, type AssetKey } from '../assets';
 import { HybridCameraController } from './HybridCameraController';
 import type { Hybrid3DSceneDefinition, HybridPropDefinition } from './Hybrid3DTestScene';
 import { simulationToWorld3D, WORLD3D_UNITS_PER_METER } from './World3DTypes';
+import { sampleBaseTerrainHeight, sampleGroundHeight } from './HybridGroundSampler';
+import { heroRenderY } from './HeroGrounding';
+import { HeroVisualState, type HeroVisualSnapshot } from './HeroVisualState';
+import { heroFootAnchor } from './HeroFootAnchors';
+import { HybridProjectileRenderer } from './HybridProjectileRenderer';
 
 const STONE = 0x242735;
 const STONE_DARK = 0x121520;
@@ -21,8 +27,11 @@ export interface HybridRenderState {
   bossHpRatio: number;
   telegraphs: readonly BossTelegraph[];
   loot: readonly LootDrop[];
+  projectiles: readonly PlayerProjectile[];
+  projectileImpacts: readonly PlayerProjectileImpact[];
   dashing: boolean;
   attacking: boolean;
+  aimDirection?: Vec2;
 }
 
 export class HybridWorldRenderer {
@@ -36,11 +45,17 @@ export class HybridWorldRenderer {
   private readonly hero: THREE.Sprite;
   private readonly heroShadow: THREE.Mesh;
   private readonly bossVisual: THREE.Sprite;
+  private readonly bossBody: THREE.Group;
   private readonly bossProxy: THREE.Group;
+  private readonly bossBodyMaterials: THREE.MeshStandardMaterial[] = [];
+  private readonly projectileRenderer: HybridProjectileRenderer;
   private readonly telegraphMeshes = new Map<string, THREE.Object3D>();
   private readonly lootMeshes = new Map<string, THREE.Group>();
-  private heroDirection: HeroDirection = 'n';
-  private heroPose: HeroPose = 'idle';
+  private readonly heroVisualState = new HeroVisualState();
+  private appliedHeroAsset = 'creature.direction.n.idle';
+  private heroVisualSnapshot: HeroVisualSnapshot = this.heroVisualState.snapshot();
+  private bossHitMs = 0;
+  private bossViewSector: 'front'|'flank'|'rear' = 'front';
   private elapsed = 0;
 
   constructor(private readonly mount: HTMLElement, private readonly definition: Hybrid3DSceneDefinition) {
@@ -67,12 +82,15 @@ export class HybridWorldRenderer {
     this.heroShadow = makeDisc(.62, 0x000000, .48);
     this.scene.add(this.heroShadow);
     this.hero = this.makeSprite(assetUrl('creature.direction.n.idle'), 2.45, 2.45);
-    this.hero.center.set(.5, .13);
+    this.hero.center.set(.5, heroFootAnchor('n', 'idle'));
     this.scene.add(this.hero);
+    this.preloadHeroTextures();
+    this.bossBody = this.addBossBody();
     this.bossProxy = this.addBossProxy();
-    this.bossVisual = this.makeSprite(assetUrl('boss.halloween.base'), 7.6, 7.6);
+    this.bossVisual = this.makeSprite(assetUrl('boss.halloween.base'), 6.9, 6.9);
     this.bossVisual.center.set(.5, .12);
     this.scene.add(this.bossVisual);
+    this.projectileRenderer = new HybridProjectileRenderer(this.scene);
     this.scene.add(this.debugRoot);
     this.debugRoot.visible = new URLSearchParams(location.search).has('debug3d');
     this.resize();
@@ -83,28 +101,42 @@ export class HybridWorldRenderer {
     const player = simulationToWorld3D(state.player.position);
     const boss = simulationToWorld3D(state.bossPosition);
     const speed = Math.hypot(state.player.velocity.x, state.player.velocity.y);
-    const direction = heroDirectionFromVector(state.player.velocity, this.heroDirection, 5);
-    const pose: HeroPose = state.dashing ? 'dash' : state.attacking ? 'attack' : speed > 24 ? 'run' : 'idle';
-    if (direction !== this.heroDirection || pose !== this.heroPose) {
-      this.heroDirection = direction; this.heroPose = pose;
-      this.hero.material.map = this.texture(assetUrl(heroDirectionAsset(direction, pose)));
+    this.heroVisualSnapshot = this.heroVisualState.update(deltaMs, state.player.velocity, state.dashing, state.attacking, state.aimDirection);
+    const desiredAsset = heroDirectionAsset(this.heroVisualSnapshot.direction, this.heroVisualSnapshot.pose);
+    const desiredTexture = this.texture(assetUrl(desiredAsset));
+    if (desiredAsset !== this.appliedHeroAsset && desiredTexture.userData.ready === true) {
+      this.appliedHeroAsset = desiredAsset;
+      this.hero.material.map = desiredTexture;
       this.hero.material.needsUpdate = true;
+      this.hero.center.y = heroFootAnchor(this.heroVisualSnapshot.direction, this.heroVisualSnapshot.pose);
+      this.heroVisualState.recordTextureSwap();
     }
-    const cadence = speed > 24 ? Math.sin(this.elapsed * .018) * .07 : Math.sin(this.elapsed * .003) * .025;
-    this.hero.position.set(player.x, .08 + cadence, player.z);
+    const cadence = speed > 24 ? Math.abs(Math.sin(this.elapsed * .016)) * .045 : Math.sin(this.elapsed * .003) * .012 + .012;
+    const playerGround = sampleGroundHeight(player.x, player.z);
+    this.hero.position.set(player.x, heroRenderY(player.x, player.z, cadence), player.z);
     this.hero.scale.set(2.35 * (state.dashing ? 1.18 : 1), 2.35 * (state.dashing ? .88 : 1), 1);
-    this.heroShadow.position.set(player.x, .025, player.z);
+    this.heroShadow.position.set(player.x, playerGround + .012, player.z);
     this.heroShadow.scale.set(state.dashing ? 1.35 : 1, state.dashing ? .7 : 1, 1);
 
-    this.bossProxy.position.set(boss.x, 0, boss.z);
+    this.cameraController.update(deltaMs, state.player.position, state.player.velocity, state.bossPosition);
+    const bossGround = sampleGroundHeight(boss.x, boss.z);
+    this.bossProxy.position.set(boss.x, bossGround, boss.z);
     this.bossProxy.rotation.y = -state.bossOrientation + Math.PI / 2;
-    this.bossVisual.position.set(boss.x, .02, boss.z);
-    this.bossVisual.material.opacity = .94;
+    this.bossBody.position.set(boss.x, bossGround, boss.z);
+    this.bossBody.rotation.y = -state.bossOrientation + Math.PI / 2;
+    this.bossViewSector = bossVisualSectorFromView(this.camera.position, boss, state.bossOrientation);
+    this.bossVisual.position.set(boss.x, bossGround + .02, boss.z);
+    this.bossVisual.material.opacity = this.bossViewSector === 'front' ? .92 : this.bossViewSector === 'flank' ? .22 : 0;
+    this.bossHitMs = Math.max(0, this.bossHitMs - deltaMs);
+    if (state.projectileImpacts.length) this.bossHitMs = state.projectileImpacts.some((impact) => impact.kind === 'power') ? 260 : 130;
+    const hitRatio = this.bossHitMs > 0 ? this.bossHitMs / 260 : 0;
+    this.bossVisual.material.color.setRGB(1, 1 - hitRatio * .28, 1 - hitRatio * .48);
+    for (const material of this.bossBodyMaterials) material.emissiveIntensity = .22 + hitRatio * 2.8;
     const pulse = 1 + Math.sin(this.elapsed * .0028) * .012 + (1 - state.bossHpRatio) * .02;
-    this.bossVisual.scale.set(7.6 * pulse, 7.6 * pulse, 1);
+    this.bossVisual.scale.set(6.9 * pulse, 6.9 * pulse, 1);
     this.syncTelegraphs(state.telegraphs);
     this.syncLoot(state.loot);
-    this.cameraController.update(deltaMs, state.player.position, state.player.velocity, state.bossPosition);
+    this.projectileRenderer.update(deltaMs, state.projectiles, state.projectileImpacts);
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -116,9 +148,14 @@ export class HybridWorldRenderer {
   }
 
   toggleDebug(): boolean { this.debugRoot.visible = !this.debugRoot.visible; return this.debugRoot.visible; }
-  metrics(): Readonly<{ calls: number; triangles: number; points: number; lines: number; textures: number }> {
+  metrics(): Readonly<{ calls: number; triangles: number; points: number; lines: number; textures: number; projectiles: number; projectilePool: number; heroDirectionSwaps: number; heroPoseSwaps: number; heroTextureSwaps: number; bossView: string }> {
     const render = this.renderer.info.render;
-    return { calls: render.calls, triangles: render.triangles, points: render.points, lines: render.lines, textures: this.renderer.info.memory.textures };
+    return {
+      calls: render.calls, triangles: render.triangles, points: render.points, lines: render.lines, textures: this.renderer.info.memory.textures,
+      projectiles: this.projectileRenderer.activeCount, projectilePool: this.projectileRenderer.poolCount,
+      heroDirectionSwaps: this.heroVisualSnapshot.directionChangesPerSecond, heroPoseSwaps: this.heroVisualSnapshot.poseChangesPerSecond,
+      heroTextureSwaps: this.heroVisualSnapshot.textureSwapsPerSecond, bossView: this.bossViewSector,
+    };
   }
 
   destroy(): void {
@@ -131,6 +168,7 @@ export class HybridWorldRenderer {
       }
     });
     this.textureCache.forEach((texture) => texture.dispose());
+    this.projectileRenderer.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
@@ -159,11 +197,7 @@ export class HybridWorldRenderer {
     geometry.rotateX(-Math.PI / 2);
     const positions = geometry.attributes.position;
     for (let i = 0; i < positions.count; i += 1) {
-      const x = positions.getX(i), z = positions.getZ(i);
-      const edge = Math.max(Math.abs(x) / (width / 2), Math.abs(z) / (depth / 2));
-      const basinFalloff = Math.max(0, 1 - Math.hypot(x, z + 3.8) / 6.5);
-      const height = Math.sin(x * 1.25) * .035 + Math.cos(z * 1.08) * .03 - basinFalloff * .12 - Math.max(0, edge - .78) * .7;
-      positions.setY(i, height);
+      positions.setY(i, sampleBaseTerrainHeight(positions.getX(i), positions.getZ(i)));
     }
     geometry.computeVertexNormals();
     const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x1b1c24, roughness: .98, metalness: .01 });
@@ -287,7 +321,6 @@ export class HybridWorldRenderer {
       shard.rotation.z = (index - 2) * .08; shard.rotation.y = index * .7;
       shard.castShadow = true; root.add(shard);
     });
-    const glow = new THREE.PointLight(0x2a8cff, 4.5, 5.5, 2); glow.position.y = 1.2; root.add(glow);
     root.add(makeDisc(1.55, 0x07101b, .48));
   }
 
@@ -299,7 +332,6 @@ export class HybridWorldRenderer {
       const vein = new THREE.Mesh(new THREE.CylinderGeometry(.045, .09, 2.1 + i * .25, 6), veinMaterial);
       vein.position.set((i - 1.5) * .32, .8, (i % 2 ? .38 : -.34)); vein.rotation.z = (i - 1.5) * .24; root.add(vein);
     }
-    const glow = new THREE.PointLight(0x7b2cff, 4, 4.8, 2); glow.position.y = 1.35; root.add(glow);
     root.add(makeDisc(1.45, 0x090610, .48));
   }
 
@@ -358,8 +390,35 @@ export class HybridWorldRenderer {
     footprint.rotation.x = -Math.PI / 2; footprint.position.y = .025; root.add(footprint);
     const arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, .06, 0), 3.4, 0xffcc66, .55, .3); root.add(arrow);
     this.debugRoot.add(root);
-    const boss = simulationToWorld3D(this.definition.bossSpawn); root.position.set(boss.x, 0, boss.z);
-    const shadow = makeDisc(3.5, 0x000000, .56); shadow.position.set(boss.x, .012, boss.z); shadow.scale.z = .72; this.scene.add(shadow);
+    const boss = simulationToWorld3D(this.definition.bossSpawn); root.position.set(boss.x, sampleGroundHeight(boss.x, boss.z), boss.z);
+    const shadow = makeDisc(3.5, 0x000000, .56); shadow.position.set(boss.x, sampleGroundHeight(boss.x, boss.z) + .012, boss.z); shadow.scale.z = .72; this.scene.add(shadow);
+    return root;
+  }
+
+  private addBossBody(): THREE.Group {
+    const root = new THREE.Group();
+    const stone = new THREE.MeshStandardMaterial({ color: 0x171923, emissive: 0x2b1008, emissiveIntensity: .22, roughness: .94, metalness: .02, flatShading: true });
+    const darkStone = new THREE.MeshStandardMaterial({ color: 0x10121a, emissive: 0x1d0905, emissiveIntensity: .22, roughness: .96, flatShading: true });
+    const core = new THREE.MeshStandardMaterial({ color: 0xff9b38, emissive: 0xff4b12, emissiveIntensity: 3.2, roughness: .25, flatShading: true });
+    this.bossBodyMaterials.push(stone, darkStone);
+    const add = (geometry: THREE.BufferGeometry, material: THREE.Material, position: [number, number, number], scale: [number, number, number], rotationZ = 0): THREE.Mesh => {
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(...position); mesh.scale.set(...scale); mesh.rotation.z = rotationZ;
+      mesh.castShadow = true; mesh.receiveShadow = true; root.add(mesh); return mesh;
+    };
+    add(new THREE.DodecahedronGeometry(1, 0), stone, [0, 3.05, 0], [2.25, 2.75, 1.52]);
+    add(new THREE.DodecahedronGeometry(1, 0), darkStone, [0, 5.45, .08], [1.25, 1.3, 1.08]);
+    add(new THREE.DodecahedronGeometry(1, 0), stone, [-2.25, 3.65, 0], [1.05, 1.18, 1.1], .08);
+    add(new THREE.DodecahedronGeometry(1, 0), stone, [2.25, 3.65, 0], [1.05, 1.18, 1.1], -.08);
+    add(new THREE.CylinderGeometry(.6, .78, 3.15, 7), darkStone, [-2.45, 2.05, .05], [1, 1, 1], -.18);
+    add(new THREE.CylinderGeometry(.6, .78, 3.15, 7), darkStone, [2.45, 2.05, .05], [1, 1, 1], .18);
+    add(new THREE.CylinderGeometry(.72, .92, 2.15, 7), darkStone, [-1.05, 1.05, 0], [1, 1, 1], -.05);
+    add(new THREE.CylinderGeometry(.72, .92, 2.15, 7), darkStone, [1.05, 1.05, 0], [1, 1, 1], .05);
+    add(new THREE.OctahedronGeometry(.72, 0), core, [0, 3.35, 1.48], [1, 1.2, .65]);
+    add(new THREE.OctahedronGeometry(.17, 0), core, [-.42, 5.62, 1.02], [1.4, .72, .55]);
+    add(new THREE.OctahedronGeometry(.17, 0), core, [.42, 5.62, 1.02], [1.4, .72, .55]);
+    root.traverse((object) => { object.renderOrder = object instanceof THREE.Mesh && object.material === core ? 2 : 0; });
+    this.scene.add(root);
     return root;
   }
 
@@ -370,7 +429,7 @@ export class HybridWorldRenderer {
       let mesh = this.telegraphMeshes.get(telegraph.id);
       if (!mesh) { mesh = this.createTelegraphMesh(telegraph); this.telegraphMeshes.set(telegraph.id, mesh); this.scene.add(mesh); }
       const position = simulationToWorld3D(telegraph.position);
-      mesh.position.set(position.x, .035, position.z);
+      mesh.position.set(position.x, sampleGroundHeight(position.x, position.z) + .035, position.z);
       const material = firstMaterial(mesh);
       if (material) {
         material.opacity = telegraph.phase === 'impact' ? .72 : telegraph.phase === 'recovery' ? .14 : .28 + Math.sin(this.elapsed * .014) * .1;
@@ -414,7 +473,7 @@ export class HybridWorldRenderer {
       }
       const position = simulationToWorld3D(drop.position);
       const airborne = drop.phase === 'airborne' ? Math.sin(Math.min(1, drop.ageMs / drop.flightMs) * Math.PI) * 2.6 : drop.bounce / WORLD3D_UNITS_PER_METER;
-      group.position.set(position.x, .05 + airborne, position.z);
+      group.position.set(position.x, sampleGroundHeight(position.x, position.z) + .05 + airborne, position.z);
       group.rotation.y += .008;
     }
   }
@@ -426,8 +485,15 @@ export class HybridWorldRenderer {
 
   private texture(url: string): THREE.Texture {
     const cached = this.textureCache.get(url); if (cached) return cached;
-    const texture = this.textureLoader.load(url); texture.colorSpace = THREE.SRGBColorSpace; texture.minFilter = THREE.LinearMipmapLinearFilter;
+    const texture = this.textureLoader.load(url, (loaded) => { loaded.userData.ready = true; }, undefined, () => { texture.userData.ready = false; });
+    texture.userData.ready = false; texture.colorSpace = THREE.SRGBColorSpace; texture.minFilter = THREE.LinearMipmapLinearFilter;
     this.textureCache.set(url, texture); return texture;
+  }
+
+  private preloadHeroTextures(): void {
+    const directions: HeroDirection[] = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'];
+    const poses: HeroPose[] = ['idle', 'run', 'dash', 'attack'];
+    for (const direction of directions) for (const pose of poses) this.texture(assetUrl(heroDirectionAsset(direction, pose)));
   }
 }
 
@@ -444,4 +510,19 @@ function firstMaterial(object: THREE.Object3D): THREE.MeshBasicMaterial | undefi
 }
 function disposeObject(object: THREE.Object3D): void {
   object.traverse((child) => { if (child instanceof THREE.Mesh || child instanceof THREE.Sprite) { child.geometry?.dispose(); const materials = Array.isArray(child.material) ? child.material : [child.material]; materials.forEach((material) => material.dispose()); } });
+}
+
+export function bossVisualSectorFromView(cameraPosition: { x: number; z: number }, bossPosition: { x: number; z: number }, bossOrientation: number): 'front'|'flank'|'rear' {
+  const cameraAngle = Math.atan2(cameraPosition.z - bossPosition.z, cameraPosition.x - bossPosition.x);
+  const delta = Math.abs(wrapAngle(cameraAngle - bossOrientation));
+  if (delta <= Math.PI * .3) return 'front';
+  if (delta >= Math.PI * .7) return 'rear';
+  return 'flank';
+}
+
+function wrapAngle(angle: number): number {
+  let wrapped = angle;
+  while (wrapped > Math.PI) wrapped -= Math.PI * 2;
+  while (wrapped < -Math.PI) wrapped += Math.PI * 2;
+  return wrapped;
 }

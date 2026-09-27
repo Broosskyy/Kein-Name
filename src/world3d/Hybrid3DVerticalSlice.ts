@@ -1,9 +1,11 @@
 import type { CombatModel } from '../core/CombatModel';
+import { GAME_CONFIG } from '../config';
 import { BossAttackSystem } from '../gameplay/BossAttackSystem';
 import { BossWorldEntity } from '../gameplay/BossWorldEntity';
 import { createLocalPlayer, type MovementInput, type Vec2 } from '../gameplay/ArenaTypes';
 import { LootSystem } from '../gameplay/LootSystem';
 import { PlayerMovementController } from '../gameplay/PlayerMovementController';
+import { PlayerProjectileSystem, type PlayerProjectileImpact, type PlayerProjectileKind } from '../gameplay/PlayerProjectileSystem';
 import type { GameUI } from '../ui/GameUI';
 import { HybridCameraController } from './HybridCameraController';
 import { HybridCollisionSystem } from './HybridCollisionSystem';
@@ -19,6 +21,7 @@ export class Hybrid3DVerticalSlice {
   readonly movement = new PlayerMovementController({ acceleration: 3600, deceleration: 5200, turnAcceleration: 6800, dashSpeed: 1900 });
   readonly renderer: HybridWorldRenderer;
   readonly collisions: HybridCollisionSystem;
+  readonly projectiles = new PlayerProjectileSystem();
   private movementInput: MovementInput = { x: 0, y: 0 };
   private readonly keyboard = new Set<string>();
   private previousTime = performance.now();
@@ -118,6 +121,8 @@ export class Hybrid3DVerticalSlice {
       this.autoAttackMs = this.combat.attackIntervalMs;
     }
     this.boss.update(deltaMs, this.player.position);
+    const projectileImpacts = this.projectiles.update(deltaMs, this.boss.position, Math.min(this.boss.footprint.radiusX, this.boss.footprint.radiusY) * .78);
+    for (const impact of projectileImpacts) this.resolveProjectileImpact(impact, now);
     const relative = this.boss.relativeTo(this.player.position);
     this.attacks.update(deltaMs, this.player.position, 1, this.combat.phase === 'playing', this.combat.bossHp / this.combat.maxHp, {
       position: this.boss.position, orientation: this.boss.orientation, sector: relative.sector, distanceZone: relative.distanceZone, velocity: this.player.velocity,
@@ -130,10 +135,13 @@ export class Hybrid3DVerticalSlice {
       bossHpRatio: this.combat.bossHp / this.combat.maxHp,
       telegraphs: this.attacks.active,
       loot: this.loot.drops,
+      projectiles: this.projectiles.active,
+      projectileImpacts,
       dashing: this.movement.isDashing,
       attacking: this.attackPoseMs > 0,
+      aimDirection: { x: this.boss.position.x - this.player.position.x, y: this.boss.position.y - this.player.position.y },
     });
-    this.ui.update(this.combat.bossHp, this.combat.maxHp, this.combat.elapsedMs(now), this.combat.powerCooldownRemaining(now), this.combat.phase === 'playing');
+    this.ui.update(this.combat.bossHp, this.combat.maxHp, this.combat.elapsedMs(now), this.combat.powerCooldownRemaining(now), this.combat.phase === 'playing', this.projectiles.hasPendingPower);
     this.ui.updateArena(this.player.hp, this.player.maxHp, 1, 30, 100, 1, this.dashCooldownMs);
     this.ui.updateMinimap(toFullMap(this.player.position), toFullMap(this.boss.position), []);
     this.updateDebug(relative.sector, relative.distance);
@@ -144,7 +152,7 @@ export class Hybrid3DVerticalSlice {
     this.ui.bindDash(() => this.dash());
     this.ui.bindPower(() => this.performAttack('power', performance.now()));
     this.ui.bindZoom((delta) => this.renderer.cameraController.zoom(delta));
-    this.ui.bindCameraPan((dx, dy) => this.renderer.cameraController.pan(dx, dy));
+    this.ui.bindCameraGesture((dx, dy, gesture) => this.renderer.cameraController.gesture(dx, dy, gesture));
     this.ui.bindCameraReset(() => this.renderer.cameraController.resetFollow());
     this.ui.bindDebug((action) => {
       if (action === 'camera-follow') this.renderer.cameraController.setMode('follow');
@@ -191,9 +199,17 @@ export class Hybrid3DVerticalSlice {
   }
 
   private performAttack(kind: 'normal' | 'power', now: number): void {
-    const result = this.combat.attack(kind, now);
-    if (!result.accepted) return;
+    if (this.combat.phase !== 'playing' || this.combat.isPaused) return;
+    if (kind === 'power' && (!this.combat.canPowerHit(now) || this.projectiles.hasPendingPower)) return;
+    const damage = kind === 'power' ? GAME_CONFIG.combat.powerDamage : GAME_CONFIG.combat.normalDamage;
+    const launched = this.projectiles.launch(kind, this.player.position, this.boss.position, damage);
+    if (!launched) return;
     this.attackPoseMs = kind === 'power' ? 360 : 190;
+  }
+
+  private resolveProjectileImpact(impact: PlayerProjectileImpact, now: number): void {
+    const result = this.combat.attack(impact.kind as PlayerProjectileKind, now);
+    if (!result.accepted) return;
     if (result.triggeredBreakpointId && this.combat.pendingChoices.length) {
       this.ui.showChoices(this.combat.pendingChoices, (mutation) => {
         if (this.combat.chooseMutation(mutation, performance.now())) { this.ui.setMutation(mutation); this.ui.hideChoices(); }
@@ -214,12 +230,16 @@ export class Hybrid3DVerticalSlice {
     if (!this.renderer.debugRoot.visible) { this.debugElement.hidden = true; return; }
     this.debugElement.hidden = false;
     const metrics = this.renderer.metrics(), camera = this.renderer.cameraController;
+    const cameraSnapshot = camera.snapshot();
     this.debugElement.textContent = [
       'M10 HYBRID 3D',
       `HERO ${this.player.position.x.toFixed(0)} / ${this.player.position.y.toFixed(0)}`,
       `BOSS ${sector.toUpperCase()} · ${distance.toFixed(0)}u`,
       `CAM ${camera.mode.toUpperCase()} · ${camera.distance.toFixed(1)}m`,
       `${metrics.calls} calls · ${metrics.triangles} tris · ${metrics.textures} tex`,
+      `PITCH ${cameraSnapshot.pitchDeg.toFixed(1)}° · YAW ${(cameraSnapshot.yaw * 180 / Math.PI).toFixed(0)}° · BIAS ${cameraSnapshot.bossBias.toFixed(2)}`,
+      `SHOT ${metrics.projectiles} · POOL ${metrics.projectilePool} · BOSS VIEW ${metrics.bossView.toUpperCase()}`,
+      `HERO DIR ${metrics.heroDirectionSwaps}/s · POSE ${metrics.heroPoseSwaps}/s · TEX ${metrics.heroTextureSwaps}/s`,
     ].join('\n');
   }
 }
