@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { Vec2 } from '../gameplay/ArenaTypes';
 import { simulationToWorld3D } from './World3DTypes';
+import { sampleGroundHeightAtSimulation } from './HybridGroundSampler';
+import type { CameraObstructionResolver } from './HybridCameraObstruction';
 
 export type HybridCameraMode = 'follow' | 'look' | 'boss-focus' | 'tactical';
 export type HybridCameraGesture = 'orbit' | 'pan';
@@ -15,6 +17,7 @@ export class HybridCameraController {
   distance = 15.5;
   yaw = 0;
   pitch = THREE.MathUtils.degToRad(52);
+  obstructionDistance = this.distance;
   temporaryManualControlTimer = 0;
   private desiredDistance = this.distance;
   private desiredYaw = this.yaw;
@@ -27,8 +30,11 @@ export class HybridCameraController {
   private readonly lookAhead = new THREE.Vector3();
   private readonly right = new THREE.Vector3();
   private readonly forward = new THREE.Vector3();
+  private readonly desiredCamera = new THREE.Vector3();
+  private impulseStrength = 0;
+  private impulsePhase = 0;
 
-  constructor(readonly camera: THREE.PerspectiveCamera, private readonly worldHalfExtent = 10.6) {}
+  constructor(readonly camera: THREE.PerspectiveCamera, private readonly worldHalfExtent = 10.6, private readonly obstruction?: CameraObstructionResolver) {}
 
   gesture(screenDx: number, screenDy: number, gesture: HybridCameraGesture = 'orbit'): void {
     this.mode = 'look';
@@ -51,6 +57,8 @@ export class HybridCameraController {
   }
 
   orbit(screenDx: number): void { this.gesture(screenDx, 0, 'orbit'); }
+
+  addImpulse(strength: number): void { this.impulseStrength = Math.max(this.impulseStrength, THREE.MathUtils.clamp(strength, 0, .28)); }
 
   zoom(delta: number): void {
     this.desiredDistance = THREE.MathUtils.clamp(this.desiredDistance - delta * 12, 9.5, 22);
@@ -75,10 +83,11 @@ export class HybridCameraController {
 
   update(deltaMs: number, player: Vec2, velocity: Vec2, boss: Vec2): void {
     const dt = Math.min(.05, deltaMs / 1000);
+    this.impulsePhase += deltaMs;
     this.temporaryManualControlTimer = Math.max(0, this.temporaryManualControlTimer - deltaMs);
     const playerWorld = simulationToWorld3D(player), bossWorld = simulationToWorld3D(boss);
-    this.player3.set(playerWorld.x, playerWorld.y, playerWorld.z);
-    this.boss3.set(bossWorld.x, bossWorld.y, bossWorld.z);
+    this.player3.set(playerWorld.x, sampleGroundHeightAtSimulation(player) + .72, playerWorld.z);
+    this.boss3.set(bossWorld.x, sampleGroundHeightAtSimulation(boss) + 2.35, bossWorld.z);
     const speed = Math.hypot(velocity.x, velocity.y);
     this.lookAhead.set(0, 0, 0);
     if (speed > 10) this.lookAhead.set(velocity.x * .00072, 0, velocity.y * .00072);
@@ -88,22 +97,34 @@ export class HybridCameraController {
     const desiredBiasBlend = this.temporaryManualControlTimer > 0 ? 0 : 1;
     this.bossBiasBlend = THREE.MathUtils.lerp(this.bossBiasBlend, desiredBiasBlend, 1 - Math.exp(-dt * 1.15));
     if (automaticBias > 0) this.anchor.lerp(this.boss3, automaticBias * this.bossBiasBlend);
-    this.anchor.add(this.manualTargetOffset);
-
     this.clampOffset(this.desiredTargetOffset);
     this.manualTargetOffset.lerp(this.desiredTargetOffset, 1 - Math.exp(-dt * 7));
+    this.anchor.add(this.manualTargetOffset);
     this.distance = THREE.MathUtils.lerp(this.distance, this.desiredDistance, 1 - Math.exp(-dt * 6));
     this.yaw = dampAngle(this.yaw, this.desiredYaw, 1 - Math.exp(-dt * 8));
     this.pitch = THREE.MathUtils.lerp(this.pitch, this.desiredPitch, 1 - Math.exp(-dt * 8));
     this.target.lerp(this.anchor, 1 - Math.exp(-dt * 7.5));
 
     const horizontal = this.distance * Math.cos(this.pitch);
-    this.camera.position.set(
+    this.desiredCamera.set(
       this.target.x + Math.sin(this.yaw) * horizontal,
-      this.distance * Math.sin(this.pitch),
+      this.target.y + this.distance * Math.sin(this.pitch),
       this.target.z + Math.cos(this.yaw) * horizontal,
     );
-    this.camera.lookAt(this.target.x, .5, this.target.z);
+    const allowedDistance = this.obstruction?.resolve(this.target, this.desiredCamera, this.distance) ?? this.distance;
+    const obstructionRate = allowedDistance < this.obstructionDistance ? 18 : 3.8;
+    this.obstructionDistance = THREE.MathUtils.lerp(this.obstructionDistance, allowedDistance, 1 - Math.exp(-dt * obstructionRate));
+    const cameraDistance = Math.min(this.distance, this.obstructionDistance);
+    const cameraHorizontal = cameraDistance * Math.cos(this.pitch);
+    this.impulseStrength = THREE.MathUtils.lerp(this.impulseStrength, 0, 1 - Math.exp(-dt * 12));
+    const impulseX = Math.sin(this.impulsePhase * .041) * this.impulseStrength;
+    const impulseY = Math.cos(this.impulsePhase * .037) * this.impulseStrength * .55;
+    this.camera.position.set(
+      this.target.x + Math.sin(this.yaw) * cameraHorizontal + impulseX,
+      this.target.y + cameraDistance * Math.sin(this.pitch) + impulseY,
+      this.target.z + Math.cos(this.yaw) * cameraHorizontal,
+    );
+    this.camera.lookAt(this.target);
   }
 
   setVisualProofView(options: { mode?: HybridCameraMode; distance?: number; yaw?: number; pitchDeg?: number; offsetX?: number; offsetZ?: number }): void {
@@ -116,9 +137,10 @@ export class HybridCameraController {
     this.clampOffset(this.desiredTargetOffset); this.clampOffset(this.manualTargetOffset);
   }
 
-  snapshot(): Readonly<{ mode: HybridCameraMode; distance: number; yaw: number; pitchDeg: number; offsetX: number; offsetZ: number; bossBias: number; manualControlMs: number }> {
+  snapshot(): Readonly<{ mode: HybridCameraMode; distance: number; obstructionDistance: number; obstructed: boolean; yaw: number; pitchDeg: number; offsetX: number; offsetZ: number; bossBias: number; manualControlMs: number }> {
     return {
-      mode: this.mode, distance: this.distance, yaw: this.yaw, pitchDeg: THREE.MathUtils.radToDeg(this.pitch),
+      mode: this.mode, distance: this.distance, obstructionDistance: this.obstructionDistance, obstructed: this.obstructionDistance < this.distance - .08,
+      yaw: this.yaw, pitchDeg: THREE.MathUtils.radToDeg(this.pitch),
       offsetX: this.manualTargetOffset.x, offsetZ: this.manualTargetOffset.z,
       bossBias: this.bossBiasBlend, manualControlMs: this.temporaryManualControlTimer,
     };

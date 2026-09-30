@@ -1,8 +1,8 @@
-# Mutation Boss — M10.2 Hybrid 3D Gameplay Feel
+# Mutation Boss — M10.3 Hybrid 3D Visual Coherence
 
 Browser-first hybrid Three.js + PixiJS boss-arena prototype. The default M10 path is a deterministic 2200×2200 spatial slice with real 3D terrain, structures, perspective camera, geometry occlusion, a world-space Boss proxy, ground telegraphs and physical loot. The complete M09.3 2.5D experience remains available as a migration fallback.
 
-M10.2 adds true damped pitch/yaw camera gestures, deterministic surface grounding with alpha-derived Hero foot anchors, direction/pose hysteresis, world-space normal and Power Hit projectiles with impact-timed damage, and an orientation-preserving low-poly Colossus body behind the front-only production impostor. See `M10_2_GAMEPLAY_FEEL_CAMERA_PROJECTILES.md`.
+M10.3 keeps the Hybrid-3D foundation and adds camera collision with reversible near-occluder fade, stable terrain grounding, normalized 32-frame Hero artwork, a single eight-direction Harvest Colossus impostor, brighter world separation, coherent prop scale, and more readable projectile launch/flight/impact feedback. See `M10_3_VISUAL_COHERENCE_DIRECTIONAL_REBUILD.md`.
 
 ## Start and validate
 

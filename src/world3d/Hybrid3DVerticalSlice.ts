@@ -240,6 +240,8 @@ export class Hybrid3DVerticalSlice {
       `PITCH ${cameraSnapshot.pitchDeg.toFixed(1)}° · YAW ${(cameraSnapshot.yaw * 180 / Math.PI).toFixed(0)}° · BIAS ${cameraSnapshot.bossBias.toFixed(2)}`,
       `SHOT ${metrics.projectiles} · POOL ${metrics.projectilePool} · BOSS VIEW ${metrics.bossView.toUpperCase()}`,
       `HERO DIR ${metrics.heroDirectionSwaps}/s · POSE ${metrics.heroPoseSwaps}/s · TEX ${metrics.heroTextureSwaps}/s`,
+      `GROUND ${metrics.groundHeight.toFixed(2)}m · ANCHOR ${metrics.heroAnchor.toFixed(3)} · OCCLUDERS ${metrics.fadedOccluders}`,
+      `CAMERA ${metrics.cameraObstructed ? 'RETRACTED' : 'CLEAR'} · ${metrics.heroAsset}`,
     ].join('\n');
   }
 }

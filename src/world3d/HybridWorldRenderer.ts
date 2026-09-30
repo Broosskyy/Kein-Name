@@ -10,14 +10,16 @@ import { HybridCameraController } from './HybridCameraController';
 import type { Hybrid3DSceneDefinition, HybridPropDefinition } from './Hybrid3DTestScene';
 import { simulationToWorld3D, WORLD3D_UNITS_PER_METER } from './World3DTypes';
 import { sampleBaseTerrainHeight, sampleGroundHeight } from './HybridGroundSampler';
-import { heroRenderY } from './HeroGrounding';
+import { HeroGroundingController } from './HeroGrounding';
 import { HeroVisualState, type HeroVisualSnapshot } from './HeroVisualState';
 import { heroFootAnchor } from './HeroFootAnchors';
 import { HybridProjectileRenderer } from './HybridProjectileRenderer';
+import { HybridCameraObstruction } from './HybridCameraObstruction';
+import { BossDirectionalState, bossViewAnchor, bossViewAsset, bossViewSector, type BossDirectionalView } from './BossDirectionalView';
 
-const STONE = 0x242735;
-const STONE_DARK = 0x121520;
-const STONE_LIGHT = 0x3a3b49;
+const STONE = 0x333746;
+const STONE_DARK = 0x202430;
+const STONE_LIGHT = 0x4b4e5e;
 const ORANGE = 0xff6b23;
 
 export interface HybridRenderState {
@@ -44,15 +46,19 @@ export class HybridWorldRenderer {
   private readonly textureCache = new Map<string, THREE.Texture>();
   private readonly hero: THREE.Sprite;
   private readonly heroShadow: THREE.Mesh;
+  private readonly heroGroundRing: THREE.Mesh;
   private readonly bossVisual: THREE.Sprite;
-  private readonly bossBody: THREE.Group;
   private readonly bossProxy: THREE.Group;
-  private readonly bossBodyMaterials: THREE.MeshStandardMaterial[] = [];
   private readonly projectileRenderer: HybridProjectileRenderer;
+  private readonly cameraObstruction = new HybridCameraObstruction();
   private readonly telegraphMeshes = new Map<string, THREE.Object3D>();
   private readonly lootMeshes = new Map<string, THREE.Group>();
   private readonly heroVisualState = new HeroVisualState();
+  private readonly heroGrounding = new HeroGroundingController();
+  private readonly bossDirectionalState = new BossDirectionalState();
+  private readonly heroVisibilityPoint = new THREE.Vector3();
   private appliedHeroAsset = 'creature.direction.n.idle';
+  private appliedBossAsset: AssetKey = 'boss.halloween.view.front';
   private heroVisualSnapshot: HeroVisualSnapshot = this.heroVisualState.snapshot();
   private bossHitMs = 0;
   private bossViewSector: 'front'|'flank'|'rear' = 'front';
@@ -64,16 +70,16 @@ export class HybridWorldRenderer {
     this.renderer.setSize(mount.clientWidth, mount.clientHeight, false);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1.18;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.domElement.id = 'hybrid-3d-canvas';
     this.renderer.domElement.setAttribute('aria-label', 'M10 Hybrid 3D Harvest Arena');
     mount.appendChild(this.renderer.domElement);
 
-    this.scene.background = new THREE.Color(0x070912);
-    this.scene.fog = new THREE.FogExp2(0x090b14, .027);
-    this.cameraController = new HybridCameraController(this.camera, definition.dimensions.width / WORLD3D_UNITS_PER_METER / 2 - 1);
+    this.scene.background = new THREE.Color(0x111522);
+    this.scene.fog = new THREE.FogExp2(0x151722, .021);
+    this.cameraController = new HybridCameraController(this.camera, definition.dimensions.width / WORLD3D_UNITS_PER_METER / 2 - 1, this.cameraObstruction);
     this.addLighting();
     this.addGround();
     for (const prop of definition.props) this.addProp(prop);
@@ -81,15 +87,17 @@ export class HybridWorldRenderer {
     this.addArenaAtmosphere();
     this.heroShadow = makeDisc(.62, 0x000000, .48);
     this.scene.add(this.heroShadow);
+    this.heroGroundRing = makeRing(.52, .62, 0x69d8ff, .4);
+    this.scene.add(this.heroGroundRing);
     this.hero = this.makeSprite(assetUrl('creature.direction.n.idle'), 2.45, 2.45);
     this.hero.center.set(.5, heroFootAnchor('n', 'idle'));
     this.scene.add(this.hero);
     this.preloadHeroTextures();
-    this.bossBody = this.addBossBody();
     this.bossProxy = this.addBossProxy();
-    this.bossVisual = this.makeSprite(assetUrl('boss.halloween.base'), 6.9, 6.9);
-    this.bossVisual.center.set(.5, .12);
+    this.bossVisual = this.makeSprite(assetUrl(this.appliedBossAsset), 6.35, 6.35);
+    this.bossVisual.center.set(.5, bossViewAnchor('front'));
     this.scene.add(this.bossVisual);
+    this.preloadBossTextures();
     this.projectileRenderer = new HybridProjectileRenderer(this.scene);
     this.scene.add(this.debugRoot);
     this.debugRoot.visible = new URLSearchParams(location.search).has('debug3d');
@@ -111,29 +119,45 @@ export class HybridWorldRenderer {
       this.hero.center.y = heroFootAnchor(this.heroVisualSnapshot.direction, this.heroVisualSnapshot.pose);
       this.heroVisualState.recordTextureSwap();
     }
-    const cadence = speed > 24 ? Math.abs(Math.sin(this.elapsed * .016)) * .045 : Math.sin(this.elapsed * .003) * .012 + .012;
-    const playerGround = sampleGroundHeight(player.x, player.z);
-    this.hero.position.set(player.x, heroRenderY(player.x, player.z, cadence), player.z);
-    this.hero.scale.set(2.35 * (state.dashing ? 1.18 : 1), 2.35 * (state.dashing ? .88 : 1), 1);
+    const cadence = speed > 24 ? Math.abs(Math.sin(this.elapsed * .016)) * .032 : Math.sin(this.elapsed * .003) * .006 + .006;
+    const heroY = this.heroGrounding.update(player.x, player.z, deltaMs, cadence);
+    const playerGround = this.heroGrounding.groundHeight;
+    this.hero.position.set(player.x, heroY, player.z);
+    this.hero.scale.set(2.05 * (state.dashing ? 1.16 : 1), 2.05 * (state.dashing ? .9 : 1), 1);
     this.heroShadow.position.set(player.x, playerGround + .012, player.z);
     this.heroShadow.scale.set(state.dashing ? 1.35 : 1, state.dashing ? .7 : 1, 1);
+    this.heroGroundRing.position.set(player.x, playerGround + .018, player.z);
+    (this.heroGroundRing.material as THREE.MeshBasicMaterial).opacity = state.dashing ? .52 : .34;
 
     this.cameraController.update(deltaMs, state.player.position, state.player.velocity, state.bossPosition);
+    this.heroVisibilityPoint.set(player.x, playerGround + .9, player.z);
+    this.cameraObstruction.updateFades(deltaMs, this.camera.position, this.heroVisibilityPoint);
     const bossGround = sampleGroundHeight(boss.x, boss.z);
     this.bossProxy.position.set(boss.x, bossGround, boss.z);
     this.bossProxy.rotation.y = -state.bossOrientation + Math.PI / 2;
-    this.bossBody.position.set(boss.x, bossGround, boss.z);
-    this.bossBody.rotation.y = -state.bossOrientation + Math.PI / 2;
-    this.bossViewSector = bossVisualSectorFromView(this.camera.position, boss, state.bossOrientation);
-    this.bossVisual.position.set(boss.x, bossGround + .02, boss.z);
-    this.bossVisual.material.opacity = this.bossViewSector === 'front' ? .92 : this.bossViewSector === 'flank' ? .22 : 0;
+    const cameraAngle = Math.atan2(this.camera.position.z - boss.z, this.camera.position.x - boss.x);
+    const bossView = this.bossDirectionalState.update(deltaMs, cameraAngle, state.bossOrientation);
+    const desiredBossAsset = bossViewAsset(bossView);
+    const desiredBossTexture = this.texture(assetUrl(desiredBossAsset));
+    if (desiredBossAsset !== this.appliedBossAsset && desiredBossTexture.userData.ready === true) {
+      this.appliedBossAsset = desiredBossAsset;
+      this.bossVisual.material.map = desiredBossTexture;
+      this.bossVisual.material.needsUpdate = true;
+      this.bossVisual.center.y = bossViewAnchor(bossView);
+    }
+    this.bossViewSector = bossViewSector(bossView);
     this.bossHitMs = Math.max(0, this.bossHitMs - deltaMs);
-    if (state.projectileImpacts.length) this.bossHitMs = state.projectileImpacts.some((impact) => impact.kind === 'power') ? 260 : 130;
+    if (state.projectileImpacts.length) {
+      const powerImpact = state.projectileImpacts.some((impact) => impact.kind === 'power');
+      this.bossHitMs = powerImpact ? 300 : 150;
+      if (powerImpact) this.cameraController.addImpulse(.12);
+    }
     const hitRatio = this.bossHitMs > 0 ? this.bossHitMs / 260 : 0;
     this.bossVisual.material.color.setRGB(1, 1 - hitRatio * .28, 1 - hitRatio * .48);
-    for (const material of this.bossBodyMaterials) material.emissiveIntensity = .22 + hitRatio * 2.8;
     const pulse = 1 + Math.sin(this.elapsed * .0028) * .012 + (1 - state.bossHpRatio) * .02;
-    this.bossVisual.scale.set(6.9 * pulse, 6.9 * pulse, 1);
+    const recoil = hitRatio * .1;
+    this.bossVisual.position.set(boss.x, bossGround + .02 + recoil, boss.z);
+    this.bossVisual.scale.set(6.35 * pulse * (1 + hitRatio * .035), 6.35 * pulse * (1 - hitRatio * .025), 1);
     this.syncTelegraphs(state.telegraphs);
     this.syncLoot(state.loot);
     this.projectileRenderer.update(deltaMs, state.projectiles, state.projectileImpacts);
@@ -148,18 +172,22 @@ export class HybridWorldRenderer {
   }
 
   toggleDebug(): boolean { this.debugRoot.visible = !this.debugRoot.visible; return this.debugRoot.visible; }
-  metrics(): Readonly<{ calls: number; triangles: number; points: number; lines: number; textures: number; projectiles: number; projectilePool: number; heroDirectionSwaps: number; heroPoseSwaps: number; heroTextureSwaps: number; bossView: string }> {
+  metrics(): Readonly<{ calls: number; triangles: number; points: number; lines: number; textures: number; projectiles: number; projectilePool: number; heroDirectionSwaps: number; heroPoseSwaps: number; heroTextureSwaps: number; bossView: string; cameraObstructed: boolean; fadedOccluders: number; groundHeight: number; heroAnchor: number; heroAsset: string }> {
     const render = this.renderer.info.render;
+    const obstruction = this.cameraObstruction.snapshot();
     return {
       calls: render.calls, triangles: render.triangles, points: render.points, lines: render.lines, textures: this.renderer.info.memory.textures,
       projectiles: this.projectileRenderer.activeCount, projectilePool: this.projectileRenderer.poolCount,
       heroDirectionSwaps: this.heroVisualSnapshot.directionChangesPerSecond, heroPoseSwaps: this.heroVisualSnapshot.poseChangesPerSecond,
       heroTextureSwaps: this.heroVisualSnapshot.textureSwapsPerSecond, bossView: this.bossViewSector,
+      cameraObstructed: obstruction.hit, fadedOccluders: obstruction.fadedOccluders,
+      groundHeight: this.heroGrounding.groundHeight, heroAnchor: this.hero.center.y, heroAsset: this.appliedHeroAsset,
     };
   }
 
   destroy(): void {
     this.renderer.setAnimationLoop(null);
+    this.cameraObstruction.restoreMaterials();
     this.scene.traverse((object) => {
       if (object instanceof THREE.Mesh || object instanceof THREE.Sprite) {
         object.geometry?.dispose();
@@ -174,8 +202,8 @@ export class HybridWorldRenderer {
   }
 
   private addLighting(): void {
-    this.scene.add(new THREE.HemisphereLight(0x7382a8, 0x140d0b, 1.6));
-    const sun = new THREE.DirectionalLight(0xffd0a0, 2.35);
+    this.scene.add(new THREE.HemisphereLight(0x9ba8c8, 0x251713, 2.05));
+    const sun = new THREE.DirectionalLight(0xffd6ad, 2.55);
     sun.position.set(-7, 13, 9);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
@@ -184,7 +212,10 @@ export class HybridWorldRenderer {
     sun.shadow.camera.near = 1; sun.shadow.camera.far = 34;
     sun.shadow.bias = -.0008;
     this.scene.add(sun);
-    const core = new THREE.PointLight(ORANGE, 12, 12, 2);
+    const fill = new THREE.DirectionalLight(0x6d86b9, .55);
+    fill.position.set(9, 7, -8);
+    this.scene.add(fill);
+    const core = new THREE.PointLight(ORANGE, 7.5, 12, 2);
     const boss = simulationToWorld3D(this.definition.bossSpawn);
     core.position.set(boss.x, 2.6, boss.z + .3);
     this.scene.add(core);
@@ -200,7 +231,7 @@ export class HybridWorldRenderer {
       positions.setY(i, sampleBaseTerrainHeight(positions.getX(i), positions.getZ(i)));
     }
     geometry.computeVertexNormals();
-    const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x1b1c24, roughness: .98, metalness: .01 });
+    const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x292c37, roughness: .98, metalness: .01 });
     const ground = new THREE.Mesh(geometry, groundMaterial);
     ground.receiveShadow = true;
     this.scene.add(ground);
@@ -275,6 +306,8 @@ export class HybridWorldRenderer {
     else if (prop.kind === 'wall') this.buildWall(root);
     else if (prop.kind === 'ring') this.buildRingFragment(root);
     this.scene.add(root);
+    const obstruction = propObstructionProfile(prop);
+    if (obstruction) this.cameraObstruction.register(prop.id, root, obstruction.radius, obstruction.height, true);
   }
 
   private buildPillar(root: THREE.Group, broken: boolean): void {
@@ -297,7 +330,7 @@ export class HybridWorldRenderer {
   }
 
   private buildRock(root: THREE.Group): void {
-    const material = stoneMaterial(STONE_DARK);
+    const material = stoneMaterial(STONE);
     for (let i = 0; i < 4; i += 1) {
       const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(.65 + i * .13, 0), material);
       rock.position.set((i - 1.5) * .45, .55 + i * .09, (i % 2 - .5) * .45);
@@ -309,7 +342,7 @@ export class HybridWorldRenderer {
   }
 
   private buildCrystal(root: THREE.Group): void {
-    const crystalMaterial = new THREE.MeshStandardMaterial({ color: 0x2478a5, emissive: 0x0d4d86, emissiveIntensity: 1.15, roughness: .32, metalness: .12 });
+    const crystalMaterial = new THREE.MeshStandardMaterial({ color: 0x3a718c, emissive: 0x153f62, emissiveIntensity: .58, roughness: .38, metalness: .08 });
     const baseMaterial = stoneMaterial(0x171b25);
     const base = new THREE.Mesh(new THREE.DodecahedronGeometry(1.0, 0), baseMaterial);
     base.scale.set(1.6, .5, 1.35); base.position.y = .3; base.castShadow = base.receiveShadow = true; root.add(base);
@@ -327,7 +360,7 @@ export class HybridWorldRenderer {
   private buildCorruption(root: THREE.Group): void {
     const stone = new THREE.Mesh(new THREE.DodecahedronGeometry(1.05, 0), stoneMaterial(0x17151f));
     stone.scale.set(1.25, 1.55, 1.1); stone.position.y = .95; stone.castShadow = stone.receiveShadow = true; root.add(stone);
-    const veinMaterial = new THREE.MeshBasicMaterial({ color: 0x8a3ee8, transparent: true, opacity: .72 });
+    const veinMaterial = new THREE.MeshBasicMaterial({ color: 0x7b4ab1, transparent: true, opacity: .52 });
     for (let i = 0; i < 4; i += 1) {
       const vein = new THREE.Mesh(new THREE.CylinderGeometry(.045, .09, 2.1 + i * .25, 6), veinMaterial);
       vein.position.set((i - 1.5) * .32, .8, (i % 2 ? .38 : -.34)); vein.rotation.z = (i - 1.5) * .24; root.add(vein);
@@ -370,14 +403,15 @@ export class HybridWorldRenderer {
 
   private addBoundaryGeometry(): void {
     const half = this.definition.dimensions.width / WORLD3D_UNITS_PER_METER / 2;
-    const material = stoneMaterial(0x11131c);
+    const material = stoneMaterial(0x242834);
     for (let i = 0; i < 28; i += 1) {
       const side = i % 4, along = -half + .6 + Math.floor(i / 4) * 3.15;
-      const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(1.15 + (i % 3) * .22, 0), material);
+      const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(.95 + (i % 3) * .16, 0), material);
       rock.position.set(side === 0 ? -half : side === 1 ? half : along, .35 + (i % 3) * .15, side === 2 ? -half : side === 3 ? half : along);
-      rock.scale.y = 1.4;
+      rock.scale.y = 1.25;
       rock.rotation.y = i * .71; rock.castShadow = rock.receiveShadow = true;
       this.scene.add(rock);
+      this.cameraObstruction.register(`boundary-${i}`, rock, 1.15, 2.7, true);
     }
   }
 
@@ -392,33 +426,6 @@ export class HybridWorldRenderer {
     this.debugRoot.add(root);
     const boss = simulationToWorld3D(this.definition.bossSpawn); root.position.set(boss.x, sampleGroundHeight(boss.x, boss.z), boss.z);
     const shadow = makeDisc(3.5, 0x000000, .56); shadow.position.set(boss.x, sampleGroundHeight(boss.x, boss.z) + .012, boss.z); shadow.scale.z = .72; this.scene.add(shadow);
-    return root;
-  }
-
-  private addBossBody(): THREE.Group {
-    const root = new THREE.Group();
-    const stone = new THREE.MeshStandardMaterial({ color: 0x171923, emissive: 0x2b1008, emissiveIntensity: .22, roughness: .94, metalness: .02, flatShading: true });
-    const darkStone = new THREE.MeshStandardMaterial({ color: 0x10121a, emissive: 0x1d0905, emissiveIntensity: .22, roughness: .96, flatShading: true });
-    const core = new THREE.MeshStandardMaterial({ color: 0xff9b38, emissive: 0xff4b12, emissiveIntensity: 3.2, roughness: .25, flatShading: true });
-    this.bossBodyMaterials.push(stone, darkStone);
-    const add = (geometry: THREE.BufferGeometry, material: THREE.Material, position: [number, number, number], scale: [number, number, number], rotationZ = 0): THREE.Mesh => {
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.set(...position); mesh.scale.set(...scale); mesh.rotation.z = rotationZ;
-      mesh.castShadow = true; mesh.receiveShadow = true; root.add(mesh); return mesh;
-    };
-    add(new THREE.DodecahedronGeometry(1, 0), stone, [0, 3.05, 0], [2.25, 2.75, 1.52]);
-    add(new THREE.DodecahedronGeometry(1, 0), darkStone, [0, 5.45, .08], [1.25, 1.3, 1.08]);
-    add(new THREE.DodecahedronGeometry(1, 0), stone, [-2.25, 3.65, 0], [1.05, 1.18, 1.1], .08);
-    add(new THREE.DodecahedronGeometry(1, 0), stone, [2.25, 3.65, 0], [1.05, 1.18, 1.1], -.08);
-    add(new THREE.CylinderGeometry(.6, .78, 3.15, 7), darkStone, [-2.45, 2.05, .05], [1, 1, 1], -.18);
-    add(new THREE.CylinderGeometry(.6, .78, 3.15, 7), darkStone, [2.45, 2.05, .05], [1, 1, 1], .18);
-    add(new THREE.CylinderGeometry(.72, .92, 2.15, 7), darkStone, [-1.05, 1.05, 0], [1, 1, 1], -.05);
-    add(new THREE.CylinderGeometry(.72, .92, 2.15, 7), darkStone, [1.05, 1.05, 0], [1, 1, 1], .05);
-    add(new THREE.OctahedronGeometry(.72, 0), core, [0, 3.35, 1.48], [1, 1.2, .65]);
-    add(new THREE.OctahedronGeometry(.17, 0), core, [-.42, 5.62, 1.02], [1.4, .72, .55]);
-    add(new THREE.OctahedronGeometry(.17, 0), core, [.42, 5.62, 1.02], [1.4, .72, .55]);
-    root.traverse((object) => { object.renderOrder = object instanceof THREE.Mesh && object.material === core ? 2 : 0; });
-    this.scene.add(root);
     return root;
   }
 
@@ -495,6 +502,11 @@ export class HybridWorldRenderer {
     const poses: HeroPose[] = ['idle', 'run', 'dash', 'attack'];
     for (const direction of directions) for (const pose of poses) this.texture(assetUrl(heroDirectionAsset(direction, pose)));
   }
+
+  private preloadBossTextures(): void {
+    const views: BossDirectionalView[] = ['front', 'front-left', 'left', 'rear-left', 'rear', 'rear-right', 'right', 'front-right'];
+    for (const view of views) this.texture(assetUrl(bossViewAsset(view)));
+  }
 }
 
 function assetUrl(key: AssetKey): string { return ASSET_MANIFEST[key].src ?? ''; }
@@ -502,6 +514,23 @@ function stoneMaterial(color: number): THREE.MeshStandardMaterial { return new T
 function makeDisc(radius: number, color: number, opacity: number): THREE.Mesh {
   const mesh = new THREE.Mesh(new THREE.CircleGeometry(radius, 32), new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }));
   mesh.rotation.x = -Math.PI / 2; mesh.position.y = .015; return mesh;
+}
+function makeRing(innerRadius: number, outerRadius: number, color: number, opacity: number): THREE.Mesh {
+  const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide });
+  const mesh = new THREE.Mesh(new THREE.RingGeometry(innerRadius, outerRadius, 40), material);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.y = .018;
+  return mesh;
+}
+function propObstructionProfile(prop: HybridPropDefinition): { radius: number; height: number } | undefined {
+  const scale = prop.scale;
+  if (prop.kind === 'pillar' || prop.kind === 'broken-pillar') return { radius: .82 * scale, height: (prop.kind === 'pillar' ? 4.9 : 3.2) * scale };
+  if (prop.kind === 'arch') return { radius: 2.25 * scale, height: 5 * scale };
+  if (prop.kind === 'rock') return { radius: 1.75 * scale, height: 2.7 * scale };
+  if (prop.kind === 'wall') return { radius: 2.35 * scale, height: 3 * scale };
+  if (prop.kind === 'crystal') return { radius: 1.25 * scale, height: 3.4 * scale };
+  if (prop.kind === 'corruption') return { radius: 1.2 * scale, height: 2.4 * scale };
+  return undefined;
 }
 function firstMaterial(object: THREE.Object3D): THREE.MeshBasicMaterial | undefined {
   if (object instanceof THREE.Mesh && object.material instanceof THREE.MeshBasicMaterial) return object.material;

@@ -61,8 +61,8 @@ describe('M10.2 Hero grounding and visual stability', () => {
 
   it('places the visual Hero at sampled ground plus the foot clearance', () => {
     expect(heroRenderY(0, -3.8)).toBeCloseTo(sampleGroundHeight(0, -3.8) + .035, 6);
-    expect(heroFootAnchor('s', 'run')).toBeCloseTo(.091, 3);
-    expect(heroFootAnchor('w', 'attack')).toBeCloseTo(.25, 3);
+    expect(heroFootAnchor('s', 'run')).toBeCloseTo(.1042, 3);
+    expect(heroFootAnchor('w', 'attack')).toBeCloseTo(.1042, 3);
   });
 
   it('uses direction and run hysteresis instead of oscillating at thresholds', () => {

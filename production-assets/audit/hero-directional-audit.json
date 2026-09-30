@@ -1,0 +1,389 @@
+{
+  "generatedAt": "M10.3",
+  "assets": [
+    {
+      "file": "creature-e-attack.webp",
+      "sourceComponents": 8,
+      "removedPixels": 5494,
+      "sourceBounds": {
+        "left": 76,
+        "top": 90,
+        "width": 272,
+        "height": 252
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-e-dash.webp",
+      "sourceComponents": 6,
+      "removedPixels": 3096,
+      "sourceBounds": {
+        "left": 55,
+        "top": 110,
+        "width": 277,
+        "height": 228
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-e-idle.webp",
+      "sourceComponents": 9,
+      "removedPixels": 3229,
+      "sourceBounds": {
+        "left": 71,
+        "top": 49,
+        "width": 278,
+        "height": 279
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-e-run.webp",
+      "sourceComponents": 11,
+      "removedPixels": 4285,
+      "sourceBounds": {
+        "left": 69,
+        "top": 43,
+        "width": 275,
+        "height": 275
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-n-attack.webp",
+      "sourceComponents": 10,
+      "removedPixels": 3605,
+      "sourceBounds": {
+        "left": 110,
+        "top": 63,
+        "width": 202,
+        "height": 259
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-n-dash.webp",
+      "sourceComponents": 3,
+      "removedPixels": 1936,
+      "sourceBounds": {
+        "left": 67,
+        "top": 107,
+        "width": 212,
+        "height": 232
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-n-idle.webp",
+      "sourceComponents": 8,
+      "removedPixels": 2865,
+      "sourceBounds": {
+        "left": 84,
+        "top": 51,
+        "width": 188,
+        "height": 278
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-n-run.webp",
+      "sourceComponents": 4,
+      "removedPixels": 2954,
+      "sourceBounds": {
+        "left": 105,
+        "top": 41,
+        "width": 189,
+        "height": 288
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-ne-attack.webp",
+      "sourceComponents": 18,
+      "removedPixels": 3127,
+      "sourceBounds": {
+        "left": 84,
+        "top": 90,
+        "width": 257,
+        "height": 248
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-ne-dash.webp",
+      "sourceComponents": 2,
+      "removedPixels": 3276,
+      "sourceBounds": {
+        "left": 103,
+        "top": 92,
+        "width": 242,
+        "height": 234
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-ne-idle.webp",
+      "sourceComponents": 7,
+      "removedPixels": 3528,
+      "sourceBounds": {
+        "left": 75,
+        "top": 43,
+        "width": 253,
+        "height": 281
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-ne-run.webp",
+      "sourceComponents": 1,
+      "removedPixels": 2571,
+      "sourceBounds": {
+        "left": 82,
+        "top": 44,
+        "width": 234,
+        "height": 287
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-nw-attack.webp",
+      "sourceComponents": 13,
+      "removedPixels": 5121,
+      "sourceBounds": {
+        "left": 96,
+        "top": 51,
+        "width": 241,
+        "height": 278
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-nw-dash.webp",
+      "sourceComponents": 7,
+      "removedPixels": 3645,
+      "sourceBounds": {
+        "left": 79,
+        "top": 45,
+        "width": 270,
+        "height": 244
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-nw-idle.webp",
+      "sourceComponents": 12,
+      "removedPixels": 3381,
+      "sourceBounds": {
+        "left": 82,
+        "top": 35,
+        "width": 242,
+        "height": 275
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-nw-run.webp",
+      "sourceComponents": 5,
+      "removedPixels": 2557,
+      "sourceBounds": {
+        "left": 92,
+        "top": 50,
+        "width": 241,
+        "height": 276
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-s-attack.webp",
+      "sourceComponents": 16,
+      "removedPixels": 3362,
+      "sourceBounds": {
+        "left": 110,
+        "top": 45,
+        "width": 222,
+        "height": 262
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-s-dash.webp",
+      "sourceComponents": 3,
+      "removedPixels": 2651,
+      "sourceBounds": {
+        "left": 101,
+        "top": 55,
+        "width": 178,
+        "height": 263
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-s-idle.webp",
+      "sourceComponents": 7,
+      "removedPixels": 3404,
+      "sourceBounds": {
+        "left": 103,
+        "top": 35,
+        "width": 186,
+        "height": 276
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-s-run.webp",
+      "sourceComponents": 10,
+      "removedPixels": 3716,
+      "sourceBounds": {
+        "left": 121,
+        "top": 35,
+        "width": 186,
+        "height": 278
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-se-attack.webp",
+      "sourceComponents": 4,
+      "removedPixels": 5166,
+      "sourceBounds": {
+        "left": 66,
+        "top": 86,
+        "width": 274,
+        "height": 262
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-se-dash.webp",
+      "sourceComponents": 9,
+      "removedPixels": 4890,
+      "sourceBounds": {
+        "left": 86,
+        "top": 117,
+        "width": 263,
+        "height": 231
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-se-idle.webp",
+      "sourceComponents": 6,
+      "removedPixels": 4103,
+      "sourceBounds": {
+        "left": 70,
+        "top": 42,
+        "width": 268,
+        "height": 284
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-se-run.webp",
+      "sourceComponents": 9,
+      "removedPixels": 4279,
+      "sourceBounds": {
+        "left": 65,
+        "top": 43,
+        "width": 268,
+        "height": 285
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-sw-attack.webp",
+      "sourceComponents": 15,
+      "removedPixels": 4780,
+      "sourceBounds": {
+        "left": 100,
+        "top": 56,
+        "width": 237,
+        "height": 273
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-sw-dash.webp",
+      "sourceComponents": 7,
+      "removedPixels": 3834,
+      "sourceBounds": {
+        "left": 67,
+        "top": 79,
+        "width": 250,
+        "height": 254
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-sw-idle.webp",
+      "sourceComponents": 7,
+      "removedPixels": 3960,
+      "sourceBounds": {
+        "left": 82,
+        "top": 37,
+        "width": 259,
+        "height": 279
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-sw-run.webp",
+      "sourceComponents": 9,
+      "removedPixels": 3899,
+      "sourceBounds": {
+        "left": 84,
+        "top": 35,
+        "width": 243,
+        "height": 282
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-w-attack.webp",
+      "sourceComponents": 9,
+      "removedPixels": 3181,
+      "sourceBounds": {
+        "left": 67,
+        "top": 35,
+        "width": 281,
+        "height": 255
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-w-dash.webp",
+      "sourceComponents": 4,
+      "removedPixels": 2998,
+      "sourceBounds": {
+        "left": 52,
+        "top": 87,
+        "width": 286,
+        "height": 218
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-w-idle.webp",
+      "sourceComponents": 9,
+      "removedPixels": 2678,
+      "sourceBounds": {
+        "left": 78,
+        "top": 58,
+        "width": 270,
+        "height": 266
+      },
+      "outputFootAnchor": 0.10416666666666667
+    },
+    {
+      "file": "creature-w-run.webp",
+      "sourceComponents": 4,
+      "removedPixels": 4049,
+      "sourceBounds": {
+        "left": 80,
+        "top": 48,
+        "width": 256,
+        "height": 259
+      },
+      "outputFootAnchor": 0.10416666666666667
+    }
+  ]
+}

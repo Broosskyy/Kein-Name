@@ -34,6 +34,14 @@ export type AssetKey =
   | 'boss.halloween.base'
   | 'boss.halloween.damage1'
   | 'boss.halloween.damage2'
+  | 'boss.halloween.view.front'
+  | 'boss.halloween.view.front-left'
+  | 'boss.halloween.view.left'
+  | 'boss.halloween.view.rear-left'
+  | 'boss.halloween.view.rear'
+  | 'boss.halloween.view.rear-right'
+  | 'boss.halloween.view.right'
+  | 'boss.halloween.view.front-right'
   | 'boss.core'
   | 'boss.core.unstable'
   | 'boss.armor.fragments'
@@ -172,6 +180,14 @@ export const ASSET_MANIFEST: AssetManifest = {
   'boss.halloween.base': { ...entry('boss', [1280, 1280]), src: '/assets/boss/harvest-colossus-base.webp' },
   'boss.halloween.damage1': { ...entry('boss', [1280, 1280]), src: '/assets/boss/harvest-colossus-break1.webp' },
   'boss.halloween.damage2': { ...entry('boss', [1280, 1280]), src: '/assets/boss/harvest-colossus-break2.webp' },
+  'boss.halloween.view.front': { ...entry('boss', [512, 512]), src: '/assets/boss/directional/harvest-colossus-front.webp' },
+  'boss.halloween.view.front-left': { ...entry('boss', [512, 512]), src: '/assets/boss/directional/harvest-colossus-front-left.webp' },
+  'boss.halloween.view.left': { ...entry('boss', [512, 512]), src: '/assets/boss/directional/harvest-colossus-left.webp' },
+  'boss.halloween.view.rear-left': { ...entry('boss', [512, 512]), src: '/assets/boss/directional/harvest-colossus-rear-left.webp' },
+  'boss.halloween.view.rear': { ...entry('boss', [512, 512]), src: '/assets/boss/directional/harvest-colossus-rear.webp' },
+  'boss.halloween.view.rear-right': { ...entry('boss', [512, 512]), src: '/assets/boss/directional/harvest-colossus-rear-right.webp' },
+  'boss.halloween.view.right': { ...entry('boss', [512, 512]), src: '/assets/boss/directional/harvest-colossus-right.webp' },
+  'boss.halloween.view.front-right': { ...entry('boss', [512, 512]), src: '/assets/boss/directional/harvest-colossus-front-right.webp' },
   'boss.core': entry('effect', [384, 384]),
   'boss.core.unstable': { ...entry('boss', [1280, 1280]), src: '/assets/boss/harvest-colossus-core.webp' },
   'boss.armor.fragments': entry('foreground', [1024, 768], true, 'deferred'),

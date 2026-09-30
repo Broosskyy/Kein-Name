@@ -14,6 +14,8 @@ export class HeroVisualState {
   pose: HeroPose = 'idle';
   private running = false;
   private directionLockMs = 0;
+  private wasAttacking = false;
+  private attackDirection: HeroDirection = 'n';
   private metricWindowMs = 0;
   private directionChanges = 0;
   private poseChanges = 0;
@@ -26,11 +28,23 @@ export class HeroVisualState {
     if (!this.running && speed >= 34) this.running = true;
     else if (this.running && speed <= 18) this.running = false;
 
-    const facingVector = attacking && aimDirection && Math.hypot(aimDirection.x, aimDirection.y) > 1 ? aimDirection : velocity;
-    const candidate = stableDirectionCandidate(facingVector, this.direction, speed, attacking);
-    if (candidate !== this.direction && this.directionLockMs <= 0) {
+    if (attacking && !this.wasAttacking) {
+      const attackVector = aimDirection && Math.hypot(aimDirection.x, aimDirection.y) > 1 ? aimDirection : velocity;
+      this.attackDirection = stableDirectionCandidate(attackVector, this.direction, Math.max(speed, 23), true);
+      if (this.attackDirection !== this.direction) {
+        this.direction = this.attackDirection;
+        this.directionChanges += 1;
+      }
+      this.directionLockMs = Math.max(this.directionLockMs, 220);
+    } else if (!attacking && this.wasAttacking) {
+      this.directionLockMs = Math.max(this.directionLockMs, 125);
+    }
+    this.wasAttacking = attacking;
+    const facingVector = attacking ? DIRECTION_VECTORS[this.attackDirection] : velocity;
+    const candidate = attacking ? this.attackDirection : stableDirectionCandidate(facingVector, this.direction, speed, false);
+    if (!attacking && candidate !== this.direction && this.directionLockMs <= 0) {
       this.direction = candidate;
-      this.directionLockMs = 90;
+      this.directionLockMs = 125;
       this.directionChanges += 1;
     }
 
@@ -66,11 +80,15 @@ function stableDirectionCandidate(vector: Vec2, current: HeroDirection, speed: n
   const distanceFromCurrent = Math.abs(shortestAngle(inputAngle - currentAngle));
   // An octant normally changes at 22.5°. Extra hysteresis prevents velocity
   // noise from oscillating between adjacent authored sprites.
-  return distanceFromCurrent >= Math.PI / 8 + .13 ? candidate : current;
+  return distanceFromCurrent >= Math.PI / 8 + .16 ? candidate : current;
 }
 
 const DIRECTION_ANGLES: Readonly<Record<HeroDirection, number>> = {
   e: 0, se: Math.PI / 4, s: Math.PI / 2, sw: Math.PI * 3 / 4,
   w: Math.PI, nw: -Math.PI * 3 / 4, n: -Math.PI / 2, ne: -Math.PI / 4,
+};
+const DIRECTION_VECTORS: Readonly<Record<HeroDirection, Vec2>> = {
+  e: { x: 1, y: 0 }, se: { x: 1, y: 1 }, s: { x: 0, y: 1 }, sw: { x: -1, y: 1 },
+  w: { x: -1, y: 0 }, nw: { x: -1, y: -1 }, n: { x: 0, y: -1 }, ne: { x: 1, y: -1 },
 };
 function shortestAngle(angle: number): number { return Math.atan2(Math.sin(angle), Math.cos(angle)); }

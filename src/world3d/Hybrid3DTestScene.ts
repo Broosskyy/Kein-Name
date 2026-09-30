@@ -32,13 +32,13 @@ const props: HybridPropDefinition[] = [
   { id: 'pillar-east', kind: 'broken-pillar', position: { x: 570, y: 155 }, rotation: -.16, scale: 1.15, collider: { id: 'pillar-east', center: { x: 570, y: 155 }, radius: 105 } },
   { id: 'arch-northwest', kind: 'arch', position: { x: -690, y: -610 }, rotation: .22, scale: 1.18, collider: { id: 'arch-left', center: { x: -790, y: -610 }, halfWidth: 70, halfDepth: 110 } },
   { id: 'wall-northeast', kind: 'wall', position: { x: 650, y: -630 }, rotation: -.35, scale: 1.05, collider: { id: 'wall-northeast', center: { x: 650, y: -630 }, halfWidth: 185, halfDepth: 65 } },
-  { id: 'rock-southwest', kind: 'rock', position: { x: -720, y: 660 }, rotation: .5, scale: 1.35, collider: { id: 'rock-southwest', center: { x: -720, y: 660 }, radius: 135 } },
-  { id: 'rock-northeast', kind: 'rock', position: { x: 785, y: -420 }, rotation: 1.1, scale: 1.1, collider: { id: 'rock-northeast', center: { x: 785, y: -420 }, radius: 115 } },
+  { id: 'rock-southwest', kind: 'rock', position: { x: -895, y: 805 }, rotation: .5, scale: .78, collider: { id: 'rock-southwest', center: { x: -895, y: 805 }, radius: 88 } },
+  { id: 'rock-northeast', kind: 'rock', position: { x: 855, y: -520 }, rotation: 1.1, scale: .8, collider: { id: 'rock-northeast', center: { x: 855, y: -520 }, radius: 90 } },
   // Visual identity anchors: true 3D geometry, no billboard world construction.
-  { id: 'crystal-west', kind: 'crystal', position: { x: -760, y: -40 }, rotation: -.22, scale: .72, collider: { id: 'crystal-west', center: { x: -760, y: -40 }, radius: 90 } },
-  { id: 'crystal-southeast', kind: 'crystal', position: { x: 690, y: 650 }, rotation: .55, scale: .58 },
-  { id: 'corruption-east', kind: 'corruption', position: { x: 790, y: 320 }, rotation: .8, scale: .82, collider: { id: 'corruption-east', center: { x: 790, y: 320 }, radius: 95 } },
-  { id: 'corruption-north', kind: 'corruption', position: { x: 380, y: -820 }, rotation: -.5, scale: .72 },
+  { id: 'crystal-west', kind: 'crystal', position: { x: -760, y: -40 }, rotation: -.22, scale: .5, collider: { id: 'crystal-west', center: { x: -760, y: -40 }, radius: 70 } },
+  { id: 'crystal-southeast', kind: 'crystal', position: { x: 690, y: 650 }, rotation: .55, scale: .42 },
+  { id: 'corruption-east', kind: 'corruption', position: { x: 790, y: 320 }, rotation: .8, scale: .62, collider: { id: 'corruption-east', center: { x: 790, y: 320 }, radius: 75 } },
+  { id: 'corruption-north', kind: 'corruption', position: { x: 380, y: -820 }, rotation: -.5, scale: .55 },
 ];
 
 const boundaries: WorldCollider3D[] = [

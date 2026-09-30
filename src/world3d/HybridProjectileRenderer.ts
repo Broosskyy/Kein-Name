@@ -3,20 +3,20 @@ import type { PlayerProjectile, PlayerProjectileImpact } from '../gameplay/Playe
 import { sampleGroundHeight } from './HybridGroundSampler';
 import { simulationToWorld3D, WORLD3D_UNITS_PER_METER } from './World3DTypes';
 
-interface ProjectileVisual { root: THREE.Group; kind: PlayerProjectile['kind']; active: boolean }
+interface ProjectileVisual { root: THREE.Group; kind: PlayerProjectile['kind']; active: boolean; trail: THREE.Mesh }
 interface ImpactVisual { root: THREE.Group; material: THREE.MeshBasicMaterial; ageMs: number; durationMs: number; active: boolean }
 
 export class HybridProjectileRenderer {
   private readonly projectilePool: ProjectileVisual[] = [];
   private readonly impactPool: ImpactVisual[] = [];
   private readonly activeById = new Map<string, ProjectileVisual>();
-  private readonly normalGeometry = new THREE.OctahedronGeometry(.16, 0);
-  private readonly powerGeometry = new THREE.IcosahedronGeometry(.3, 1);
-  private readonly trailGeometry = new THREE.CylinderGeometry(.035, .13, 1.15, 6, 1, true);
-  private readonly normalMaterial = new THREE.MeshStandardMaterial({ color: 0x8eeaff, emissive: 0x24a8ff, emissiveIntensity: 3.2, roughness: .25 });
-  private readonly powerMaterial = new THREE.MeshStandardMaterial({ color: 0xffe2a0, emissive: 0xff6a1f, emissiveIntensity: 4.2, roughness: .2 });
-  private readonly normalTrailMaterial = new THREE.MeshBasicMaterial({ color: 0x55cfff, transparent: true, opacity: .5, depthWrite: false });
-  private readonly powerTrailMaterial = new THREE.MeshBasicMaterial({ color: 0xff8a32, transparent: true, opacity: .62, depthWrite: false });
+  private readonly normalGeometry = new THREE.OctahedronGeometry(.22, 0);
+  private readonly powerGeometry = new THREE.IcosahedronGeometry(.38, 1);
+  private readonly trailGeometry = new THREE.CylinderGeometry(.045, .16, 1.65, 6, 1, true);
+  private readonly normalMaterial = new THREE.MeshStandardMaterial({ color: 0xc6f6ff, emissive: 0x32b9ff, emissiveIntensity: 4, roughness: .2 });
+  private readonly powerMaterial = new THREE.MeshStandardMaterial({ color: 0xfff0bd, emissive: 0xff6a1f, emissiveIntensity: 5, roughness: .16 });
+  private readonly normalTrailMaterial = new THREE.MeshBasicMaterial({ color: 0x73ddff, transparent: true, opacity: .72, depthWrite: false, blending: THREE.AdditiveBlending });
+  private readonly powerTrailMaterial = new THREE.MeshBasicMaterial({ color: 0xff9a3c, transparent: true, opacity: .8, depthWrite: false, blending: THREE.AdditiveBlending });
   private readonly unitScale = new THREE.Vector3(1, 1, 1);
   private readonly forwardAxis = new THREE.Vector3(0, 0, 1);
   private readonly flightDirection = new THREE.Vector3();
@@ -32,6 +32,7 @@ export class HybridProjectileRenderer {
         visual = this.acquireProjectile(projectile.kind);
         this.activeById.set(projectile.id, visual);
         visual.root.scale.setScalar(.25);
+        this.spawnBurst(projectile.sourcePosition, projectile.height, projectile.kind, true);
       }
       visual.root.scale.lerp(this.unitScale, .32);
       const world = simulationToWorld3D(projectile.position);
@@ -66,10 +67,12 @@ export class HybridProjectileRenderer {
     if (!visual) {
       const root = new THREE.Group();
       const core = new THREE.Mesh(kind === 'power' ? this.powerGeometry : this.normalGeometry, kind === 'power' ? this.powerMaterial : this.normalMaterial);
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({ color: kind === 'power' ? 0xff8a32 : 0x62dfff, transparent: true, opacity: .58, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending }));
+      glow.scale.setScalar(kind === 'power' ? 1.05 : .62);
       const trail = new THREE.Mesh(this.trailGeometry, kind === 'power' ? this.powerTrailMaterial : this.normalTrailMaterial);
-      trail.rotation.x = Math.PI / 2; trail.position.z = .58;
-      root.add(core, trail); root.renderOrder = 3;
-      visual = { root, kind, active: false };
+      trail.rotation.x = Math.PI / 2; trail.position.z = .82;
+      root.add(core, glow, trail); root.renderOrder = 3;
+      visual = { root, kind, active: false, trail };
       this.projectilePool.push(visual); this.scene.add(root);
     }
     visual.active = true; visual.root.visible = true;
@@ -81,20 +84,26 @@ export class HybridProjectileRenderer {
   }
 
   private spawnImpact(impact: PlayerProjectileImpact): void {
+    this.spawnBurst(impact.position, impact.height, impact.kind, false);
+  }
+
+  private spawnBurst(position: { x: number; y: number }, height: number, kind: PlayerProjectile['kind'], launch: boolean): void {
     let visual = this.impactPool.find((candidate) => !candidate.active);
     if (!visual) {
       const material = new THREE.MeshBasicMaterial({ color: 0xffb05a, transparent: true, opacity: .9, depthWrite: false, side: THREE.DoubleSide });
       const root = new THREE.Group();
-      const ring = new THREE.Mesh(new THREE.RingGeometry(.18, .34, 20), material); ring.rotation.x = -Math.PI / 2;
-      const burst = new THREE.Mesh(new THREE.OctahedronGeometry(.24, 0), material); burst.position.y = .12;
-      root.add(ring, burst); root.visible = false; this.scene.add(root);
+      const ring = new THREE.Mesh(new THREE.RingGeometry(.18, .38, 24), material); ring.rotation.x = -Math.PI / 2;
+      const burst = new THREE.Mesh(new THREE.OctahedronGeometry(.3, 0), material); burst.position.y = .12;
+      const crossA = new THREE.Mesh(new THREE.PlaneGeometry(.08, 1.05), material); crossA.position.y = .15;
+      const crossB = crossA.clone(); crossB.rotation.z = Math.PI / 2;
+      root.add(ring, burst, crossA, crossB); root.visible = false; this.scene.add(root);
       visual = { root, material, ageMs: 0, durationMs: 330, active: false }; this.impactPool.push(visual);
     }
-    const world = simulationToWorld3D(impact.position);
-    visual.active = true; visual.ageMs = 0; visual.durationMs = impact.kind === 'power' ? 480 : 300;
-    visual.material.color.setHex(impact.kind === 'power' ? 0xff8a31 : 0x75dcff);
+    const world = simulationToWorld3D(position);
+    visual.active = true; visual.ageMs = 0; visual.durationMs = launch ? 150 : kind === 'power' ? 480 : 300;
+    visual.material.color.setHex(kind === 'power' ? 0xff8a31 : 0x75dcff);
     visual.material.opacity = .9; visual.root.visible = true;
-    visual.root.position.set(world.x, sampleGroundHeight(world.x, world.z) + impact.height / WORLD3D_UNITS_PER_METER, world.z);
-    visual.root.scale.setScalar(impact.kind === 'power' ? .65 : .35);
+    visual.root.position.set(world.x, sampleGroundHeight(world.x, world.z) + height / WORLD3D_UNITS_PER_METER, world.z);
+    visual.root.scale.setScalar(launch ? (kind === 'power' ? .45 : .28) : kind === 'power' ? .78 : .44);
   }
 }
