@@ -9,17 +9,20 @@ export type HybridCameraGesture = 'orbit' | 'pan';
 
 const MIN_PITCH = THREE.MathUtils.degToRad(28);
 const MAX_PITCH = THREE.MathUtils.degToRad(68);
+export const MIN_USER_ZOOM_DISTANCE = 9.5;
+export const MAX_USER_ZOOM_DISTANCE = 22;
 
 export class HybridCameraController {
   readonly target = new THREE.Vector3();
   readonly manualTargetOffset = new THREE.Vector3();
   mode: HybridCameraMode = 'follow';
-  distance = 15.5;
+  userZoomDistance = 15.5;
+  actualCameraDistance = 15.5;
   yaw = 0;
   pitch = THREE.MathUtils.degToRad(52);
-  obstructionDistance = this.distance;
+  collisionLimitedDistance = MAX_USER_ZOOM_DISTANCE;
   temporaryManualControlTimer = 0;
-  private desiredDistance = this.distance;
+  private smoothedUserDistance = this.userZoomDistance;
   private desiredYaw = this.yaw;
   private desiredPitch = this.pitch;
   private readonly desiredTargetOffset = new THREE.Vector3();
@@ -33,6 +36,10 @@ export class HybridCameraController {
   private readonly desiredCamera = new THREE.Vector3();
   private impulseStrength = 0;
   private impulsePhase = 0;
+
+  /** Compatibility alias for existing presentation/debug callers. */
+  get distance(): number { return this.actualCameraDistance; }
+  get obstructionDistance(): number { return this.collisionLimitedDistance; }
 
   constructor(readonly camera: THREE.PerspectiveCamera, private readonly worldHalfExtent = 10.6, private readonly obstruction?: CameraObstructionResolver) {}
 
@@ -49,7 +56,7 @@ export class HybridCameraController {
     this.mode = 'look';
     this.temporaryManualControlTimer = 2600;
     this.bossBiasBlend = 0;
-    const scale = this.distance * .0025;
+    const scale = this.userZoomDistance * .0025;
     this.right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
     this.forward.set(Math.sin(this.yaw), 0, Math.cos(this.yaw));
     this.desiredTargetOffset.addScaledVector(this.right, -screenDx * scale).addScaledVector(this.forward, -screenDy * scale);
@@ -61,7 +68,11 @@ export class HybridCameraController {
   addImpulse(strength: number): void { this.impulseStrength = Math.max(this.impulseStrength, THREE.MathUtils.clamp(strength, 0, .28)); }
 
   zoom(delta: number): void {
-    this.desiredDistance = THREE.MathUtils.clamp(this.desiredDistance - delta * 12, 9.5, 22);
+    this.setUserZoomDistance(this.userZoomDistance - delta * 12);
+  }
+
+  setUserZoomDistance(distance: number): void {
+    this.userZoomDistance = THREE.MathUtils.clamp(distance, MIN_USER_ZOOM_DISTANCE, MAX_USER_ZOOM_DISTANCE);
     this.temporaryManualControlTimer = 1800;
     this.bossBiasBlend = 0;
   }
@@ -77,7 +88,6 @@ export class HybridCameraController {
   setMode(mode: HybridCameraMode): void {
     this.mode = mode;
     if (mode === 'follow') this.desiredTargetOffset.set(0, 0, 0);
-    if (mode === 'tactical') this.desiredDistance = 21;
     if (mode === 'look') { this.temporaryManualControlTimer = 2600; this.bossBiasBlend = 0; }
   }
 
@@ -100,21 +110,26 @@ export class HybridCameraController {
     this.clampOffset(this.desiredTargetOffset);
     this.manualTargetOffset.lerp(this.desiredTargetOffset, 1 - Math.exp(-dt * 7));
     this.anchor.add(this.manualTargetOffset);
-    this.distance = THREE.MathUtils.lerp(this.distance, this.desiredDistance, 1 - Math.exp(-dt * 6));
+    // FOLLOW, boss focus, movement and pitch never author zoom. Only the user
+    // changes userZoomDistance; smoothing is presentation-only.
+    this.smoothedUserDistance = THREE.MathUtils.lerp(this.smoothedUserDistance, this.userZoomDistance, 1 - Math.exp(-dt * 7));
+    if (Math.abs(this.smoothedUserDistance - this.userZoomDistance) < .001) this.smoothedUserDistance = this.userZoomDistance;
     this.yaw = dampAngle(this.yaw, this.desiredYaw, 1 - Math.exp(-dt * 8));
     this.pitch = THREE.MathUtils.lerp(this.pitch, this.desiredPitch, 1 - Math.exp(-dt * 8));
     this.target.lerp(this.anchor, 1 - Math.exp(-dt * 7.5));
 
-    const horizontal = this.distance * Math.cos(this.pitch);
+    const horizontal = this.smoothedUserDistance * Math.cos(this.pitch);
     this.desiredCamera.set(
       this.target.x + Math.sin(this.yaw) * horizontal,
-      this.target.y + this.distance * Math.sin(this.pitch),
+      this.target.y + this.smoothedUserDistance * Math.sin(this.pitch),
       this.target.z + Math.cos(this.yaw) * horizontal,
     );
-    const allowedDistance = this.obstruction?.resolve(this.target, this.desiredCamera, this.distance) ?? this.distance;
-    const obstructionRate = allowedDistance < this.obstructionDistance ? 18 : 3.8;
-    this.obstructionDistance = THREE.MathUtils.lerp(this.obstructionDistance, allowedDistance, 1 - Math.exp(-dt * obstructionRate));
-    const cameraDistance = Math.min(this.distance, this.obstructionDistance);
+    const allowedDistance = this.obstruction?.resolve(this.target, this.desiredCamera, this.smoothedUserDistance) ?? this.smoothedUserDistance;
+    const obstructionRate = allowedDistance < this.collisionLimitedDistance ? 18 : 3.8;
+    this.collisionLimitedDistance = THREE.MathUtils.lerp(this.collisionLimitedDistance, allowedDistance, 1 - Math.exp(-dt * obstructionRate));
+    if (Math.abs(this.collisionLimitedDistance - allowedDistance) < .001) this.collisionLimitedDistance = allowedDistance;
+    this.actualCameraDistance = Math.min(this.smoothedUserDistance, this.collisionLimitedDistance);
+    const cameraDistance = this.actualCameraDistance;
     const cameraHorizontal = cameraDistance * Math.cos(this.pitch);
     this.impulseStrength = THREE.MathUtils.lerp(this.impulseStrength, 0, 1 - Math.exp(-dt * 12));
     const impulseX = Math.sin(this.impulsePhase * .041) * this.impulseStrength;
@@ -129,7 +144,10 @@ export class HybridCameraController {
 
   setVisualProofView(options: { mode?: HybridCameraMode; distance?: number; yaw?: number; pitchDeg?: number; offsetX?: number; offsetZ?: number }): void {
     if (options.mode) this.mode = options.mode;
-    if (typeof options.distance === 'number') this.desiredDistance = this.distance = THREE.MathUtils.clamp(options.distance, 9.5, 22);
+    if (typeof options.distance === 'number') {
+      this.userZoomDistance = this.smoothedUserDistance = this.actualCameraDistance = THREE.MathUtils.clamp(options.distance, MIN_USER_ZOOM_DISTANCE, MAX_USER_ZOOM_DISTANCE);
+      this.collisionLimitedDistance = MAX_USER_ZOOM_DISTANCE;
+    }
     if (typeof options.yaw === 'number') this.desiredYaw = this.yaw = normalizeAngle(options.yaw);
     if (typeof options.pitchDeg === 'number') this.desiredPitch = this.pitch = THREE.MathUtils.degToRad(THREE.MathUtils.clamp(options.pitchDeg, 28, 68));
     this.desiredTargetOffset.set(options.offsetX ?? 0, 0, options.offsetZ ?? 0);
@@ -137,9 +155,14 @@ export class HybridCameraController {
     this.clampOffset(this.desiredTargetOffset); this.clampOffset(this.manualTargetOffset);
   }
 
-  snapshot(): Readonly<{ mode: HybridCameraMode; distance: number; obstructionDistance: number; obstructed: boolean; yaw: number; pitchDeg: number; offsetX: number; offsetZ: number; bossBias: number; manualControlMs: number }> {
+  snapshot(): Readonly<{ mode: HybridCameraMode; distance: number; userZoomDistance: number; collisionLimitedDistance: number; actualCameraDistance: number; obstructionDistance: number; obstructed: boolean; yaw: number; pitchDeg: number; offsetX: number; offsetZ: number; bossBias: number; manualControlMs: number }> {
     return {
-      mode: this.mode, distance: this.distance, obstructionDistance: this.obstructionDistance, obstructed: this.obstructionDistance < this.distance - .08,
+      mode: this.mode, distance: this.actualCameraDistance,
+      userZoomDistance: this.userZoomDistance,
+      collisionLimitedDistance: this.collisionLimitedDistance,
+      actualCameraDistance: this.actualCameraDistance,
+      obstructionDistance: this.collisionLimitedDistance,
+      obstructed: this.actualCameraDistance < this.smoothedUserDistance - .08,
       yaw: this.yaw, pitchDeg: THREE.MathUtils.radToDeg(this.pitch),
       offsetX: this.manualTargetOffset.x, offsetZ: this.manualTargetOffset.z,
       bossBias: this.bossBiasBlend, manualControlMs: this.temporaryManualControlTimer,

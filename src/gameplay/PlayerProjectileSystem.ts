@@ -46,8 +46,8 @@ export class PlayerProjectileSystem {
       sourcePosition: { ...source },
       targetPosition: { ...target },
       velocity: { x: dx / distance * speed, y: dy / distance * speed },
-      height: kind === 'power' ? 145 : 115,
-      radius: kind === 'power' ? 46 : 24,
+      height: kind === 'power' ? 165 : 135,
+      radius: kind === 'power' ? 50 : 28,
       ageMs: 0,
       lifetimeMs: distance / speed * 1000 + 420,
       damage: Math.max(0, Math.round(damage)),
@@ -68,7 +68,7 @@ export class PlayerProjectileSystem {
       projectile.position.x += projectile.velocity.x * dt;
       projectile.position.y += projectile.velocity.y * dt;
       const progress = Math.min(1, projectile.ageMs / Math.max(1, projectile.lifetimeMs));
-      projectile.height = (projectile.kind === 'power' ? 145 : 115) + Math.sin(progress * Math.PI) * (projectile.kind === 'power' ? 115 : 70);
+      projectile.height = (projectile.kind === 'power' ? 165 : 135) + Math.sin(progress * Math.PI) * (projectile.kind === 'power' ? 125 : 78);
       const hitDistance = bossRadius + projectile.radius;
       if (Math.hypot(projectile.position.x - bossPosition.x, projectile.position.y - bossPosition.y) <= hitDistance) {
         projectile.phase = 'impact';

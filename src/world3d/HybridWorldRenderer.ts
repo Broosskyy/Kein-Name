@@ -16,6 +16,8 @@ import { heroFootAnchor } from './HeroFootAnchors';
 import { HybridProjectileRenderer } from './HybridProjectileRenderer';
 import { HybridCameraObstruction } from './HybridCameraObstruction';
 import { BossDirectionalState, bossViewAnchor, bossViewAsset, bossViewSector, type BossDirectionalView } from './BossDirectionalView';
+import { HeroAnimationController } from './HeroAnimationController';
+import type { BossEncounterState } from '../gameplay/BossEncounterLoop';
 
 const STONE = 0x333746;
 const STONE_DARK = 0x202430;
@@ -34,6 +36,8 @@ export interface HybridRenderState {
   dashing: boolean;
   attacking: boolean;
   aimDirection?: Vec2;
+  bossState: BossEncounterState;
+  bossDeathProgress: number;
 }
 
 export class HybridWorldRenderer {
@@ -54,6 +58,7 @@ export class HybridWorldRenderer {
   private readonly telegraphMeshes = new Map<string, THREE.Object3D>();
   private readonly lootMeshes = new Map<string, THREE.Group>();
   private readonly heroVisualState = new HeroVisualState();
+  private readonly heroAnimation = new HeroAnimationController();
   private readonly heroGrounding = new HeroGroundingController();
   private readonly bossDirectionalState = new BossDirectionalState();
   private readonly heroVisibilityPoint = new THREE.Vector3();
@@ -110,20 +115,23 @@ export class HybridWorldRenderer {
     const boss = simulationToWorld3D(state.bossPosition);
     const speed = Math.hypot(state.player.velocity.x, state.player.velocity.y);
     this.heroVisualSnapshot = this.heroVisualState.update(deltaMs, state.player.velocity, state.dashing, state.attacking, state.aimDirection);
-    const desiredAsset = heroDirectionAsset(this.heroVisualSnapshot.direction, this.heroVisualSnapshot.pose);
+    const animationFrame = this.heroAnimation.update(deltaMs, this.heroVisualSnapshot.pose, this.heroVisualSnapshot.direction);
+    const desiredAsset = animationFrame.asset;
     const desiredTexture = this.texture(assetUrl(desiredAsset));
     if (desiredAsset !== this.appliedHeroAsset && desiredTexture.userData.ready === true) {
       this.appliedHeroAsset = desiredAsset;
       this.hero.material.map = desiredTexture;
       this.hero.material.needsUpdate = true;
-      this.hero.center.y = heroFootAnchor(this.heroVisualSnapshot.direction, this.heroVisualSnapshot.pose);
+      this.hero.center.set(.5, this.heroAnimation.clip().footAnchor);
       this.heroVisualState.recordTextureSwap();
     }
-    const cadence = speed > 24 ? Math.abs(Math.sin(this.elapsed * .016)) * .032 : Math.sin(this.elapsed * .003) * .006 + .006;
+    const cadence = speed > 24 ? Math.abs(animationFrame.offsetY) : Math.max(0, animationFrame.offsetY);
     const heroY = this.heroGrounding.update(player.x, player.z, deltaMs, cadence);
     const playerGround = this.heroGrounding.groundHeight;
-    this.hero.position.set(player.x, heroY, player.z);
-    this.hero.scale.set(2.05 * (state.dashing ? 1.16 : 1), 2.05 * (state.dashing ? .9 : 1), 1);
+    this.hero.position.set(player.x + animationFrame.offsetX, heroY, player.z);
+    const baseScale = this.heroAnimation.clip().scale;
+    this.hero.scale.set(baseScale * animationFrame.scaleX, baseScale * animationFrame.scaleY, 1);
+    this.hero.material.rotation = animationFrame.rotation;
     this.heroShadow.position.set(player.x, playerGround + .012, player.z);
     this.heroShadow.scale.set(state.dashing ? 1.35 : 1, state.dashing ? .7 : 1, 1);
     this.heroGroundRing.position.set(player.x, playerGround + .018, player.z);
@@ -153,11 +161,18 @@ export class HybridWorldRenderer {
       if (powerImpact) this.cameraController.addImpulse(.12);
     }
     const hitRatio = this.bossHitMs > 0 ? this.bossHitMs / 260 : 0;
-    this.bossVisual.material.color.setRGB(1, 1 - hitRatio * .28, 1 - hitRatio * .48);
+    const death = THREE.MathUtils.clamp(state.bossDeathProgress, 0, 1);
+    this.bossVisual.material.color.setRGB(
+      Math.max(.18, 1 - death * .58),
+      Math.max(.08, 1 - hitRatio * .28 - death * .7),
+      Math.max(.04, 1 - hitRatio * .48 - death * .76),
+    );
+    this.bossVisual.material.opacity = state.bossState === 'alive' ? 1 : Math.max(0, 1 - death * 1.08);
+    this.bossVisual.visible = state.bossState === 'alive' || death < .96;
     const pulse = 1 + Math.sin(this.elapsed * .0028) * .012 + (1 - state.bossHpRatio) * .02;
-    const recoil = hitRatio * .1;
+    const recoil = hitRatio * .1 - death * .34;
     this.bossVisual.position.set(boss.x, bossGround + .02 + recoil, boss.z);
-    this.bossVisual.scale.set(6.35 * pulse * (1 + hitRatio * .035), 6.35 * pulse * (1 - hitRatio * .025), 1);
+    this.bossVisual.scale.set(6.35 * pulse * (1 + hitRatio * .035) * (1 - death * .12), 6.35 * pulse * (1 - hitRatio * .025) * (1 - death * .46), 1);
     this.syncTelegraphs(state.telegraphs);
     this.syncLoot(state.loot);
     this.projectileRenderer.update(deltaMs, state.projectiles, state.projectileImpacts);
@@ -172,16 +187,16 @@ export class HybridWorldRenderer {
   }
 
   toggleDebug(): boolean { this.debugRoot.visible = !this.debugRoot.visible; return this.debugRoot.visible; }
-  metrics(): Readonly<{ calls: number; triangles: number; points: number; lines: number; textures: number; projectiles: number; projectilePool: number; heroDirectionSwaps: number; heroPoseSwaps: number; heroTextureSwaps: number; bossView: string; cameraObstructed: boolean; fadedOccluders: number; groundHeight: number; heroAnchor: number; heroAsset: string }> {
+  metrics(): Readonly<{ calls: number; triangles: number; points: number; lines: number; textures: number; projectiles: number; projectilePool: number; heroDirectionSwaps: number; heroPoseSwaps: number; heroTextureSwaps: number; heroAnimationFrame: number; bossView: string; cameraObstructed: boolean; fadedOccluders: number; groundHeight: number; surfaceId: string; heroRenderY: number; heroAnchor: number; heroAsset: string }> {
     const render = this.renderer.info.render;
     const obstruction = this.cameraObstruction.snapshot();
     return {
       calls: render.calls, triangles: render.triangles, points: render.points, lines: render.lines, textures: this.renderer.info.memory.textures,
       projectiles: this.projectileRenderer.activeCount, projectilePool: this.projectileRenderer.poolCount,
       heroDirectionSwaps: this.heroVisualSnapshot.directionChangesPerSecond, heroPoseSwaps: this.heroVisualSnapshot.poseChangesPerSecond,
-      heroTextureSwaps: this.heroVisualSnapshot.textureSwapsPerSecond, bossView: this.bossViewSector,
+      heroTextureSwaps: this.heroVisualSnapshot.textureSwapsPerSecond, heroAnimationFrame: this.heroAnimation.frameIndex, bossView: this.bossViewSector,
       cameraObstructed: obstruction.hit, fadedOccluders: obstruction.fadedOccluders,
-      groundHeight: this.heroGrounding.groundHeight, heroAnchor: this.hero.center.y, heroAsset: this.appliedHeroAsset,
+      groundHeight: this.heroGrounding.groundHeight, surfaceId: this.heroGrounding.surfaceId, heroRenderY: this.heroGrounding.renderY, heroAnchor: this.hero.center.y, heroAsset: this.appliedHeroAsset,
     };
   }
 

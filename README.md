@@ -1,8 +1,8 @@
-# Mutation Boss — M10.3 Hybrid 3D Visual Coherence
+# Mutation Boss — M10.4 Core Gameplay Stability
 
 Browser-first hybrid Three.js + PixiJS boss-arena prototype. The default M10 path is a deterministic 2200×2200 spatial slice with real 3D terrain, structures, perspective camera, geometry occlusion, a world-space Boss proxy, ground telegraphs and physical loot. The complete M09.3 2.5D experience remains available as a migration fallback.
 
-M10.3 keeps the Hybrid-3D foundation and adds camera collision with reversible near-occluder fade, stable terrain grounding, normalized 32-frame Hero artwork, a single eight-direction Harvest Colossus impostor, brighter world separation, coherent prop scale, and more readable projectile launch/flight/impact feedback. See `M10_3_VISUAL_COHERENCE_DIRECTIONAL_REBUILD.md`.
+M10.4 keeps the Hybrid-3D foundation and adds a shared walkable-surface grounding path, strictly user-owned zoom with an expandable mobile slider, a deterministic Boss death/loot/respawn round loop, and timed multi-frame clips for all eight Hero directions. The normalized 32 key-pose assets, single eight-direction Harvest Colossus impostor, camera obstruction handling, and world-space projectile combat remain intact. See `M10_4_CORE_GAMEPLAY_STABILITY.md`.
 
 ## Start and validate
 
@@ -21,7 +21,7 @@ Use the default URL for M10 Hybrid 3D. Append `?renderer=2d` for the intact M09.
 
 ## Controls
 
-- Mobile: 360° joystick + **POWER HIT** + **DASH**; drag open battlefield space to look, pinch to zoom, double-tap to reset follow.
+- Mobile: 360° joystick + **POWER HIT** + **DASH**; drag open battlefield space to look, pinch or use the fold-out right-edge slider to zoom, double-tap to reset follow.
 - Desktop: WASD/arrows, Space to dash, E/F for Power Hit, mouse drag to pan, mouse wheel to dolly, R to reset Follow, T for Tactical and F3 for 3D debug.
 - Fullscreen is optional and only requested from its explicit button.
 - Mutation and level-up choices pause active time and danger timing.

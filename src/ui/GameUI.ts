@@ -22,6 +22,13 @@ export function announcementLifecycle(requestedMs: number): Readonly<{ totalMs: 
   const totalMs = Math.max(650, Math.min(1500, Math.round(requestedMs)));
   return { totalMs, enterMs: Math.round(totalMs * .16), exitMs: Math.round(totalMs * .28) };
 }
+export function zoomLevelToDistance(level: number, minDistance = 9.5, maxDistance = 22): number {
+  const normalized = Math.max(0, Math.min(100, level)) / 100;
+  return maxDistance - normalized * (maxDistance - minDistance);
+}
+export function distanceToZoomLevel(distance: number, minDistance = 9.5, maxDistance = 22): number {
+  return (1 - (Math.max(minDistance, Math.min(maxDistance, distance)) - minDistance) / Math.max(.001, maxDistance - minDistance)) * 100;
+}
 
 export class GameUI {
   private readonly hpFill = requiredElement<HTMLElement>('hp-fill');
@@ -40,6 +47,7 @@ export class GameUI {
   private onPower?: () => void;
   private onDash?: () => void;
   private onZoom?: (delta: number) => void;
+  private onZoomAbsolute?: (distance: number) => void;
   private onCameraPan?: (dx: number, dy: number) => void;
   private onCameraGesture?: (dx: number, dy: number, gesture: 'orbit' | 'pan') => void;
   private onCameraReset?: () => void;
@@ -53,6 +61,7 @@ export class GameUI {
   private announcementTimeout?: number;
   private choiceCallback?: (mutation: Mutation) => void;
   private choices: readonly Mutation[] = [];
+  private zoomCollapseTimeout?: number;
 
   constructor(private readonly assets: AssetRegistry) {
     this.powerButton.addEventListener('pointerdown', (event) => {
@@ -60,8 +69,7 @@ export class GameUI {
       this.onPower?.();
     });
     requiredElement<HTMLButtonElement>('dash-button').addEventListener('pointerdown', (event) => { event.preventDefault(); this.onDash?.(); });
-    requiredElement<HTMLButtonElement>('zoom-out').addEventListener('click', () => this.onZoom?.(-0.08));
-    requiredElement<HTMLButtonElement>('zoom-in').addEventListener('click', () => this.onZoom?.(0.08));
+    this.bindZoomSlider();
     requiredElement<HTMLButtonElement>('retry-button').addEventListener('click', () => this.onRetry?.());
     requiredElement<HTMLButtonElement>('event-enter').addEventListener('click', () => this.onEventEnter?.());
     requiredElement<HTMLButtonElement>('result-hub-button').addEventListener('click', () => this.onEventHub?.());
@@ -93,6 +101,7 @@ export class GameUI {
   bindPower(callback: () => void): void { this.onPower = callback; }
   bindDash(callback: () => void): void { this.onDash = callback; }
   bindZoom(callback: (delta: number) => void): void { this.onZoom = callback; }
+  bindZoomAbsolute(callback: (distance: number) => void): void { this.onZoomAbsolute = callback; }
   bindCameraPan(callback: (dx: number, dy: number) => void): void { this.onCameraPan = callback; }
   bindCameraGesture(callback: (dx: number, dy: number, gesture: 'orbit' | 'pan') => void): void { this.onCameraGesture = callback; }
   bindCameraReset(callback: () => void): void { this.onCameraReset = callback; }
@@ -103,6 +112,10 @@ export class GameUI {
   bindMovement(callback: (input: MovementInput) => void): void { this.onMove = callback; }
   bindFullscreen(callback: () => void): void { this.onFullscreen = callback; }
   bindResumeChoice(callback: (resume: boolean) => void): void { this.onResumeChoice = callback; }
+
+  updateZoomControl(distance: number, minDistance: number, maxDistance: number): void {
+    requiredElement<HTMLInputElement>('zoom-slider').value = String(Math.round(distanceToZoomLevel(distance, minDistance, maxDistance)));
+  }
 
   update(hp: number, maxHp: number, elapsedMs: number, cooldownMs: number, playing: boolean, powerPending = false): void {
     const hpRatio = Math.max(0, hp / maxHp);
@@ -139,6 +152,10 @@ export class GameUI {
     requiredElement('cycle-label').textContent = `CYCLE ${cycle}`;
     requiredElement('dash-status').textContent = dashCooldownMs <= 0 ? 'READY' : `${(dashCooldownMs / 1000).toFixed(1)}s`;
     requiredElement<HTMLButtonElement>('dash-button').disabled = dashCooldownMs > 0;
+  }
+
+  updateBossRound(round: number, bossLevel: number, state: string): void {
+    requiredElement('cycle-label').textContent = state === 'alive' ? `ROUND ${round} · BOSS LV. ${bossLevel}` : `${state.replace('-', ' ').toUpperCase()} · ROUND ${round}`;
   }
 
   updateMinimap(player:Vec2,boss:Vec2,allies:readonly Vec2[]):void{
@@ -343,6 +360,28 @@ export class GameUI {
       const [a,b]=[...pointers.values()];const distance=Math.hypot(a.x-b.x,a.y-b.y);if(previousDistance>0&&Math.abs(distance-previousDistance)>3)this.onZoom?.((distance-previousDistance)*.0025);previousDistance=distance;event.preventDefault();
     });
     const release=(event:PointerEvent):void=>{pointers.delete(event.pointerId);if(surface.hasPointerCapture?.(event.pointerId))surface.releasePointerCapture(event.pointerId);if(pointers.size<2)previousDistance=0};surface.addEventListener('pointerup',release);surface.addEventListener('pointercancel',release);
+  }
+
+  private bindZoomSlider(): void {
+    const root = requiredElement('zoom-control');
+    const toggle = requiredElement<HTMLButtonElement>('zoom-toggle');
+    const panel = requiredElement('zoom-slider-panel');
+    const slider = requiredElement<HTMLInputElement>('zoom-slider');
+    const setOpen = (open: boolean): void => {
+      root.classList.toggle('open', open);
+      toggle.setAttribute('aria-expanded', String(open));
+      panel.setAttribute('aria-hidden', String(!open));
+      window.clearTimeout(this.zoomCollapseTimeout);
+      if (open) this.zoomCollapseTimeout = window.setTimeout(() => setOpen(false), 2600);
+    };
+    toggle.addEventListener('pointerdown', (event) => { event.preventDefault(); event.stopPropagation(); setOpen(!root.classList.contains('open')); });
+    slider.addEventListener('pointerdown', (event) => { event.stopPropagation(); window.clearTimeout(this.zoomCollapseTimeout); });
+    slider.addEventListener('input', (event) => {
+      event.stopPropagation();
+      this.onZoomAbsolute?.(zoomLevelToDistance(Number(slider.value)));
+      setOpen(true);
+    });
+    slider.addEventListener('change', () => setOpen(true));
   }
 }
 

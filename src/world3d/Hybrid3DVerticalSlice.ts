@@ -7,10 +7,11 @@ import { LootSystem } from '../gameplay/LootSystem';
 import { PlayerMovementController } from '../gameplay/PlayerMovementController';
 import { PlayerProjectileSystem, type PlayerProjectileImpact, type PlayerProjectileKind } from '../gameplay/PlayerProjectileSystem';
 import type { GameUI } from '../ui/GameUI';
-import { HybridCameraController } from './HybridCameraController';
-import { HybridCollisionSystem } from './HybridCollisionSystem';
+import { HybridCameraController, MAX_USER_ZOOM_DISTANCE, MIN_USER_ZOOM_DISTANCE } from './HybridCameraController';
 import { M10_HYBRID_TEST_SCENE, type Hybrid3DSceneDefinition } from './Hybrid3DTestScene';
 import { HybridWorldRenderer } from './HybridWorldRenderer';
+import { HybridWalkableSurfaceSystem } from './HybridWalkableSurfaceSystem';
+import { BossEncounterLoop, type BossEncounterEvent } from '../gameplay/BossEncounterLoop';
 
 export class Hybrid3DVerticalSlice {
   readonly definition: Hybrid3DSceneDefinition;
@@ -20,8 +21,9 @@ export class Hybrid3DVerticalSlice {
   readonly loot: LootSystem;
   readonly movement = new PlayerMovementController({ acceleration: 3600, deceleration: 5200, turnAcceleration: 6800, dashSpeed: 1900 });
   readonly renderer: HybridWorldRenderer;
-  readonly collisions: HybridCollisionSystem;
+  readonly surfaces: HybridWalkableSurfaceSystem;
   readonly projectiles = new PlayerProjectileSystem();
+  readonly bossEncounter = new BossEncounterLoop();
   private movementInput: MovementInput = { x: 0, y: 0 };
   private readonly keyboard = new Set<string>();
   private previousTime = performance.now();
@@ -32,6 +34,7 @@ export class Hybrid3DVerticalSlice {
   private paused = false;
   private destroyed = false;
   private debugElement: HTMLElement;
+  private collisionState: 'clear'|'blocked' = 'clear';
 
   constructor(
     mount: HTMLElement,
@@ -48,9 +51,10 @@ export class Hybrid3DVerticalSlice {
     this.boss.footprint.radiusY = definition.bossFootprint.radiusY;
     this.attacks = new BossAttackSystem(definition.seed);
     this.loot = new LootSystem(definition.seed, 18);
-    this.collisions = new HybridCollisionSystem(definition.dimensions.width, definition.dimensions.depth, definition.colliders, 38);
+    this.surfaces = new HybridWalkableSurfaceSystem(definition.dimensions.width, definition.dimensions.depth, definition.colliders, 38);
     this.renderer = new HybridWorldRenderer(mount, definition);
     this.applyVisualProofPreset(new URLSearchParams(location.search).get('proof'));
+    if (!new URLSearchParams(location.search).has('proof')) this.renderer.cameraController.setUserZoomDistance(loadZoomPreference());
     this.debugElement = createDebugElement();
     definition.lootSpawns.forEach((target, index) => this.loot.spawn(index === 2 ? 'relic' : 'run-xp', index === 2 ? 'epic' : index === 1 ? 'rare' : 'common', definition.bossSpawn, 10 + index * 10, target));
     this.attacks.force('ground-slam', definition.telegraphSpawn, 1, { position: definition.bossSpawn, orientation: definition.bossOrientation });
@@ -116,18 +120,20 @@ export class Hybrid3DVerticalSlice {
     this.dashCooldownMs = Math.max(0, this.dashCooldownMs - deltaMs);
     this.attackPoseMs = Math.max(0, this.attackPoseMs - deltaMs);
     this.autoAttackMs -= deltaMs;
-    if (this.autoAttackMs <= 0 && this.combat.phase === 'playing') {
+    if (this.autoAttackMs <= 0 && this.combat.phase === 'playing' && this.bossEncounter.attackEnabled) {
       this.performAttack('normal', now);
       this.autoAttackMs = this.combat.attackIntervalMs;
     }
-    this.boss.update(deltaMs, this.player.position);
+    if (this.bossEncounter.state === 'alive') this.boss.update(deltaMs, this.player.position);
     const projectileImpacts = this.projectiles.update(deltaMs, this.boss.position, Math.min(this.boss.footprint.radiusX, this.boss.footprint.radiusY) * .78);
     for (const impact of projectileImpacts) this.resolveProjectileImpact(impact, now);
     const relative = this.boss.relativeTo(this.player.position);
-    this.attacks.update(deltaMs, this.player.position, 1, this.combat.phase === 'playing', this.combat.bossHp / this.combat.maxHp, {
+    this.attacks.update(deltaMs, this.player.position, this.bossEncounter.bossLevel, this.combat.phase === 'playing' && this.bossEncounter.attackEnabled, this.combat.bossHp / this.combat.maxHp, {
       position: this.boss.position, orientation: this.boss.orientation, sector: relative.sector, distanceZone: relative.distanceZone, velocity: this.player.velocity,
     });
     this.loot.update(deltaMs, this.player.position, this.player.stats.pickupRadius);
+    for (const event of this.bossEncounter.update(deltaMs)) this.handleBossEncounterEvent(event, now);
+    const bossSnapshot = this.bossEncounter.snapshot();
     this.renderer.update(deltaMs, {
       player: this.player,
       bossPosition: this.boss.position,
@@ -140,9 +146,14 @@ export class Hybrid3DVerticalSlice {
       dashing: this.movement.isDashing,
       attacking: this.attackPoseMs > 0,
       aimDirection: { x: this.boss.position.x - this.player.position.x, y: this.boss.position.y - this.player.position.y },
+      bossState: bossSnapshot.state,
+      bossDeathProgress: bossSnapshot.deathProgress,
     });
     this.ui.update(this.combat.bossHp, this.combat.maxHp, this.combat.elapsedMs(now), this.combat.powerCooldownRemaining(now), this.combat.phase === 'playing', this.projectiles.hasPendingPower);
-    this.ui.updateArena(this.player.hp, this.player.maxHp, 1, 30, 100, 1, this.dashCooldownMs);
+    this.ui.updateArena(this.player.hp, this.player.maxHp, 1, 30, 100, this.bossEncounter.bossRoundIndex, this.dashCooldownMs);
+    this.ui.updateBossRound(this.bossEncounter.bossRoundIndex, this.bossEncounter.bossLevel, this.bossEncounter.state);
+    const cameraSnapshot = this.renderer.cameraController.snapshot();
+    this.ui.updateZoomControl(cameraSnapshot.userZoomDistance, MIN_USER_ZOOM_DISTANCE, MAX_USER_ZOOM_DISTANCE);
     this.ui.updateMinimap(toFullMap(this.player.position), toFullMap(this.boss.position), []);
     this.updateDebug(relative.sector, relative.distance);
   }
@@ -151,7 +162,8 @@ export class Hybrid3DVerticalSlice {
     this.ui.bindMovement((input) => { this.movementInput = { ...input }; });
     this.ui.bindDash(() => this.dash());
     this.ui.bindPower(() => this.performAttack('power', performance.now()));
-    this.ui.bindZoom((delta) => this.renderer.cameraController.zoom(delta));
+    this.ui.bindZoom((delta) => { this.renderer.cameraController.zoom(delta); saveZoomPreference(this.renderer.cameraController.userZoomDistance); });
+    this.ui.bindZoomAbsolute((distance) => { this.renderer.cameraController.setUserZoomDistance(distance); saveZoomPreference(distance); });
     this.ui.bindCameraGesture((dx, dy, gesture) => this.renderer.cameraController.gesture(dx, dy, gesture));
     this.ui.bindCameraReset(() => this.renderer.cameraController.resetFollow());
     this.ui.bindDebug((action) => {
@@ -168,6 +180,10 @@ export class Hybrid3DVerticalSlice {
       else if (action === 'attack-beam') this.attacks.force('core-beam', this.player.position, 1, { position: this.boss.position, orientation: this.boss.orientation });
       else if (action === 'attack-ring') this.attacks.force('corruption-ring', this.player.position, 1, { position: this.boss.position, orientation: this.boss.orientation });
       else if (action === 'attack-cone') this.attacks.force('void-cone', this.player.position, 1, { position: this.boss.position, orientation: this.boss.orientation });
+      else if (action === 'kill') {
+        const result = this.combat.debugForceKill(performance.now());
+        if (result.bossDefeated) this.beginBossDefeat();
+      }
     });
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
@@ -199,12 +215,12 @@ export class Hybrid3DVerticalSlice {
   }
 
   private performAttack(kind: 'normal' | 'power', now: number): void {
-    if (this.combat.phase !== 'playing' || this.combat.isPaused) return;
+    if (this.combat.phase !== 'playing' || this.combat.isPaused || !this.bossEncounter.attackEnabled) return;
     if (kind === 'power' && (!this.combat.canPowerHit(now) || this.projectiles.hasPendingPower)) return;
     const damage = kind === 'power' ? GAME_CONFIG.combat.powerDamage : GAME_CONFIG.combat.normalDamage;
     const launched = this.projectiles.launch(kind, this.player.position, this.boss.position, damage);
     if (!launched) return;
-    this.attackPoseMs = kind === 'power' ? 360 : 190;
+    this.attackPoseMs = kind === 'power' ? 620 : 520;
   }
 
   private resolveProjectileImpact(impact: PlayerProjectileImpact, now: number): void {
@@ -216,14 +232,14 @@ export class Hybrid3DVerticalSlice {
       });
     }
     if (result.bossDefeated) {
-      this.loot.spawn('relic', 'epic', this.boss.position, 50, { x: this.player.position.x + 180, y: this.player.position.y - 140 });
-      this.ui.announce('COLOSSUS BROKEN', 'HYBRID 3D SPATIAL SLICE', '#ff8a42', 1200);
+      this.beginBossDefeat();
     }
   }
 
   private constrain(position: Vec2): Vec2 {
-    const collisionResolved = this.collisions.resolve(position);
-    return this.boss.constrain(collisionResolved, 36);
+    const resolved = this.surfaces.resolve(position);
+    this.collisionState = resolved.collisionState;
+    return this.bossEncounter.collisionEnabled ? this.boss.constrain(resolved.position, 36) : resolved.position;
   }
 
   private updateDebug(sector: string, distance: number): void {
@@ -235,14 +251,40 @@ export class Hybrid3DVerticalSlice {
       'M10 HYBRID 3D',
       `HERO ${this.player.position.x.toFixed(0)} / ${this.player.position.y.toFixed(0)}`,
       `BOSS ${sector.toUpperCase()} · ${distance.toFixed(0)}u`,
-      `CAM ${camera.mode.toUpperCase()} · ${camera.distance.toFixed(1)}m`,
+      `CAM ${camera.mode.toUpperCase()} · USER ${cameraSnapshot.userZoomDistance.toFixed(1)}m · COLL ${cameraSnapshot.collisionLimitedDistance.toFixed(1)}m · ACT ${cameraSnapshot.actualCameraDistance.toFixed(1)}m`,
       `${metrics.calls} calls · ${metrics.triangles} tris · ${metrics.textures} tex`,
       `PITCH ${cameraSnapshot.pitchDeg.toFixed(1)}° · YAW ${(cameraSnapshot.yaw * 180 / Math.PI).toFixed(0)}° · BIAS ${cameraSnapshot.bossBias.toFixed(2)}`,
       `SHOT ${metrics.projectiles} · POOL ${metrics.projectilePool} · BOSS VIEW ${metrics.bossView.toUpperCase()}`,
       `HERO DIR ${metrics.heroDirectionSwaps}/s · POSE ${metrics.heroPoseSwaps}/s · TEX ${metrics.heroTextureSwaps}/s`,
-      `GROUND ${metrics.groundHeight.toFixed(2)}m · ANCHOR ${metrics.heroAnchor.toFixed(3)} · OCCLUDERS ${metrics.fadedOccluders}`,
+      `GROUND ${metrics.surfaceId} ${metrics.groundHeight.toFixed(2)}m · HERO Y ${metrics.heroRenderY.toFixed(2)} · ANCHOR ${metrics.heroAnchor.toFixed(3)} · ${this.collisionState.toUpperCase()}`,
+      `ANIM ${metrics.heroAnimationFrame} · ${metrics.heroAsset}`,
+      `BOSS ${this.bossEncounter.state.toUpperCase()} · ROUND ${this.bossEncounter.bossRoundIndex} · LV ${this.bossEncounter.bossLevel} · HP ${this.combat.bossHp}/${this.combat.maxHp}`,
       `CAMERA ${metrics.cameraObstructed ? 'RETRACTED' : 'CLEAR'} · ${metrics.heroAsset}`,
     ].join('\n');
+  }
+
+  private beginBossDefeat(): void {
+    const events = this.bossEncounter.defeat();
+    if (!events.length) return;
+    this.attacks.reset(this.definition.seed + this.bossEncounter.bossRoundIndex);
+    this.projectiles.reset();
+    this.attackPoseMs = 0;
+    this.ui.announce('COLOSSUS BROKEN', `ROUND ${this.bossEncounter.bossRoundIndex} CLEARED`, '#ff8a42', 1150);
+  }
+
+  private handleBossEncounterEvent(event: BossEncounterEvent, now: number): void {
+    if (event === 'loot') {
+      this.loot.spawn('relic', 'epic', this.boss.position, 50, { x: this.player.position.x + 180, y: this.player.position.y - 140 });
+      this.loot.spawn('run-xp', 'rare', this.boss.position, 30, { x: this.player.position.x - 130, y: this.player.position.y - 80 });
+    } else if (event === 'respawn') {
+      this.boss.position = { ...this.definition.bossSpawn };
+      this.boss.orientation = this.definition.bossOrientation;
+      this.attacks.reset(this.definition.seed + this.bossEncounter.bossRoundIndex * 31);
+      this.projectiles.reset();
+      this.combat.startNextCycle(now, this.bossEncounter.maxHp(this.combat.activeBoss.maxHp));
+      this.autoAttackMs = 650;
+      this.ui.announce(`ROUND ${this.bossEncounter.bossRoundIndex}`, `HARVEST COLOSSUS · LV. ${this.bossEncounter.bossLevel}`, '#ffb45c', 1100);
+    }
   }
 }
 
@@ -250,3 +292,11 @@ function toFullMap(point: Vec2): Vec2 { return { x: point.x + 2800, y: point.y +
 function createDebugElement(): HTMLElement {
   const element = document.createElement('pre'); element.id = 'hybrid-debug'; element.hidden = true; document.body.appendChild(element); return element;
 }
+const ZOOM_STORAGE_KEY = 'mutation-boss.hybrid.userZoomDistance';
+function loadZoomPreference(): number {
+  try {
+    const value = Number(sessionStorage.getItem(ZOOM_STORAGE_KEY));
+    return Number.isFinite(value) && value >= MIN_USER_ZOOM_DISTANCE && value <= MAX_USER_ZOOM_DISTANCE ? value : 15.5;
+  } catch { return 15.5; }
+}
+function saveZoomPreference(distance: number): void { try { sessionStorage.setItem(ZOOM_STORAGE_KEY, String(distance)); } catch { /* storage can be unavailable in privacy mode */ } }

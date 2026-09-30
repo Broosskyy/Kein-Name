@@ -10,9 +10,9 @@ export class HybridProjectileRenderer {
   private readonly projectilePool: ProjectileVisual[] = [];
   private readonly impactPool: ImpactVisual[] = [];
   private readonly activeById = new Map<string, ProjectileVisual>();
-  private readonly normalGeometry = new THREE.OctahedronGeometry(.22, 0);
-  private readonly powerGeometry = new THREE.IcosahedronGeometry(.38, 1);
-  private readonly trailGeometry = new THREE.CylinderGeometry(.045, .16, 1.65, 6, 1, true);
+  private readonly normalGeometry = new THREE.OctahedronGeometry(.27, 0);
+  private readonly powerGeometry = new THREE.IcosahedronGeometry(.46, 1);
+  private readonly trailGeometry = new THREE.CylinderGeometry(.055, .19, 2.05, 6, 1, true);
   private readonly normalMaterial = new THREE.MeshStandardMaterial({ color: 0xc6f6ff, emissive: 0x32b9ff, emissiveIntensity: 4, roughness: .2 });
   private readonly powerMaterial = new THREE.MeshStandardMaterial({ color: 0xfff0bd, emissive: 0xff6a1f, emissiveIntensity: 5, roughness: .16 });
   private readonly normalTrailMaterial = new THREE.MeshBasicMaterial({ color: 0x73ddff, transparent: true, opacity: .72, depthWrite: false, blending: THREE.AdditiveBlending });
@@ -46,7 +46,7 @@ export class HybridProjectileRenderer {
       if (!impact.active) continue;
       impact.ageMs += deltaMs;
       const progress = Math.min(1, impact.ageMs / impact.durationMs);
-      impact.root.scale.setScalar(.35 + progress * 1.7);
+      impact.root.scale.setScalar(.4 + progress * 2.05);
       impact.material.opacity = (1 - progress) * .9;
       if (progress >= 1) { impact.active = false; impact.root.visible = false; }
     }
@@ -68,9 +68,9 @@ export class HybridProjectileRenderer {
       const root = new THREE.Group();
       const core = new THREE.Mesh(kind === 'power' ? this.powerGeometry : this.normalGeometry, kind === 'power' ? this.powerMaterial : this.normalMaterial);
       const glow = new THREE.Sprite(new THREE.SpriteMaterial({ color: kind === 'power' ? 0xff8a32 : 0x62dfff, transparent: true, opacity: .58, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending }));
-      glow.scale.setScalar(kind === 'power' ? 1.05 : .62);
+      glow.scale.setScalar(kind === 'power' ? 1.28 : .78);
       const trail = new THREE.Mesh(this.trailGeometry, kind === 'power' ? this.powerTrailMaterial : this.normalTrailMaterial);
-      trail.rotation.x = Math.PI / 2; trail.position.z = .82;
+      trail.rotation.x = Math.PI / 2; trail.position.z = 1.02;
       root.add(core, glow, trail); root.renderOrder = 3;
       visual = { root, kind, active: false, trail };
       this.projectilePool.push(visual); this.scene.add(root);

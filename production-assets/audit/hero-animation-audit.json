@@ -1,0 +1,974 @@
+{
+  "generatedAt": "2026-09-30T21:44:18.047Z",
+  "milestone": "M10.4",
+  "expectedAssets": 32,
+  "actualAssets": 32,
+  "sharedCanvas": {
+    "width": 384,
+    "height": 384
+  },
+  "targetFootAnchor": 0.10416666666666667,
+  "anomalyCount": 0,
+  "assets": [
+    {
+      "file": "creature-e-attack.webp",
+      "direction": "e",
+      "state": "attack",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 33,
+        "top": 49,
+        "width": 318,
+        "height": 295
+      },
+      "opaqueBounds": {
+        "left": 38,
+        "top": 54,
+        "width": 313,
+        "height": 286
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 33,
+        "right": 33,
+        "top": 49,
+        "bottom": 40
+      },
+      "centerX": 192,
+      "anomalies": []
+    },
+    {
+      "file": "creature-e-dash.webp",
+      "direction": "e",
+      "state": "dash",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 33,
+        "top": 82,
+        "width": 318,
+        "height": 262
+      },
+      "opaqueBounds": {
+        "left": 38,
+        "top": 87,
+        "width": 313,
+        "height": 253
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 33,
+        "right": 33,
+        "top": 82,
+        "bottom": 40
+      },
+      "centerX": 192,
+      "anomalies": []
+    },
+    {
+      "file": "creature-e-idle.webp",
+      "direction": "e",
+      "state": "idle",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 42,
+        "top": 44,
+        "width": 299,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 46,
+        "top": 49,
+        "width": 294,
+        "height": 292
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 42,
+        "right": 43,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 191.5,
+      "anomalies": []
+    },
+    {
+      "file": "creature-e-run.webp",
+      "direction": "e",
+      "state": "run",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 42,
+        "top": 44,
+        "width": 300,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 47,
+        "top": 49,
+        "width": 292,
+        "height": 292
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 42,
+        "right": 42,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 192,
+      "anomalies": []
+    },
+    {
+      "file": "creature-n-attack.webp",
+      "direction": "n",
+      "state": "attack",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 75,
+        "top": 44,
+        "width": 234,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 79,
+        "top": 49,
+        "width": 226,
+        "height": 295
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 75,
+        "right": 75,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 192,
+      "anomalies": []
+    },
+    {
+      "file": "creature-n-dash.webp",
+      "direction": "n",
+      "state": "dash",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 55,
+        "top": 44,
+        "width": 274,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 60,
+        "top": 50,
+        "width": 264,
+        "height": 294
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 55,
+        "right": 55,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 192,
+      "anomalies": []
+    },
+    {
+      "file": "creature-n-idle.webp",
+      "direction": "n",
+      "state": "idle",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 90,
+        "top": 44,
+        "width": 203,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 95,
+        "top": 49,
+        "width": 195,
+        "height": 292
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 90,
+        "right": 91,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 191.5,
+      "anomalies": []
+    },
+    {
+      "file": "creature-n-run.webp",
+      "direction": "n",
+      "state": "run",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 93,
+        "top": 44,
+        "width": 197,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 97,
+        "top": 49,
+        "width": 190,
+        "height": 291
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 93,
+        "right": 94,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 191.5,
+      "anomalies": []
+    },
+    {
+      "file": "creature-ne-attack.webp",
+      "direction": "ne",
+      "state": "attack",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 36,
+        "top": 44,
+        "width": 311,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 41,
+        "top": 50,
+        "width": 302,
+        "height": 294
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 36,
+        "right": 37,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 191.5,
+      "anomalies": []
+    },
+    {
+      "file": "creature-ne-dash.webp",
+      "direction": "ne",
+      "state": "dash",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 37,
+        "top": 44,
+        "width": 310,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 42,
+        "top": 50,
+        "width": 305,
+        "height": 294
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 37,
+        "right": 37,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 192,
+      "anomalies": []
+    },
+    {
+      "file": "creature-ne-idle.webp",
+      "direction": "ne",
+      "state": "idle",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 57,
+        "top": 44,
+        "width": 270,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 62,
+        "top": 49,
+        "width": 261,
+        "height": 291
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 57,
+        "right": 57,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 192,
+      "anomalies": []
+    },
+    {
+      "file": "creature-ne-run.webp",
+      "direction": "ne",
+      "state": "run",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 69,
+        "top": 44,
+        "width": 245,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 74,
+        "top": 49,
+        "width": 237,
+        "height": 291
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 69,
+        "right": 70,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 191.5,
+      "anomalies": []
+    },
+    {
+      "file": "creature-nw-attack.webp",
+      "direction": "nw",
+      "state": "attack",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 62,
+        "top": 44,
+        "width": 260,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 66,
+        "top": 44,
+        "width": 252,
+        "height": 297
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 62,
+        "right": 62,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 192,
+      "anomalies": []
+    },
+    {
+      "file": "creature-nw-dash.webp",
+      "direction": "nw",
+      "state": "dash",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 33,
+        "top": 57,
+        "width": 318,
+        "height": 287
+      },
+      "opaqueBounds": {
+        "left": 38,
+        "top": 62,
+        "width": 313,
+        "height": 278
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 33,
+        "right": 33,
+        "top": 57,
+        "bottom": 40
+      },
+      "centerX": 192,
+      "anomalies": []
+    },
+    {
+      "file": "creature-nw-idle.webp",
+      "direction": "nw",
+      "state": "idle",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 60,
+        "top": 44,
+        "width": 264,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 64,
+        "top": 44,
+        "width": 255,
+        "height": 297
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 60,
+        "right": 60,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 192,
+      "anomalies": []
+    },
+    {
+      "file": "creature-nw-run.webp",
+      "direction": "nw",
+      "state": "run",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 61,
+        "top": 44,
+        "width": 262,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 66,
+        "top": 44,
+        "width": 254,
+        "height": 296
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 61,
+        "right": 61,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 192,
+      "anomalies": []
+    },
+    {
+      "file": "creature-s-attack.webp",
+      "direction": "s",
+      "state": "attack",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 65,
+        "top": 44,
+        "width": 254,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 70,
+        "top": 48,
+        "width": 245,
+        "height": 293
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 65,
+        "right": 65,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 192,
+      "anomalies": []
+    },
+    {
+      "file": "creature-s-dash.webp",
+      "direction": "s",
+      "state": "dash",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 90,
+        "top": 44,
+        "width": 203,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 94,
+        "top": 49,
+        "width": 195,
+        "height": 291
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 90,
+        "right": 91,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 191.5,
+      "anomalies": []
+    },
+    {
+      "file": "creature-s-idle.webp",
+      "direction": "s",
+      "state": "idle",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 91,
+        "top": 44,
+        "width": 202,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 96,
+        "top": 48,
+        "width": 194,
+        "height": 293
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 91,
+        "right": 91,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 192,
+      "anomalies": []
+    },
+    {
+      "file": "creature-s-run.webp",
+      "direction": "s",
+      "state": "run",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 91,
+        "top": 44,
+        "width": 201,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 95,
+        "top": 47,
+        "width": 193,
+        "height": 294
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 91,
+        "right": 92,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 191.5,
+      "anomalies": []
+    },
+    {
+      "file": "creature-se-attack.webp",
+      "direction": "se",
+      "state": "attack",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 35,
+        "top": 44,
+        "width": 314,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 40,
+        "top": 49,
+        "width": 305,
+        "height": 295
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 35,
+        "right": 35,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 192,
+      "anomalies": []
+    },
+    {
+      "file": "creature-se-dash.webp",
+      "direction": "se",
+      "state": "dash",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 33,
+        "top": 65,
+        "width": 318,
+        "height": 279
+      },
+      "opaqueBounds": {
+        "left": 38,
+        "top": 70,
+        "width": 311,
+        "height": 274
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 33,
+        "right": 33,
+        "top": 65,
+        "bottom": 40
+      },
+      "centerX": 192,
+      "anomalies": []
+    },
+    {
+      "file": "creature-se-idle.webp",
+      "direction": "se",
+      "state": "idle",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 50,
+        "top": 44,
+        "width": 283,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 54,
+        "top": 49,
+        "width": 275,
+        "height": 292
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 50,
+        "right": 51,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 191.5,
+      "anomalies": []
+    },
+    {
+      "file": "creature-se-run.webp",
+      "direction": "se",
+      "state": "run",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 51,
+        "top": 44,
+        "width": 282,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 55,
+        "top": 48,
+        "width": 274,
+        "height": 293
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 51,
+        "right": 51,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 192,
+      "anomalies": []
+    },
+    {
+      "file": "creature-sw-attack.webp",
+      "direction": "sw",
+      "state": "attack",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 62,
+        "top": 44,
+        "width": 260,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 66,
+        "top": 50,
+        "width": 253,
+        "height": 290
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 62,
+        "right": 62,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 192,
+      "anomalies": []
+    },
+    {
+      "file": "creature-sw-dash.webp",
+      "direction": "sw",
+      "state": "dash",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 44,
+        "top": 44,
+        "width": 295,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 48,
+        "top": 48,
+        "width": 291,
+        "height": 293
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 44,
+        "right": 45,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 191.5,
+      "anomalies": []
+    },
+    {
+      "file": "creature-sw-idle.webp",
+      "direction": "sw",
+      "state": "idle",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 53,
+        "top": 44,
+        "width": 278,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 57,
+        "top": 49,
+        "width": 270,
+        "height": 291
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 53,
+        "right": 53,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 192,
+      "anomalies": []
+    },
+    {
+      "file": "creature-sw-run.webp",
+      "direction": "sw",
+      "state": "run",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 62,
+        "top": 44,
+        "width": 259,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 67,
+        "top": 46,
+        "width": 251,
+        "height": 294
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 62,
+        "right": 63,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 191.5,
+      "anomalies": []
+    },
+    {
+      "file": "creature-w-attack.webp",
+      "direction": "w",
+      "state": "attack",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 33,
+        "top": 55,
+        "width": 318,
+        "height": 289
+      },
+      "opaqueBounds": {
+        "left": 37,
+        "top": 55,
+        "width": 314,
+        "height": 285
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 33,
+        "right": 33,
+        "top": 55,
+        "bottom": 40
+      },
+      "centerX": 192,
+      "anomalies": []
+    },
+    {
+      "file": "creature-w-dash.webp",
+      "direction": "w",
+      "state": "dash",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 33,
+        "top": 102,
+        "width": 318,
+        "height": 242
+      },
+      "opaqueBounds": {
+        "left": 38,
+        "top": 106,
+        "width": 313,
+        "height": 236
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 33,
+        "right": 33,
+        "top": 102,
+        "bottom": 40
+      },
+      "centerX": 192,
+      "anomalies": []
+    },
+    {
+      "file": "creature-w-idle.webp",
+      "direction": "w",
+      "state": "idle",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 39,
+        "top": 44,
+        "width": 305,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 43,
+        "top": 44,
+        "width": 301,
+        "height": 297
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 39,
+        "right": 40,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 191.5,
+      "anomalies": []
+    },
+    {
+      "file": "creature-w-run.webp",
+      "direction": "w",
+      "state": "run",
+      "dimensions": {
+        "width": 384,
+        "height": 384
+      },
+      "alphaBounds": {
+        "left": 43,
+        "top": 44,
+        "width": 297,
+        "height": 300
+      },
+      "opaqueBounds": {
+        "left": 47,
+        "top": 44,
+        "width": 289,
+        "height": 296
+      },
+      "footBaseline": 343,
+      "padding": {
+        "left": 43,
+        "right": 44,
+        "top": 44,
+        "bottom": 40
+      },
+      "centerX": 191.5,
+      "anomalies": []
+    }
+  ]
+}

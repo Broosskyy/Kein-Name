@@ -50,7 +50,12 @@
             <i id="power-cooldown"></i>
           </button>
           <button id="dash-button" type="button" aria-label="Dash"><span>DASH</span><small id="dash-status">READY</small></button>
-          <div class="zoom-controls" aria-label="Arena zoom"><button id="zoom-out" type="button">−</button><button id="zoom-in" type="button">+</button></div>
+          <div id="zoom-control" class="zoom-control" aria-label="Camera zoom">
+            <button id="zoom-toggle" type="button" aria-expanded="false" aria-controls="zoom-slider-panel" aria-label="Open zoom control">⌕</button>
+            <div id="zoom-slider-panel" class="zoom-slider-panel" aria-hidden="true">
+              <b>+</b><input id="zoom-slider" type="range" min="0" max="100" step="1" value="52" aria-label="Camera zoom level"><b>−</b>
+            </div>
+          </div>
           <button id="fullscreen-button" type="button" aria-label="Toggle fullscreen">⛶</button>
         </div>
 

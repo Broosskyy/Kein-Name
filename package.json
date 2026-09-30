@@ -1,13 +1,14 @@
 {
   "name": "mutation-boss",
   "private": true,
-  "version": "1.0.3",
+  "version": "1.0.4",
   "type": "module",
   "scripts": {
     "assets:extract": "bash scripts/extract-production-kits.sh && bash scripts/extract-directional-hero.sh && node scripts/normalize-directional-hero.mjs && bash scripts/extract-m09-3-world-kit.sh && node scripts/extract-m10-3-boss-directions.mjs",
     "assets:extract:world": "bash scripts/extract-m09-3-world-kit.sh",
     "assets:extract:hero": "bash scripts/extract-directional-hero.sh && node scripts/normalize-directional-hero.mjs",
     "assets:extract:boss-directions": "node scripts/extract-m10-3-boss-directions.mjs",
+    "assets:audit:hero": "node scripts/audit-hero-animation.mjs",
     "qa:world": "vite-node scripts/generate-m09-3-offline-audit.ts",
     "dev": "vite --host 0.0.0.0",
     "dev:local": "vite --host 127.0.0.1",
