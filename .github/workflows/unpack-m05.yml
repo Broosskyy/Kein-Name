@@ -1,11 +1,11 @@
-name: Unpack M10.1 Source
+name: Unpack M10.3 Source
 
 on:
   push:
     branches: [main]
     paths:
-      - 'Mutation_Boss_M10_1_Hybrid3D_VisualProof_Source.part01'
-      - 'Mutation_Boss_M10_1_Hybrid3D_VisualProof_Source.part02'
+      - 'Mutation_Boss_M10_3_Source.part01'
+      - 'Mutation_Boss_M10_3_Source.part02'
       - '.github/workflows/unpack-m05.yml'
   workflow_dispatch:
 
@@ -20,36 +20,38 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Reassemble M10.1 ZIP
+      - name: Reassemble M10.3 ZIP
         run: |
-          cat Mutation_Boss_M10_1_Hybrid3D_VisualProof_Source.part01               Mutation_Boss_M10_1_Hybrid3D_VisualProof_Source.part02               > /tmp/Mutation_Boss_M10_1_Hybrid3D_VisualProof_Source.zip
-          echo "5c57b5fe3907a85c8851bf0d9fb8b2d7aff6e21be9ad0189761eac0325d205bf  /tmp/Mutation_Boss_M10_1_Hybrid3D_VisualProof_Source.zip" | sha256sum -c -
-          unzip -t /tmp/Mutation_Boss_M10_1_Hybrid3D_VisualProof_Source.zip >/dev/null
+          cat Mutation_Boss_M10_3_Source.part01               Mutation_Boss_M10_3_Source.part02               > /tmp/Mutation_Boss_M10_3_Source.zip
+          echo "d2d0960379c6e025b52da7c8b04520e5bd1ac186c8aeae4fd92b2899230a8523  /tmp/Mutation_Boss_M10_3_Source.zip" | sha256sum -c -
+          unzip -t /tmp/Mutation_Boss_M10_3_Source.zip >/dev/null
 
-      - name: Unpack exact M10.1 source
+      - name: Unpack exact M10.3 source
         run: |
-          rm -rf /tmp/m10_1
-          mkdir -p /tmp/m10_1
-          unzip -q /tmp/Mutation_Boss_M10_1_Hybrid3D_VisualProof_Source.zip -d /tmp/m10_1
+          rm -rf /tmp/m10_3
+          mkdir -p /tmp/m10_3
+          unzip -q /tmp/Mutation_Boss_M10_3_Source.zip -d /tmp/m10_3
 
-          ROOT="/tmp/m10_1"
-          DIR_COUNT=$(find /tmp/m10_1 -mindepth 1 -maxdepth 1 -type d | wc -l)
-          FILE_COUNT=$(find /tmp/m10_1 -mindepth 1 -maxdepth 1 -type f | wc -l)
+          ROOT="/tmp/m10_3"
+          DIR_COUNT=$(find /tmp/m10_3 -mindepth 1 -maxdepth 1 -type d | wc -l)
+          FILE_COUNT=$(find /tmp/m10_3 -mindepth 1 -maxdepth 1 -type f | wc -l)
           if [ "$DIR_COUNT" -eq 1 ] && [ "$FILE_COUNT" -eq 0 ]; then
-            ROOT=$(find /tmp/m10_1 -mindepth 1 -maxdepth 1 -type d | head -n 1)
+            ROOT=$(find /tmp/m10_3 -mindepth 1 -maxdepth 1 -type d | head -n 1)
           fi
 
-          rsync -a --delete             --exclude='.git/'             --exclude='.github/'             --exclude='Mutation_Boss_M10_1_Hybrid3D_VisualProof_Source.part01'             --exclude='Mutation_Boss_M10_1_Hybrid3D_VisualProof_Source.part02'             "$ROOT"/ ./
+          rsync -a --delete             --exclude='.git/'             --exclude='.github/'             --exclude='Mutation_Boss_M10_3_Source.part01'             --exclude='Mutation_Boss_M10_3_Source.part02'             "$ROOT"/ ./
 
-          rm -f Mutation_Boss_M10_1_Hybrid3D_VisualProof_Source.part01
-          rm -f Mutation_Boss_M10_1_Hybrid3D_VisualProof_Source.part02
+          rm -f Mutation_Boss_M10_3_Source.part01
+          rm -f Mutation_Boss_M10_3_Source.part02
 
           test -f package.json
+          test -f M10_3_VISUAL_COHERENCE_DIRECTIONAL_REBUILD.md
           test -f src/world3d/HybridWorldRenderer.ts
-          test -f src/world3d/Hybrid3DVerticalSlice.ts
-          test -f M10_1_HYBRID_3D_VISUAL_PROOF.md
-          grep -q '"version": "1.0.1"' package.json
-          grep -q '"three"' package.json
+          test -f src/world3d/HybridCameraController.ts
+          test -f public/assets/boss/directional/harvest-colossus-front.webp
+          test -f public/assets/boss/directional/harvest-colossus-rear.webp
+          test -f public/assets/creature/directional/creature-n-idle.webp
+          grep -q '"version": "1.0.3"' package.json
 
       - name: Install and validate
         run: |
@@ -62,9 +64,9 @@ jobs:
         run: |
           rm -rf node_modules
           rm -rf dist
-          rm -f /tmp/Mutation_Boss_M10_1_Hybrid3D_VisualProof_Source.zip
+          rm -f /tmp/Mutation_Boss_M10_3_Source.zip
 
-      - name: Commit unpacked M10.1
+      - name: Commit unpacked M10.3
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -73,6 +75,6 @@ jobs:
             echo "No source changes to commit."
             exit 0
           fi
-          git commit -m "Unpack and validate M10.1 Hybrid 3D source"
+          git commit -m "Unpack and validate M10.3 source"
           git pull --rebase origin main
           git push
