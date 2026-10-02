@@ -1,10 +1,11 @@
 {
   "name": "mutation-boss",
   "private": true,
-  "version": "1.0.4",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
-    "assets:extract": "bash scripts/extract-production-kits.sh && bash scripts/extract-directional-hero.sh && node scripts/normalize-directional-hero.mjs && bash scripts/extract-m09-3-world-kit.sh && node scripts/extract-m10-3-boss-directions.mjs",
+    "assets:extract": "bash scripts/extract-production-kits.sh && bash scripts/extract-directional-hero.sh && node scripts/normalize-directional-hero.mjs && bash scripts/extract-m09-3-world-kit.sh && node scripts/extract-m10-3-boss-directions.mjs && node scripts/extract-harvest-ui.mjs",
+    "assets:extract:ui": "node scripts/extract-harvest-ui.mjs",
     "assets:extract:world": "bash scripts/extract-m09-3-world-kit.sh",
     "assets:extract:hero": "bash scripts/extract-directional-hero.sh && node scripts/normalize-directional-hero.mjs",
     "assets:extract:boss-directions": "node scripts/extract-m10-3-boss-directions.mjs",

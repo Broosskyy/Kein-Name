@@ -126,7 +126,7 @@ describe('M10.4 animated eight-direction Hero foundation', () => {
     for (const direction of directions) for (const state of states) {
       const clip = heroAnimationClip(state, direction);
       expect(clip.frames.length).toBeGreaterThanOrEqual(state === 'run' ? 6 : 3);
-      expect(clip.frames.every((frame) => frame.asset === `creature.direction.${direction}.${state}`)).toBe(true);
+      expect(clip.frames.every((frame) => frame.asset === `creature.evo1.direction.${direction}.${state}`)).toBe(true);
     }
   });
 

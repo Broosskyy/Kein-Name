@@ -1,8 +1,8 @@
-# Mutation Boss — M10.4 Core Gameplay Stability
+# Harvest Colossus — UI Foundation Pass 01
 
 Browser-first hybrid Three.js + PixiJS boss-arena prototype. The default M10 path is a deterministic 2200×2200 spatial slice with real 3D terrain, structures, perspective camera, geometry occlusion, a world-space Boss proxy, ground telegraphs and physical loot. The complete M09.3 2.5D experience remains available as a migration fallback.
 
-M10.4 keeps the Hybrid-3D foundation and adds a shared walkable-surface grounding path, strictly user-owned zoom with an expandable mobile slider, a deterministic Boss death/loot/respawn round loop, and timed multi-frame clips for all eight Hero directions. The normalized 32 key-pose assets, single eight-direction Harvest Colossus impostor, camera obstruction handling, and world-space projectile combat remain intact. See `M10_4_CORE_GAMEPLAY_STABILITY.md`.
+The current pass preserves M10.4 and adds a reusable Harvest UI asset catalog, 9-slice meta foundation, compact combat HUD, responsive ten-section Hero Sanctum hub and a production Evo-1 8-direction × 4-state visual family. See `HARVEST_UI_FOUNDATION_PASS_01.md`; the M10.4 implementation record remains in `M10_4_CORE_GAMEPLAY_STABILITY.md`.
 
 ## Start and validate
 
@@ -18,6 +18,8 @@ npm run preview
 ```
 
 Use the default URL for M10 Hybrid 3D. Append `?renderer=2d` for the intact M09.3 renderer. Append `?debug3d=1` or press `F3` for spatial metrics/proxies.
+
+Append `?ui=hub` for the responsive meta-hub entry view or `?ui=preview` in a DEV build for the complete UI/Hero QA catalog.
 
 ## Controls
 

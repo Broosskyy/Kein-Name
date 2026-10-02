@@ -15,8 +15,9 @@ import type { RunUpgradeDefinition } from '../gameplay/RunUpgrades';
 import { HARVEST_ARENA_MAP } from '../gameplay/HarvestArenaMap';
 import { worldToMinimap } from '../gameplay/MapDefinition';
 import type { Vec2 } from '../gameplay/ArenaTypes';
+import { renderHarvestHub, renderHarvestUIPreview } from './HarvestUIComponents';
 
-export type DebugAction = 'break-1' | 'break-2' | 'kill' | 'choose-crystal' | 'choose-void' | 'choose-wings' | 'choose-pumpkin' | 'build-cv' | 'build-cw' | 'build-vw' | 'build-pv' | 'build-pc' | 'build-pw' | 'event-toggle' | 'event-progress' | 'event-challenge' | 'event-unlock-all' | 'event-reset' | 'event-complete' | 'quality-low' | 'quality-medium' | 'quality-high' | 'effects-reduced' | 'visual-catalog' | 'grant-xp' | 'level-up' | 'spawn-loot' | 'spawn-rare' | 'next-cycle' | 'cycle-1' | 'cycle-2' | 'cycle-3' | 'region-core' | 'region-crystal' | 'region-ruins' | 'region-edge' | 'distance-near' | 'distance-medium' | 'distance-far' | 'zoom-action' | 'zoom-standard' | 'zoom-tactical' | 'camera-follow' | 'camera-look' | 'camera-boss' | 'scenario-master' | 'hud-toggle' | 'attack-slam' | 'attack-beam' | 'attack-debris' | 'attack-cone' | 'attack-ring' | 'attack-shockwave' | 'damage-player' | 'heal-player' | 'dummy-add' | 'dummy-clear' | 'dummy-1' | 'dummy-2' | 'dummy-4' | 'dummy-8' | 'pickup-radius' | 'collision-bounds' | 'telegraphs' | 'performance' | 'save' | 'clear-snapshot' | 'inspect-progress' | 'inspect-run' | 'restart';
+export type DebugAction = 'break-1' | 'break-2' | 'kill' | 'choose-crystal' | 'choose-void' | 'choose-wings' | 'choose-pumpkin' | 'build-cv' | 'build-cw' | 'build-vw' | 'build-pv' | 'build-pc' | 'build-pw' | 'event-toggle' | 'event-progress' | 'event-challenge' | 'event-unlock-all' | 'event-reset' | 'event-complete' | 'quality-low' | 'quality-medium' | 'quality-high' | 'effects-reduced' | 'visual-catalog' | 'ui-preview' | 'grant-xp' | 'level-up' | 'spawn-loot' | 'spawn-rare' | 'next-cycle' | 'cycle-1' | 'cycle-2' | 'cycle-3' | 'region-core' | 'region-crystal' | 'region-ruins' | 'region-edge' | 'distance-near' | 'distance-medium' | 'distance-far' | 'zoom-action' | 'zoom-standard' | 'zoom-tactical' | 'camera-follow' | 'camera-look' | 'camera-boss' | 'scenario-master' | 'hud-toggle' | 'attack-slam' | 'attack-beam' | 'attack-debris' | 'attack-cone' | 'attack-ring' | 'attack-shockwave' | 'damage-player' | 'heal-player' | 'dummy-add' | 'dummy-clear' | 'dummy-1' | 'dummy-2' | 'dummy-4' | 'dummy-8' | 'pickup-radius' | 'collision-bounds' | 'telegraphs' | 'performance' | 'save' | 'clear-snapshot' | 'inspect-progress' | 'inspect-run' | 'restart';
 
 export function announcementLifecycle(requestedMs: number): Readonly<{ totalMs: number; enterMs: number; exitMs: number }> {
   const totalMs = Math.max(650, Math.min(1500, Math.round(requestedMs)));
@@ -44,6 +45,8 @@ export class GameUI {
   private readonly debugPanel = requiredElement<HTMLElement>('debug-panel');
   private readonly eventHub = requiredElement<HTMLElement>('event-hub');
   private readonly visualCatalog = requiredElement<HTMLElement>('visual-catalog');
+  private readonly metaHub = requiredElement<HTMLElement>('meta-hub');
+  private readonly uiPreview = requiredElement<HTMLElement>('ui-preview');
   private onPower?: () => void;
   private onDash?: () => void;
   private onZoom?: (delta: number) => void;
@@ -64,6 +67,9 @@ export class GameUI {
   private zoomCollapseTimeout?: number;
 
   constructor(private readonly assets: AssetRegistry) {
+    this.metaHub.innerHTML = renderHarvestHub();
+    this.uiPreview.innerHTML = renderHarvestUIPreview();
+    this.bindHarvestNavigation();
     this.powerButton.addEventListener('pointerdown', (event) => {
       event.preventDefault();
       this.onPower?.();
@@ -84,17 +90,25 @@ export class GameUI {
       if (mutation) this.choiceCallback?.(mutation);
     }));
     this.debugPanel.querySelectorAll<HTMLButtonElement>('button[data-debug]').forEach((button) => {
-      button.addEventListener('click', () => this.onDebug?.(button.dataset.debug as DebugAction));
+      button.addEventListener('click', () => {
+        const action = button.dataset.debug as DebugAction;
+        if (action === 'ui-preview') this.toggleUIPreview(true);
+        else this.onDebug?.(action);
+      });
     });
     window.addEventListener('keydown', (event) => {
       if (event.key === '`' || event.key.toLowerCase() === 'd') this.debugPanel.classList.toggle('visible');
     });
     if (new URLSearchParams(location.search).has('debug')) this.debugPanel.classList.add('visible');
+    if (new URLSearchParams(location.search).get('ui') === 'preview') this.toggleUIPreview(true);
+    if (new URLSearchParams(location.search).get('ui') === 'hub') this.toggleMetaHub(true);
     this.visualCatalog.querySelector<HTMLButtonElement>('[data-catalog-close]')?.addEventListener('click', () => this.toggleVisualCatalog(false));
     requiredElement('visual-catalog-content').innerHTML = renderVisualCatalog(this.assets);
     if (!(import.meta as ImportMeta & { env: { DEV: boolean } }).env.DEV) {
       this.debugPanel.querySelector('[data-debug="visual-catalog"]')?.remove();
+      this.debugPanel.querySelector('[data-debug="ui-preview"]')?.remove();
       this.visualCatalog.remove();
+      this.uiPreview.remove();
     }
   }
 
@@ -152,6 +166,9 @@ export class GameUI {
     requiredElement('cycle-label').textContent = `CYCLE ${cycle}`;
     requiredElement('dash-status').textContent = dashCooldownMs <= 0 ? 'READY' : `${(dashCooldownMs / 1000).toFixed(1)}s`;
     requiredElement<HTMLButtonElement>('dash-button').disabled = dashCooldownMs > 0;
+    requiredElement('player-level-label').textContent = String(level);
+    requiredElement('party-player-hp').style.setProperty('--value', String(ratio));
+    requiredElement('party-player-energy').style.setProperty('--value', String(Math.max(0, Math.min(1, xp / xpToNext))));
   }
 
   updateBossRound(round: number, bossLevel: number, state: string): void {
@@ -185,6 +202,30 @@ export class GameUI {
     this.visualCatalog.setAttribute('aria-hidden', String(!visible));
   }
   toggleHud():void{document.body.classList.toggle('hud-hidden')}
+
+  toggleMetaHub(force?: boolean): void {
+    const visible = force ?? !this.metaHub.classList.contains('visible');
+    this.metaHub.classList.toggle('visible', visible);
+    this.metaHub.setAttribute('aria-hidden', String(!visible));
+    document.body.classList.toggle('meta-hub-open', visible);
+  }
+
+  toggleUIPreview(force?: boolean): void {
+    const visible = force ?? !this.uiPreview.classList.contains('visible');
+    this.uiPreview.classList.toggle('visible', visible);
+    this.uiPreview.setAttribute('aria-hidden', String(!visible));
+    document.body.classList.toggle('ui-preview-open', visible);
+  }
+
+  showDamageNumber(value: number, critical = false): void {
+    const layer = requiredElement('combat-floaters');
+    const number = document.createElement('b');
+    number.className = critical ? 'critical' : '';
+    number.textContent = critical ? `${Math.round(value).toLocaleString()} CRIT!` : Math.round(value).toLocaleString();
+    number.style.setProperty('--drift', `${Math.round((Math.random() - .5) * 42)}px`);
+    layer.appendChild(number);
+    window.setTimeout(() => number.remove(), 920);
+  }
 
   showChoices(choices: readonly Mutation[], callback: (mutation: Mutation) => void): void {
     this.choices = [...choices];
@@ -313,6 +354,23 @@ export class GameUI {
     this.setBreakpoint('break-1', false);
     this.setBreakpoint('break-2', false);
     requiredElement('bp-core').classList.remove('broken');
+  }
+
+  private bindHarvestNavigation(): void {
+    requiredElement<HTMLButtonElement>('hub-open').addEventListener('click', () => this.toggleMetaHub(true));
+    this.metaHub.querySelectorAll<HTMLElement>('[data-hub-close], [data-hub-enter-combat]').forEach((button) => button.addEventListener('click', () => this.toggleMetaHub(false)));
+    this.metaHub.querySelectorAll<HTMLButtonElement>('[data-hub-target]').forEach((button) => button.addEventListener('click', () => {
+      const target = button.dataset.hubTarget;
+      if (!target) return;
+      this.metaHub.querySelectorAll('[data-hub-target]').forEach((item) => item.classList.toggle('active', item.getAttribute('data-hub-target') === target));
+      this.metaHub.querySelector(`#hub-${target}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }));
+    this.uiPreview.querySelector<HTMLElement>('[data-ui-preview-close]')?.addEventListener('click', () => this.toggleUIPreview(false));
+    window.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      if (this.uiPreview.classList.contains('visible')) this.toggleUIPreview(false);
+      else if (this.metaHub.classList.contains('visible')) this.toggleMetaHub(false);
+    });
   }
 
   private chooseResume(resume: boolean): void { this.hideResumePrompt(); this.onResumeChoice?.(resume); }

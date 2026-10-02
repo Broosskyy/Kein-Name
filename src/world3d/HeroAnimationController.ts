@@ -1,4 +1,4 @@
-import { heroDirectionAsset, type HeroDirection, type HeroPose } from '../gameplay/HeroDirection';
+import { evo1HeroDirectionAsset, type HeroDirection, type HeroPose } from '../gameplay/HeroDirection';
 import type { AssetKey } from '../assets';
 
 export interface HeroAnimationFrame {
@@ -38,7 +38,7 @@ export const HERO_ANIMATION_CLIPS: Readonly<Record<string, HeroAnimationClip>> =
       const phase = index / count * Math.PI * 2;
       const run = state === 'run', dash = state === 'dash', attack = state === 'attack';
       return {
-        asset: heroDirectionAsset(direction, state),
+        asset: evo1HeroDirectionAsset(direction, state),
         durationMs: frameMs,
         offsetX: attack ? Math.sin(phase) * .018 : 0,
         offsetY: run ? Math.abs(Math.sin(phase)) * .055 : state === 'idle' ? Math.sin(phase) * .012 : dash ? Math.sin(phase) * .025 : Math.sin(phase) * .02,
@@ -47,7 +47,7 @@ export const HERO_ANIMATION_CLIPS: Readonly<Record<string, HeroAnimationClip>> =
         rotation: run ? Math.sin(phase) * .018 : attack ? Math.sin(phase) * .025 : 0,
       };
     });
-    const clip: HeroAnimationClip = { state, direction, frames, fps: FPS[state], loop: state === 'idle' || state === 'run', footAnchor: .1042, scale: 2.05, pivot: { x: .5, y: .1042 } };
+    const clip: HeroAnimationClip = { state, direction, frames, fps: FPS[state], loop: state === 'idle' || state === 'run', footAnchor: .0521, scale: 2.05, pivot: { x: .5, y: .0521 } };
     return [`${state}.${direction}`, clip];
   })),
 ));

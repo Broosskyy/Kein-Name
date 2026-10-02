@@ -15,3 +15,7 @@ export function heroDirectionFromVector(vector: Vec2, previous: HeroDirection = 
 export function heroDirectionAsset(direction: HeroDirection, pose: HeroPose): `creature.direction.${HeroDirection}.${HeroPose}` {
   return `creature.direction.${direction}.${pose}`;
 }
+
+export function evo1HeroDirectionAsset(direction: HeroDirection, pose: HeroPose): `creature.evo1.direction.${HeroDirection}.${HeroPose}` {
+  return `creature.evo1.direction.${direction}.${pose}`;
+}

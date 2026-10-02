@@ -226,6 +226,7 @@ export class Hybrid3DVerticalSlice {
   private resolveProjectileImpact(impact: PlayerProjectileImpact, now: number): void {
     const result = this.combat.attack(impact.kind as PlayerProjectileKind, now);
     if (!result.accepted) return;
+    this.ui.showDamageNumber(result.damage, impact.kind === 'power');
     if (result.triggeredBreakpointId && this.combat.pendingChoices.length) {
       this.ui.showChoices(this.combat.pendingChoices, (mutation) => {
         if (this.combat.chooseMutation(mutation, performance.now())) { this.ui.setMutation(mutation); this.ui.hideChoices(); }

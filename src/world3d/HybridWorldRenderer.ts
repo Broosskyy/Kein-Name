@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { BossTelegraph } from '../gameplay/BossAttackSystem';
 import { BOSS_ATTACKS } from '../gameplay/BossAttackSystem';
-import { heroDirectionAsset, type HeroDirection, type HeroPose } from '../gameplay/HeroDirection';
+import { evo1HeroDirectionAsset, type HeroDirection, type HeroPose } from '../gameplay/HeroDirection';
 import type { LootDrop } from '../gameplay/LootSystem';
 import type { CombatEntityState, Vec2 } from '../gameplay/ArenaTypes';
 import type { PlayerProjectile, PlayerProjectileImpact } from '../gameplay/PlayerProjectileSystem';
@@ -12,7 +12,6 @@ import { simulationToWorld3D, WORLD3D_UNITS_PER_METER } from './World3DTypes';
 import { sampleBaseTerrainHeight, sampleGroundHeight } from './HybridGroundSampler';
 import { HeroGroundingController } from './HeroGrounding';
 import { HeroVisualState, type HeroVisualSnapshot } from './HeroVisualState';
-import { heroFootAnchor } from './HeroFootAnchors';
 import { HybridProjectileRenderer } from './HybridProjectileRenderer';
 import { HybridCameraObstruction } from './HybridCameraObstruction';
 import { BossDirectionalState, bossViewAnchor, bossViewAsset, bossViewSector, type BossDirectionalView } from './BossDirectionalView';
@@ -62,7 +61,7 @@ export class HybridWorldRenderer {
   private readonly heroGrounding = new HeroGroundingController();
   private readonly bossDirectionalState = new BossDirectionalState();
   private readonly heroVisibilityPoint = new THREE.Vector3();
-  private appliedHeroAsset = 'creature.direction.n.idle';
+  private appliedHeroAsset: AssetKey = 'creature.evo1.direction.n.idle';
   private appliedBossAsset: AssetKey = 'boss.halloween.view.front';
   private heroVisualSnapshot: HeroVisualSnapshot = this.heroVisualState.snapshot();
   private bossHitMs = 0;
@@ -94,8 +93,8 @@ export class HybridWorldRenderer {
     this.scene.add(this.heroShadow);
     this.heroGroundRing = makeRing(.52, .62, 0x69d8ff, .4);
     this.scene.add(this.heroGroundRing);
-    this.hero = this.makeSprite(assetUrl('creature.direction.n.idle'), 2.45, 2.45);
-    this.hero.center.set(.5, heroFootAnchor('n', 'idle'));
+    this.hero = this.makeSprite(assetUrl('creature.evo1.direction.n.idle'), 2.45, 2.45);
+    this.hero.center.set(.5, .0521);
     this.scene.add(this.hero);
     this.preloadHeroTextures();
     this.bossProxy = this.addBossProxy();
@@ -515,7 +514,7 @@ export class HybridWorldRenderer {
   private preloadHeroTextures(): void {
     const directions: HeroDirection[] = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'];
     const poses: HeroPose[] = ['idle', 'run', 'dash', 'attack'];
-    for (const direction of directions) for (const pose of poses) this.texture(assetUrl(heroDirectionAsset(direction, pose)));
+    for (const direction of directions) for (const pose of poses) this.texture(assetUrl(evo1HeroDirectionAsset(direction, pose)));
   }
 
   private preloadBossTextures(): void {

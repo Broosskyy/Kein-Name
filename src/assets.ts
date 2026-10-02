@@ -1,5 +1,9 @@
 import { Assets, Texture } from 'pixi.js';
 
+export type DirectionalAssetDirection = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw';
+export type DirectionalAssetPose = 'idle' | 'run' | 'dash' | 'attack';
+export type Evo1HeroAssetKey = `creature.evo1.direction.${DirectionalAssetDirection}.${DirectionalAssetPose}`;
+
 export type AssetKey =
   | 'creature.base'
   | 'creature.direction.n.idle' | 'creature.direction.n.run'
@@ -18,6 +22,7 @@ export type AssetKey =
   | 'creature.direction.sw.dash' | 'creature.direction.sw.attack'
   | 'creature.direction.w.dash' | 'creature.direction.w.attack'
   | 'creature.direction.nw.dash' | 'creature.direction.nw.attack'
+  | Evo1HeroAssetKey
   | 'creature.mutation.crystal'
   | 'creature.mutation.void'
   | 'creature.mutation.wings'
@@ -107,7 +112,9 @@ export type AssetKey =
   | 'vfx.shockwave'
   | 'vfx.corruption'
   | 'vfx.pickup'
-  | 'ui.powerHit';
+  | 'ui.powerHit'
+  | 'ui.panel.largeHorizontal' | 'ui.panel.mediumHorizontal' | 'ui.panel.mediumRect' | 'ui.panel.square' | 'ui.panel.tallVertical'
+  | 'ui.button.primary' | 'ui.button.primaryActive' | 'ui.button.disabled' | 'ui.tab.default' | 'ui.tab.active' | 'ui.nav.back' | 'ui.nav.close';
 
 export type AssetKind = 'character' | 'mutation-part' | 'boss' | 'background' | 'foreground' | 'icon' | 'effect' | 'ui';
 
@@ -127,6 +134,13 @@ export type AssetTextureLoader = (src: string) => Promise<Texture>;
 const entry = (kind: AssetKind, size: readonly [number, number], alpha = true, preload: AssetEntry['preload'] = 'essential'): AssetEntry => ({
   fallback: 'procedural', kind, recommendedSize: size, alpha, preload,
 });
+
+const EVO1_DIRECTIONS: readonly DirectionalAssetDirection[] = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'];
+const EVO1_POSES: readonly DirectionalAssetPose[] = ['idle', 'run', 'dash', 'attack'];
+const EVO1_HERO_MANIFEST = Object.fromEntries(EVO1_DIRECTIONS.flatMap((direction) => EVO1_POSES.map((pose) => {
+  const key: Evo1HeroAssetKey = `creature.evo1.direction.${direction}.${pose}`;
+  return [key, { ...entry('character', [384, 384]), src: `/assets/creature/evo1/hero-evo1-${direction}-${pose}.webp` }];
+}))) as Record<Evo1HeroAssetKey, AssetEntry>;
 
 // Add a local WebP/PNG src to any slot. Rendering prefers it automatically and
 // preserves a coherent procedural fallback when it is absent or fails to load.
@@ -164,6 +178,7 @@ export const ASSET_MANIFEST: AssetManifest = {
   'creature.direction.w.attack': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-w-attack.webp' },
   'creature.direction.nw.dash': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-nw-dash.webp' },
   'creature.direction.nw.attack': { ...entry('character', [384, 384]), src: '/assets/creature/directional/creature-nw-attack.webp' },
+  ...EVO1_HERO_MANIFEST,
   'creature.mutation.crystal': entry('mutation-part', [768, 768]),
   'creature.mutation.void': entry('mutation-part', [768, 768]),
   'creature.mutation.wings': entry('mutation-part', [1024, 768]),
@@ -254,6 +269,18 @@ export const ASSET_MANIFEST: AssetManifest = {
   'vfx.corruption': { ...entry('effect', [512, 512], true, 'deferred'), src: '/assets/vfx/vfx-corruption.webp' },
   'vfx.pickup': { ...entry('effect', [512, 512], true, 'deferred'), src: '/assets/vfx/vfx-pickup.webp' },
   'ui.powerHit': entry('ui', [512, 192]),
+  'ui.panel.largeHorizontal': { ...entry('ui', [1472, 333]), src: '/assets/ui/harvest/panel-large-horizontal.webp' },
+  'ui.panel.mediumHorizontal': { ...entry('ui', [1158, 266]), src: '/assets/ui/harvest/panel-medium-horizontal.webp' },
+  'ui.panel.mediumRect': { ...entry('ui', [430, 272]), src: '/assets/ui/harvest/panel-medium-rect.webp' },
+  'ui.panel.square': { ...entry('ui', [405, 270]), src: '/assets/ui/harvest/panel-square.webp' },
+  'ui.panel.tallVertical': { ...entry('ui', [299, 481]), src: '/assets/ui/harvest/panel-tall-vertical.webp' },
+  'ui.button.primary': { ...entry('ui', [520, 192]), src: '/assets/ui/harvest/button-primary.webp' },
+  'ui.button.primaryActive': { ...entry('ui', [520, 192]), src: '/assets/ui/harvest/button-primary-active.webp' },
+  'ui.button.disabled': { ...entry('ui', [520, 192]), src: '/assets/ui/harvest/button-disabled.webp' },
+  'ui.tab.default': { ...entry('ui', [520, 192]), src: '/assets/ui/harvest/button-primary.webp' },
+  'ui.tab.active': { ...entry('ui', [520, 192]), src: '/assets/ui/harvest/button-primary-active.webp' },
+  'ui.nav.back': { ...entry('ui', [192, 192]), src: '/assets/ui/harvest/nav-back.webp' },
+  'ui.nav.close': { ...entry('ui', [192, 192]), src: '/assets/ui/harvest/nav-close.webp' },
 };
 
 export class AssetRegistry {

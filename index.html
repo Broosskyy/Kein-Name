@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
     <meta name="theme-color" content="#090b16" />
-    <title>Mutation Boss</title>
+    <title>Harvest Colossus</title>
   </head>
   <body>
     <main id="game-shell">
@@ -24,8 +24,17 @@
           <div class="run-status"><span id="cycle-label">CYCLE 1</span><span>LV <b id="run-level">1</b></span><span class="xp-track"><i id="run-xp-fill"></i></span></div>
         </header>
         <div id="minimap" aria-label="Arena minimap"><i id="minimap-boss"></i><b id="minimap-player"></b><span id="minimap-allies"></span></div>
+        <button id="hub-open" class="hud-utility" type="button" aria-label="Open Hero Sanctum"><span>MENU</span><i>◆</i></button>
+
+        <aside id="party-hud" aria-label="Player and party status">
+          <div class="party-player"><b class="party-avatar">A</b><span><strong>LV. <em id="player-level-label">32</em> · YOU</strong><i class="party-hp"><u id="party-player-hp"></u></i><i class="party-energy"><u id="party-player-energy"></u></i></span></div>
+          <div class="party-row"><b>P2</b><span><strong>PLAYER 2</strong><i><u style="--value:.82"></u></i></span><em>◆</em></div>
+          <div class="party-row"><b>P3</b><span><strong>PLAYER 3</strong><i><u style="--value:.67"></u></i></span><em>✦</em></div>
+        </aside>
 
         <div id="announcement" role="status"><strong></strong><span></span></div>
+        <div id="combat-floaters" aria-live="polite"></div>
+        <div id="target-indicator" aria-hidden="true"><i></i></div>
 
         <section id="choice-panel" aria-hidden="true">
           <div class="choice-heading"><small>CORE FRACTURED</small><strong>CHOOSE MUTATION</strong></div>
@@ -50,6 +59,13 @@
             <i id="power-cooldown"></i>
           </button>
           <button id="dash-button" type="button" aria-label="Dash"><span>DASH</span><small id="dash-status">READY</small></button>
+          <div class="combat-actions" aria-label="Combat abilities">
+            <button type="button" class="utility-action active" aria-label="Auto attack enabled"><i>A</i><small>AUTO</small></button>
+            <button type="button" class="skill-action skill-cyan" aria-label="Crystal skill"><i>◆</i><b>1</b></button>
+            <button type="button" class="skill-action skill-violet" aria-label="Void skill"><i>✦</i><b>1</b></button>
+            <button type="button" class="skill-action locked" aria-label="Locked skill" disabled><i>⌁</i><b>0</b></button>
+            <button type="button" class="utility-action" aria-label="Retarget"><i>◎</i><small>TARGET</small></button>
+          </div>
           <div id="zoom-control" class="zoom-control" aria-label="Camera zoom">
             <button id="zoom-toggle" type="button" aria-expanded="false" aria-controls="zoom-slider-panel" aria-label="Open zoom control">⌕</button>
             <div id="zoom-slider-panel" class="zoom-slider-panel" aria-hidden="true">
@@ -102,6 +118,9 @@
           <button id="event-enter" type="button">ENTER EVENT</button>
         </section>
 
+        <section id="meta-hub" aria-hidden="true"></section>
+        <section id="ui-preview" data-dev-only="true" aria-hidden="true"></section>
+
         <aside id="debug-panel">
           <strong>DEV · <span id="debug-quality">MEDIUM</span> · <span id="debug-seed">SEED</span></strong>
           <button data-debug="break-1">Breakpoint 1</button>
@@ -128,6 +147,7 @@
           <button data-debug="quality-high">Quality High</button>
           <button data-debug="effects-reduced">Reduced Effects</button>
           <button data-debug="visual-catalog">Visual Catalog</button>
+          <button data-debug="ui-preview">Harvest UI Preview</button>
           <button data-debug="grant-xp">+100 Run XP</button>
           <button data-debug="level-up">Force Level Up</button>
           <button data-debug="spawn-loot">Spawn Loot</button>
