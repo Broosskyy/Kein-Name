@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { PlayerProjectileSystem } from '../gameplay/PlayerProjectileSystem';
-import { cameraGestureAllowed } from '../ui/GameUI';
+import { cameraGestureAllowed, cameraGestureAllowedFromTarget } from '../ui/GameUI';
 import { HeroVisualState } from './HeroVisualState';
 import { heroFootAnchor } from './HeroFootAnchors';
-import { HybridCameraController } from './HybridCameraController';
+import { HybridCameraController, MAX_CAMERA_PITCH_DEG, MIN_CAMERA_PITCH_DEG } from './HybridCameraController';
 import { heroRenderY } from './HeroGrounding';
 import { sampleBaseTerrainHeight, sampleGroundHeight } from './HybridGroundSampler';
 import { M10_HYBRID_TEST_SCENE } from './Hybrid3DTestScene';
@@ -26,10 +26,11 @@ describe('M10.2 spatial camera controls', () => {
     expect(controller.snapshot().pitchDeg).toBeLessThan(initial);
     controller.gesture(0, -10000);
     settleCamera(controller, 100);
-    expect(controller.snapshot().pitchDeg).toBeGreaterThanOrEqual(28);
+    expect(controller.snapshot().pitchDeg).toBeGreaterThanOrEqual(MIN_CAMERA_PITCH_DEG);
     controller.gesture(0, 10000);
     settleCamera(controller, 100);
-    expect(controller.snapshot().pitchDeg).toBeLessThanOrEqual(68);
+    expect(controller.snapshot().pitchDeg).toBeLessThanOrEqual(MAX_CAMERA_PITCH_DEG);
+    expect(MAX_CAMERA_PITCH_DEG - MIN_CAMERA_PITCH_DEG).toBeGreaterThanOrEqual(60);
   });
 
   it('changes yaw after horizontal drag without mutating Hero coordinates', () => {
@@ -119,6 +120,10 @@ describe('M10.2 mobile input arbitration', () => {
     expect(cameraGestureAllowed('joystick')).toBe(false);
     expect(cameraGestureAllowed('combat-button')).toBe(false);
     expect(cameraGestureAllowed('hud')).toBe(false);
+    const freeWorld = { closest: () => null } as unknown as EventTarget;
+    const button = { closest: () => ({ id: 'power-button' }) } as unknown as EventTarget;
+    expect(cameraGestureAllowedFromTarget(freeWorld)).toBe(true);
+    expect(cameraGestureAllowedFromTarget(button)).toBe(false);
   });
 
   it('keeps joystick directions screen-relative after camera orbit', () => {

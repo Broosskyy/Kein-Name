@@ -33,7 +33,7 @@ export interface GameSceneM06Options {
   resumeSnapshot?: ArenaRunSnapshot;
   saveSnapshot?: (snapshot: ArenaRunSnapshot) => void;
   clearSnapshot?: () => void;
-  toggleFullscreen?: () => void;
+  toggleFullscreen?: () => boolean | Promise<boolean>;
   inspectProgress?: () => void;
   initialZoom?: number;
   saveZoom?: (zoom: number) => void;
@@ -553,7 +553,7 @@ export class GameScene {
     this.ui.bindEventHub(() => this.openEventHub());
     this.ui.bindDebug((action) => this.handleDebug(action));
     this.ui.bindMovement((input) => { this.movementInput = input; });
-    this.ui.bindFullscreen(() => this.m06?.toggleFullscreen?.());
+    this.ui.bindFullscreen(() => this.m06?.toggleFullscreen?.() ?? false);
     this.ui.bindResumeChoice((resume) => {
       const now = performance.now();
       if (resume && this.m06?.resumeSnapshot) {

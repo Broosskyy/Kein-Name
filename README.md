@@ -1,8 +1,8 @@
-# Harvest Colossus — Gameplay Recovery Pass 01
+# Harvest Colossus — Gameplay Recovery Pass 02
 
 Browser-first hybrid Three.js + PixiJS boss-arena prototype. The default M10 path is a deterministic 2200×2200 spatial slice with real 3D terrain, structures, perspective camera, geometry occlusion, a world-space Boss proxy, ground telegraphs and physical loot. The complete M09.3 2.5D experience remains available as a migration fallback.
 
-The current recovery pass addresses real-device failures without replacing the M10 hybrid architecture: visible zoom is exclusively user-owned, FOLLOW no longer drifts toward the Boss, movement is camera-relative, pinch cannot trigger the double-tap reset, and noisy cutout pose switching is restrained. See `GAMEPLAY_RECOVERY_PASS_01.md`. The reusable Harvest UI foundation remains documented in `HARVEST_UI_FOUNDATION_PASS_01.md`; the M10.4 implementation record remains in `M10_4_CORE_GAMEPLAY_STABILITY.md`.
+The current recovery pass addresses the second real-device recording without replacing the M10 hybrid architecture: camera gestures cover both screen halves, pitch has a substantially wider safe range, slow swipes cannot become reset taps, fullscreen has mobile fallbacks and visible failure feedback, and the Boss basin no longer reads as a black foreground slab. See `GAMEPLAY_RECOVERY_PASS_02.md`; Pass 01 remains documented in `GAMEPLAY_RECOVERY_PASS_01.md`. The reusable Harvest UI foundation remains documented in `HARVEST_UI_FOUNDATION_PASS_01.md`.
 
 ## Start and validate
 

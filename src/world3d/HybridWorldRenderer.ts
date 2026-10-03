@@ -270,9 +270,9 @@ export class HybridWorldRenderer {
     }
 
     // Real raised boss basin and fractured ring.
-    const basin = new THREE.Mesh(new THREE.CylinderGeometry(4.7, 5.15, .38, 56), stoneMaterial(0x252630));
-    basin.position.set(boss.x, -.03, boss.z); basin.receiveShadow = true; basin.castShadow = true; this.scene.add(basin);
-    const innerBasin = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 3.7, .12, 48), stoneMaterial(0x171922));
+    const basin = new THREE.Mesh(new THREE.CylinderGeometry(4.7, 5.15, .38, 56), stoneMaterial(0x30333e));
+    basin.position.set(boss.x, -.03, boss.z); basin.receiveShadow = true; this.scene.add(basin);
+    const innerBasin = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 3.7, .12, 48), stoneMaterial(0x292c36));
     innerBasin.position.set(boss.x, .18, boss.z); innerBasin.receiveShadow = true; this.scene.add(innerBasin);
 
     for (let i = 0; i < 18; i += 1) {
@@ -440,7 +440,9 @@ export class HybridWorldRenderer {
     const arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, .06, 0), 3.4, 0xffcc66, .55, .3); root.add(arrow);
     this.debugRoot.add(root);
     const boss = simulationToWorld3D(this.definition.bossSpawn); root.position.set(boss.x, sampleGroundHeight(boss.x, boss.z), boss.z);
-    const shadow = makeDisc(3.5, 0x000000, .56); shadow.position.set(boss.x, sampleGroundHeight(boss.x, boss.z) + .012, boss.z); shadow.scale.z = .72; this.scene.add(shadow);
+    // A 3.5m / 56% black disc read as an opaque platform in portrait QA and
+    // hid the lower half of the Boss. Keep grounding, not a second silhouette.
+    const shadow = makeDisc(2.75, 0x05060a, .25); shadow.position.set(boss.x, sampleGroundHeight(boss.x, boss.z) + .012, boss.z); shadow.scale.z = .7; this.scene.add(shadow);
     return root;
   }
 

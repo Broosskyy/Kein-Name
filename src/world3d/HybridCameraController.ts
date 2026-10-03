@@ -7,8 +7,13 @@ import type { CameraObstructionResolver } from './HybridCameraObstruction';
 export type HybridCameraMode = 'follow' | 'look' | 'boss-focus' | 'tactical';
 export type HybridCameraGesture = 'orbit' | 'pan';
 
-const MIN_PITCH = THREE.MathUtils.degToRad(28);
-const MAX_PITCH = THREE.MathUtils.degToRad(68);
+// The previous 28°–68° window was visibly too narrow on a portrait phone:
+// vertical drags reached a hard stop after only a short swipe. Keep safe
+// limits (no camera inversion), but allow a genuinely low and high view.
+export const MIN_CAMERA_PITCH_DEG = 16;
+export const MAX_CAMERA_PITCH_DEG = 78;
+const MIN_PITCH = THREE.MathUtils.degToRad(MIN_CAMERA_PITCH_DEG);
+const MAX_PITCH = THREE.MathUtils.degToRad(MAX_CAMERA_PITCH_DEG);
 export const MIN_USER_ZOOM_DISTANCE = 9.5;
 export const MAX_USER_ZOOM_DISTANCE = 22;
 
@@ -48,8 +53,12 @@ export class HybridCameraController {
     this.temporaryManualControlTimer = 2600;
     this.bossBiasBlend = 0;
     if (gesture === 'pan') { this.pan(screenDx, screenDy); return; }
-    this.desiredYaw = normalizeAngle(this.desiredYaw - screenDx * .0042);
-    this.desiredPitch = THREE.MathUtils.clamp(this.desiredPitch + screenDy * .0032, MIN_PITCH, MAX_PITCH);
+    // Bound single-event deltas so a browser pointer jump cannot throw the
+    // camera across its whole range, while preserving continuous swipes.
+    const dx = THREE.MathUtils.clamp(screenDx, -96, 96);
+    const dy = THREE.MathUtils.clamp(screenDy, -96, 96);
+    this.desiredYaw = normalizeAngle(this.desiredYaw - dx * .0042);
+    this.desiredPitch = THREE.MathUtils.clamp(this.desiredPitch + dy * .0028, MIN_PITCH, MAX_PITCH);
   }
 
   pan(screenDx: number, screenDy: number): void {
@@ -156,7 +165,7 @@ export class HybridCameraController {
       this.collisionLimitedDistance = MAX_USER_ZOOM_DISTANCE;
     }
     if (typeof options.yaw === 'number') this.desiredYaw = this.yaw = normalizeAngle(options.yaw);
-    if (typeof options.pitchDeg === 'number') this.desiredPitch = this.pitch = THREE.MathUtils.degToRad(THREE.MathUtils.clamp(options.pitchDeg, 28, 68));
+    if (typeof options.pitchDeg === 'number') this.desiredPitch = this.pitch = THREE.MathUtils.degToRad(THREE.MathUtils.clamp(options.pitchDeg, MIN_CAMERA_PITCH_DEG, MAX_CAMERA_PITCH_DEG));
     this.desiredTargetOffset.set(options.offsetX ?? 0, 0, options.offsetZ ?? 0);
     this.manualTargetOffset.copy(this.desiredTargetOffset);
     this.clampOffset(this.desiredTargetOffset); this.clampOffset(this.manualTargetOffset);

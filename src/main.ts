@@ -18,7 +18,9 @@ import { Hybrid3DVerticalSlice } from './world3d/Hybrid3DVerticalSlice';
 
 async function bootstrapLegacy(): Promise<void> {
   const mount = document.getElementById('game-canvas');
+  const shell = document.getElementById('game-shell');
   if (!mount) throw new Error('Missing #game-canvas mount');
+  if (!shell) throw new Error('Missing #game-shell');
 
   const app = new Application();
   await app.init({
@@ -55,13 +57,13 @@ async function bootstrapLegacy(): Promise<void> {
   playerProgress.statistics.runsStarted += 1; persistence.saveProgress(playerProgress);
   const arena = new ArenaRunModel(model, playerProgress.guestId, eventRuntime.enabled ? 'event' : 'solo');
   let scene: GameScene;
-  const fullscreen = new FullscreenController(document, document.documentElement, () => { app.resize(); scene?.resize(); });
+  const fullscreen = new FullscreenController(document, shell, () => { app.resize(); scene?.resize(); });
   scene = new GameScene(app, ui, audio, model, events, assets, eventRuntime, {
     arena,
     resumeSnapshot: persistence.loadRun(),
     saveSnapshot: (snapshot) => persistence.saveRun(snapshot),
     clearSnapshot: () => persistence.clearRun(),
-    toggleFullscreen: () => { void fullscreen.toggle(); },
+    toggleFullscreen: () => fullscreen.toggle(),
     inspectProgress: () => console.info('M06 PlayerProgress', playerProgress),
     initialZoom: typeof playerProgress.settings.arenaZoom === 'number' ? playerProgress.settings.arenaZoom : undefined,
     saveZoom: (zoom) => { playerProgress.settings.arenaZoom = zoom; persistence.saveProgress(playerProgress); },
@@ -84,7 +86,9 @@ async function bootstrapLegacy(): Promise<void> {
 
 async function bootstrapHybrid(): Promise<void> {
   const mount = document.getElementById('game-canvas');
+  const shell = document.getElementById('game-shell');
   if (!mount) throw new Error('Missing #game-canvas mount');
+  if (!shell) throw new Error('Missing #game-shell');
   document.body.classList.add('hybrid-3d');
   const assets = new AssetRegistry();
   await assets.preload();
@@ -98,8 +102,8 @@ async function bootstrapHybrid(): Promise<void> {
     seedGenerator: () => 0x10a3d,
   });
   const scene = new Hybrid3DVerticalSlice(mount, ui, model);
-  const fullscreen = new FullscreenController(document, document.documentElement, () => scene.resize());
-  ui.bindFullscreen(() => { void fullscreen.toggle(); });
+  const fullscreen = new FullscreenController(document, shell, () => scene.resize());
+  ui.bindFullscreen(() => fullscreen.toggle());
   const lifecycle = new AppLifecycle({
     pause: () => scene.pause(),
     resume: () => scene.resume(),

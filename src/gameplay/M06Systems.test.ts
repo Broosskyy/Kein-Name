@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { CombatModel } from '../core/CombatModel';
 import { GamePersistence, RUN_KEY, SAVE_KEY, type StoragePort } from '../progress/GamePersistence';
 import { createPlayerProgress } from '../progress/PlayerProgress';
@@ -112,5 +112,24 @@ describe('M06 persistence, run modes and contracts', () => {
     let requested = false; let changed = 0; const doc: { fullscreenElement?: object; exitFullscreen: () => Promise<void> } = { exitFullscreen: async () => { doc.fullscreenElement = undefined; } };
     const controller = new FullscreenController(doc, { requestFullscreen: async () => { requested = true; doc.fullscreenElement = {}; } }, () => { changed += 1; });
     expect(await controller.toggle()).toBe(true); expect(requested).toBe(true); expect(changed).toBe(1); expect(controller.active).toBe(true);
+  });
+
+  it('supports prefixed mobile fullscreen and reports rejected requests', async () => {
+    let prefixedRequested = false;
+    const prefixedDoc: { webkitFullscreenElement?: object; webkitExitFullscreen: () => void } = { webkitExitFullscreen: () => { prefixedDoc.webkitFullscreenElement = undefined; } };
+    const prefixed = new FullscreenController(prefixedDoc, { webkitRequestFullscreen: () => { prefixedRequested = true; prefixedDoc.webkitFullscreenElement = {}; } }, () => undefined);
+    expect(await prefixed.toggle()).toBe(true);
+    expect(prefixedRequested).toBe(true);
+    expect(prefixed.active).toBe(true);
+
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const rejected = new FullscreenController(
+      { exitFullscreen: async () => undefined },
+      { requestFullscreen: async () => { throw new Error('blocked'); } },
+      () => undefined,
+    );
+    expect(await rejected.toggle()).toBe(false);
+    expect(warning).toHaveBeenCalledOnce();
+    warning.mockRestore();
   });
 });

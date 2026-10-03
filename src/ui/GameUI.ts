@@ -59,7 +59,7 @@ export class GameUI {
   private onEventEnter?: () => void;
   private onEventHub?: () => void;
   private onMove?: (input: MovementInput) => void;
-  private onFullscreen?: () => void;
+  private onFullscreen?: () => boolean | Promise<boolean>;
   private onResumeChoice?: (resume: boolean) => void;
   private announcementTimeout?: number;
   private choiceCallback?: (mutation: Mutation) => void;
@@ -79,7 +79,18 @@ export class GameUI {
     requiredElement<HTMLButtonElement>('retry-button').addEventListener('click', () => this.onRetry?.());
     requiredElement<HTMLButtonElement>('event-enter').addEventListener('click', () => this.onEventEnter?.());
     requiredElement<HTMLButtonElement>('result-hub-button').addEventListener('click', () => this.onEventHub?.());
-    requiredElement<HTMLButtonElement>('fullscreen-button').addEventListener('click', () => this.onFullscreen?.());
+    const fullscreenButton = requiredElement<HTMLButtonElement>('fullscreen-button');
+    fullscreenButton.addEventListener('pointerdown', (event) => {
+      // Invoke during the pointer activation itself. Mobile Chromium may
+      // reject fullscreen once transient user activation has expired.
+      event.preventDefault();
+      event.stopPropagation();
+      const result = this.onFullscreen?.();
+      if (result === undefined) return;
+      void Promise.resolve(result).then((success) => {
+        if (!success) this.announce('FULLSCREEN UNAVAILABLE', 'Browser blocked fullscreen · install/open as app', '#ffb15c', 1250);
+      });
+    });
     requiredElement<HTMLButtonElement>('continue-run').addEventListener('click', () => this.chooseResume(true));
     requiredElement<HTMLButtonElement>('new-run').addEventListener('click', () => this.chooseResume(false));
     requiredElement<HTMLButtonElement>('failure-retry').addEventListener('click', () => this.onRetry?.());
@@ -124,7 +135,7 @@ export class GameUI {
   bindEventEnter(callback: () => void): void { this.onEventEnter = callback; }
   bindEventHub(callback: () => void): void { this.onEventHub = callback; }
   bindMovement(callback: (input: MovementInput) => void): void { this.onMove = callback; }
-  bindFullscreen(callback: () => void): void { this.onFullscreen = callback; }
+  bindFullscreen(callback: () => boolean | Promise<boolean>): void { this.onFullscreen = callback; }
   bindResumeChoice(callback: (resume: boolean) => void): void { this.onResumeChoice = callback; }
 
   updateZoomControl(distance: number, minDistance: number, maxDistance: number): void {
@@ -391,24 +402,35 @@ export class GameUI {
   }
 
   private bindArenaZoom(): void {
-    const surface = requiredElement('game-canvas'); const pointers = new Map<number, { x: number; y: number; pan: boolean }>();
-    let previousDistance = 0; let lastTap = 0; let tapPointerId: number | undefined; let tapStartedAt = 0; let tapMoved = false;
-    surface.addEventListener('wheel', (event) => { event.preventDefault(); this.onZoom?.(event.deltaY > 0 ? -0.055 : 0.055); }, { passive: false });
+    // Listen on the complete game shell instead of only the renderer mount.
+    // This keeps free-world camera input working on both screen halves even
+    // when a transparent HUD layer is the event path. Actual controls remain
+    // explicit blockers through cameraGestureAllowedFromTarget().
+    const surface = requiredElement('game-shell');
+    const pointers = new Map<number, { x: number; y: number; startX: number; startY: number; pan: boolean }>();
+    let previousDistance = 0; let lastTap = 0; let tapPointerId: number | undefined; let tapStartedAt = 0; let tapMoved = false; let pinchActive = false;
+    surface.addEventListener('wheel', (event) => {
+      if (!cameraGestureAllowedFromTarget(event.target)) return;
+      event.preventDefault(); this.onZoom?.(event.deltaY > 0 ? -0.055 : 0.055);
+    }, { passive: false });
     surface.addEventListener('pointerdown', (event) => {
-      if (!cameraGestureAllowed('world')) return;
-      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, pan: event.shiftKey || event.button === 1 });
+      if (!cameraGestureAllowedFromTarget(event.target)) return;
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, pan: event.shiftKey || event.button === 1 });
       surface.setPointerCapture?.(event.pointerId);
       if (pointers.size === 1) { tapPointerId = event.pointerId; tapStartedAt = performance.now(); tapMoved = false; }
-      else { tapPointerId = undefined; tapMoved = true; }
+      else { tapPointerId = undefined; tapMoved = true; pinchActive = true; lastTap = 0; }
       if (pointers.size === 2) { const [a,b]=[...pointers.values()]; previousDistance=Math.hypot(a.x-b.x,a.y-b.y); }
       event.preventDefault();
     });
     surface.addEventListener('pointermove', (event) => {
       const previous = pointers.get(event.pointerId);
       if (!previous) return;
-      if (event.pointerId === tapPointerId && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) > 4) tapMoved = true;
-      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, pan: previous.pan || event.shiftKey || event.buttons === 4 });
+      if (event.pointerId === tapPointerId && Math.hypot(event.clientX - previous.startX, event.clientY - previous.startY) > 7) tapMoved = true;
+      pointers.set(event.pointerId, { ...previous, x: event.clientX, y: event.clientY, pan: previous.pan || event.shiftKey || event.buttons === 4 });
       if (pointers.size === 1) {
+        // Do not reinterpret the last finger of a pinch as an orbit gesture.
+        // A fresh pointerdown starts the next camera look operation.
+        if (pinchActive) { event.preventDefault(); return; }
         const dx=event.clientX-previous.x,dy=event.clientY-previous.y;
         if(this.onCameraGesture)this.onCameraGesture(dx,dy,previous.pan?'pan':'orbit');else this.onCameraPan?.(dx,dy);
         previousDistance = 0;
@@ -418,18 +440,19 @@ export class GameUI {
       if (pointers.size !== 2) return;
       const [a,b]=[...pointers.values()];const distance=Math.hypot(a.x-b.x,a.y-b.y);if(previousDistance>0&&Math.abs(distance-previousDistance)>3)this.onZoom?.((distance-previousDistance)*.0025);previousDistance=distance;event.preventDefault();
     });
-    const release=(event:PointerEvent):void=>{
-      const wasSingleTap = event.pointerId === tapPointerId && pointers.size === 1 && !tapMoved && performance.now() - tapStartedAt < 260;
+    const release=(event:PointerEvent, cancelled = false):void=>{
+      const wasSingleTap = !cancelled && event.pointerId === tapPointerId && pointers.size === 1 && !tapMoved && performance.now() - tapStartedAt < 260;
       pointers.delete(event.pointerId);
       if(surface.hasPointerCapture?.(event.pointerId))surface.releasePointerCapture(event.pointerId);
       if(pointers.size<2)previousDistance=0;
+      if(pointers.size===0)pinchActive=false;
       if (wasSingleTap) {
         const now = performance.now();
         if (now - lastTap < 310) { this.onCameraReset?.(); lastTap = 0; }
         else lastTap = now;
-      }
+      } else lastTap = 0;
       tapPointerId = undefined;
-    };surface.addEventListener('pointerup',release);surface.addEventListener('pointercancel',release);
+    };surface.addEventListener('pointerup',(event)=>release(event));surface.addEventListener('pointercancel',(event)=>release(event,true));
   }
 
   private bindZoomSlider(): void {
@@ -457,6 +480,11 @@ export class GameUI {
 
 export type CameraGestureZone='world'|'joystick'|'combat-button'|'hud';
 export function cameraGestureAllowed(zone:CameraGestureZone):boolean{return zone==='world'}
+const CAMERA_INPUT_BLOCKER = 'button,input,#joystick,[data-camera-input="block"],#choice-panel,#upgrade-panel,#resume-panel,#failure-panel,#result-panel,#event-hub,#meta-hub,#ui-preview,#debug-panel,#visual-catalog';
+export function cameraGestureAllowedFromTarget(target: EventTarget | null): boolean {
+  const candidate = target as (EventTarget & { closest?: (selector: string) => unknown }) | null;
+  return typeof candidate?.closest === 'function' && !candidate.closest(CAMERA_INPUT_BLOCKER);
+}
 
 function nextMilestoneText(state: EventState): string {
   const next = HALLOWEEN_MILESTONES.find((milestone) => !state.milestones.includes(milestone.id));
