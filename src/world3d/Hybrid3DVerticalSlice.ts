@@ -260,7 +260,7 @@ export class Hybrid3DVerticalSlice {
       `${metrics.calls} calls · ${metrics.triangles} tris · ${metrics.textures} tex`,
       `PITCH ${cameraSnapshot.pitchDeg.toFixed(1)}° · YAW ${(cameraSnapshot.yaw * 180 / Math.PI).toFixed(0)}° · BIAS ${cameraSnapshot.bossBias.toFixed(2)}`,
       `SHOT ${metrics.projectiles} · POOL ${metrics.projectilePool} · BOSS VIEW ${metrics.bossView.toUpperCase()}`,
-      `HERO DIR ${metrics.heroDirectionSwaps}/s · POSE ${metrics.heroPoseSwaps}/s · TEX ${metrics.heroTextureSwaps}/s`,
+      `HERO VIEW ${metrics.heroViewDirection.toUpperCase()} · DIR ${metrics.heroDirectionSwaps}/s · POSE ${metrics.heroPoseSwaps}/s · TEX ${metrics.heroTextureSwaps}/s`,
       `GROUND ${metrics.surfaceId} ${metrics.groundHeight.toFixed(2)}m · HERO Y ${metrics.heroRenderY.toFixed(2)} · ANCHOR ${metrics.heroAnchor.toFixed(3)} · ${this.collisionState.toUpperCase()}`,
       `ANIM ${metrics.heroAnimationFrame} · ${metrics.heroAsset}`,
       `BOSS ${this.bossEncounter.state.toUpperCase()} · ROUND ${this.bossEncounter.bossRoundIndex} · LV ${this.bossEncounter.bossLevel} · HP ${this.combat.bossHp}/${this.combat.maxHp}`,

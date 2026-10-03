@@ -3,7 +3,7 @@ import { ASSET_MANIFEST } from '../assets';
 import { MUTATION_VISUAL_SCALE } from '../render/GameScene';
 import { ArenaCamera } from './ArenaCamera';
 import { HARVEST_ARENA_MAP,HARVEST_TRAVERSAL_WAYPOINTS,MASTER_COMPOSITION_SCENARIO } from './HarvestArenaMap';
-import { heroDirectionFromVector } from './HeroDirection';
+import { cameraRelativeHeroDirection, heroDirectionFromVector } from './HeroDirection';
 import { mapZoneAt,worldToMinimap } from './MapDefinition';
 import { WorldCollisionSystem } from './WorldCollisionSystem';
 import { planarToWorld,worldToPlanar } from './WorldCoordinates';
@@ -20,6 +20,13 @@ describe('M09.2.1 real map, living hero and camera',()=>{
     [{x:0,y:-1},'n'],[{x:1,y:-1},'ne'],[{x:1,y:0},'e'],[{x:1,y:1},'se'],[{x:0,y:1},'s'],[{x:-1,y:1},'sw'],[{x:-1,y:0},'w'],[{x:-1,y:-1},'nw'],
   ] as const)('maps movement %j to %s view',(vector,direction)=>expect(heroDirectionFromVector(vector)).toBe(direction));
   it('retains last facing while stopped',()=>expect(heroDirectionFromVector({x:0,y:0},'nw')).toBe('nw'));
+  it('changes only the rendered Hero view as the local camera orbits',()=>{
+    expect(cameraRelativeHeroDirection('n',0)).toBe('n');
+    expect(cameraRelativeHeroDirection('n',Math.PI/2)).toBe('e');
+    expect(cameraRelativeHeroDirection('n',Math.PI)).toBe('s');
+    expect(cameraRelativeHeroDirection('n',-Math.PI/2)).toBe('w');
+    expect(cameraRelativeHeroDirection('se',Math.PI/2)).toBe('sw');
+  });
   it('registers all directional production frames',()=>{
     for(const direction of ['n','ne','e','se','s','sw','w','nw'] as const)for(const pose of ['idle','run','dash','attack'] as const)expect(ASSET_MANIFEST[`creature.direction.${direction}.${pose}`].src).toMatch(/directional\/creature-/);
   });

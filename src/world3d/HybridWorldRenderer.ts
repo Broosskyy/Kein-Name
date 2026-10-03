@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { BossTelegraph } from '../gameplay/BossAttackSystem';
 import { BOSS_ATTACKS } from '../gameplay/BossAttackSystem';
-import { evo1HeroDirectionAsset, type HeroDirection, type HeroPose } from '../gameplay/HeroDirection';
+import { cameraRelativeHeroDirection, evo1HeroDirectionAsset, type HeroDirection, type HeroPose } from '../gameplay/HeroDirection';
 import type { LootDrop } from '../gameplay/LootSystem';
 import type { CombatEntityState, Vec2 } from '../gameplay/ArenaTypes';
 import type { PlayerProjectile, PlayerProjectileImpact } from '../gameplay/PlayerProjectileSystem';
@@ -67,6 +67,7 @@ export class HybridWorldRenderer {
   private heroVisualSnapshot: HeroVisualSnapshot = this.heroVisualState.snapshot();
   private bossHitMs = 0;
   private bossViewSector: 'front'|'flank'|'rear' = 'front';
+  private heroViewDirection: HeroDirection = 'n';
   private elapsed = 0;
 
   constructor(private readonly mount: HTMLElement, private readonly definition: Hybrid3DSceneDefinition) {
@@ -114,8 +115,13 @@ export class HybridWorldRenderer {
     const player = simulationToWorld3D(state.player.position);
     const boss = simulationToWorld3D(state.bossPosition);
     const speed = Math.hypot(state.player.velocity.x, state.player.velocity.y);
+    // Update the local camera before choosing a billboard view. The Hero's
+    // simulation-facing direction remains untouched, while its authored view
+    // now reacts immediately when the player orbits around it.
+    this.cameraController.update(deltaMs, state.player.position, state.player.velocity, state.bossPosition);
     this.heroVisualSnapshot = this.heroVisualState.update(deltaMs, state.player.velocity, state.dashing, state.attacking, state.aimDirection);
-    const animationFrame = this.heroAnimation.update(deltaMs, this.heroVisualSnapshot.pose, this.heroVisualSnapshot.direction);
+    this.heroViewDirection = cameraRelativeHeroDirection(this.heroVisualSnapshot.direction, this.cameraController.yaw);
+    const animationFrame = this.heroAnimation.update(deltaMs, this.heroVisualSnapshot.pose, this.heroViewDirection);
     const desiredAsset = animationFrame.asset;
     const desiredTexture = this.texture(assetUrl(desiredAsset));
     if (desiredAsset !== this.appliedHeroAsset && desiredTexture.userData.ready === true) {
@@ -137,7 +143,6 @@ export class HybridWorldRenderer {
     this.heroGroundRing.position.set(player.x, playerGround + .018, player.z);
     (this.heroGroundRing.material as THREE.MeshBasicMaterial).opacity = state.dashing ? .52 : .34;
 
-    this.cameraController.update(deltaMs, state.player.position, state.player.velocity, state.bossPosition);
     this.heroVisibilityPoint.set(player.x, playerGround + .9, player.z);
     this.cameraObstruction.updateFades(deltaMs, this.camera.position, this.heroVisibilityPoint);
     const bossGround = sampleGroundHeight(boss.x, boss.z);
@@ -187,14 +192,14 @@ export class HybridWorldRenderer {
   }
 
   toggleDebug(): boolean { this.debugRoot.visible = !this.debugRoot.visible; return this.debugRoot.visible; }
-  metrics(): Readonly<{ calls: number; triangles: number; points: number; lines: number; textures: number; projectiles: number; projectilePool: number; heroDirectionSwaps: number; heroPoseSwaps: number; heroTextureSwaps: number; heroAnimationFrame: number; bossView: string; cameraObstructed: boolean; fadedOccluders: number; groundHeight: number; surfaceId: string; heroRenderY: number; heroAnchor: number; heroAsset: string }> {
+  metrics(): Readonly<{ calls: number; triangles: number; points: number; lines: number; textures: number; projectiles: number; projectilePool: number; heroDirectionSwaps: number; heroPoseSwaps: number; heroTextureSwaps: number; heroAnimationFrame: number; heroViewDirection: HeroDirection; bossView: string; cameraObstructed: boolean; fadedOccluders: number; groundHeight: number; surfaceId: string; heroRenderY: number; heroAnchor: number; heroAsset: string }> {
     const render = this.renderer.info.render;
     const obstruction = this.cameraObstruction.snapshot();
     return {
       calls: render.calls, triangles: render.triangles, points: render.points, lines: render.lines, textures: this.renderer.info.memory.textures,
       projectiles: this.projectileRenderer.activeCount, projectilePool: this.projectileRenderer.poolCount,
       heroDirectionSwaps: this.heroVisualSnapshot.directionChangesPerSecond, heroPoseSwaps: this.heroVisualSnapshot.poseChangesPerSecond,
-      heroTextureSwaps: this.heroVisualSnapshot.textureSwapsPerSecond, heroAnimationFrame: this.heroAnimation.frameIndex, bossView: this.bossViewSector,
+      heroTextureSwaps: this.heroVisualSnapshot.textureSwapsPerSecond, heroAnimationFrame: this.heroAnimation.frameIndex, heroViewDirection: this.heroViewDirection, bossView: this.bossViewSector,
       cameraObstructed: obstruction.hit, fadedOccluders: obstruction.fadedOccluders,
       groundHeight: this.heroGrounding.groundHeight, surfaceId: this.heroGrounding.surfaceId, heroRenderY: this.heroGrounding.renderY, heroAnchor: this.hero.center.y, heroAsset: this.appliedHeroAsset,
     };

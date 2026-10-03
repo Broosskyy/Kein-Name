@@ -80,6 +80,17 @@ export class GameUI {
     requiredElement<HTMLButtonElement>('event-enter').addEventListener('click', () => this.onEventEnter?.());
     requiredElement<HTMLButtonElement>('result-hub-button').addEventListener('click', () => this.onEventHub?.());
     const fullscreenButton = requiredElement<HTMLButtonElement>('fullscreen-button');
+    const syncFullscreenButton = (): void => {
+      const fullscreenDocument = document as Document & { webkitFullscreenElement?: Element };
+      const active = Boolean(document.fullscreenElement || fullscreenDocument.webkitFullscreenElement);
+      fullscreenButton.classList.toggle('is-active', active);
+      fullscreenButton.setAttribute('aria-label', active ? 'Exit fullscreen' : 'Enter fullscreen');
+      const label = fullscreenButton.querySelector('small');
+      if (label) label.textContent = active ? 'EXIT' : 'FULL';
+    };
+    document.addEventListener('fullscreenchange', syncFullscreenButton);
+    document.addEventListener('webkitfullscreenchange', syncFullscreenButton as EventListener);
+    syncFullscreenButton();
     fullscreenButton.addEventListener('pointerdown', (event) => {
       // Invoke during the pointer activation itself. Mobile Chromium may
       // reject fullscreen once transient user activation has expired.

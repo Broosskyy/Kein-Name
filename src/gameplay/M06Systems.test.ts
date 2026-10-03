@@ -132,4 +132,17 @@ describe('M06 persistence, run modes and contracts', () => {
     expect(warning).toHaveBeenCalledOnce();
     warning.mockRestore();
   });
+
+  it('falls back from the game shell to the document root on restrictive mobile browsers', async () => {
+    let rootRequested = false;
+    const doc: { fullscreenElement?: object; documentElement: { requestFullscreen: () => Promise<void> }; exitFullscreen: () => Promise<void> } = {
+      documentElement: { requestFullscreen: async () => { rootRequested = true; doc.fullscreenElement = {}; } },
+      exitFullscreen: async () => { doc.fullscreenElement = undefined; },
+    };
+    const shell = { requestFullscreen: async () => { throw new Error('shell rejected'); } };
+    const controller = new FullscreenController(doc, shell, () => undefined);
+    expect(await controller.toggle()).toBe(true);
+    expect(rootRequested).toBe(true);
+    expect(controller.active).toBe(true);
+  });
 });

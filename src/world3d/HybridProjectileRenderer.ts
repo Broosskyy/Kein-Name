@@ -13,10 +13,16 @@ export class HybridProjectileRenderer {
   private readonly normalGeometry = new THREE.OctahedronGeometry(.27, 0);
   private readonly powerGeometry = new THREE.IcosahedronGeometry(.46, 1);
   private readonly trailGeometry = new THREE.CylinderGeometry(.055, .19, 2.05, 6, 1, true);
+  private readonly glowGeometry = new THREE.IcosahedronGeometry(.38, 1);
+  private readonly impactRingGeometry = new THREE.RingGeometry(.18, .38, 24);
+  private readonly impactBurstGeometry = new THREE.OctahedronGeometry(.3, 0);
+  private readonly impactArcGeometry = new THREE.TorusGeometry(.28, .035, 5, 16);
   private readonly normalMaterial = new THREE.MeshStandardMaterial({ color: 0xc6f6ff, emissive: 0x32b9ff, emissiveIntensity: 4, roughness: .2 });
   private readonly powerMaterial = new THREE.MeshStandardMaterial({ color: 0xfff0bd, emissive: 0xff6a1f, emissiveIntensity: 5, roughness: .16 });
   private readonly normalTrailMaterial = new THREE.MeshBasicMaterial({ color: 0x73ddff, transparent: true, opacity: .72, depthWrite: false, blending: THREE.AdditiveBlending });
   private readonly powerTrailMaterial = new THREE.MeshBasicMaterial({ color: 0xff9a3c, transparent: true, opacity: .8, depthWrite: false, blending: THREE.AdditiveBlending });
+  private readonly normalGlowMaterial = new THREE.MeshBasicMaterial({ color: 0x62dfff, transparent: true, opacity: .22, depthWrite: false, blending: THREE.AdditiveBlending });
+  private readonly powerGlowMaterial = new THREE.MeshBasicMaterial({ color: 0xff8a32, transparent: true, opacity: .28, depthWrite: false, blending: THREE.AdditiveBlending });
   private readonly unitScale = new THREE.Vector3(1, 1, 1);
   private readonly forwardAxis = new THREE.Vector3(0, 0, 1);
   private readonly flightDirection = new THREE.Vector3();
@@ -58,8 +64,10 @@ export class HybridProjectileRenderer {
   dispose(): void {
     this.projectilePool.forEach((visual) => this.scene.remove(visual.root));
     this.impactPool.forEach((visual) => { this.scene.remove(visual.root); visual.material.dispose(); });
-    this.normalGeometry.dispose(); this.powerGeometry.dispose(); this.trailGeometry.dispose();
+    this.normalGeometry.dispose(); this.powerGeometry.dispose(); this.trailGeometry.dispose(); this.glowGeometry.dispose();
+    this.impactRingGeometry.dispose(); this.impactBurstGeometry.dispose(); this.impactArcGeometry.dispose();
     this.normalMaterial.dispose(); this.powerMaterial.dispose(); this.normalTrailMaterial.dispose(); this.powerTrailMaterial.dispose();
+    this.normalGlowMaterial.dispose(); this.powerGlowMaterial.dispose();
   }
 
   private acquireProjectile(kind: PlayerProjectile['kind']): ProjectileVisual {
@@ -67,7 +75,10 @@ export class HybridProjectileRenderer {
     if (!visual) {
       const root = new THREE.Group();
       const core = new THREE.Mesh(kind === 'power' ? this.powerGeometry : this.normalGeometry, kind === 'power' ? this.powerMaterial : this.normalMaterial);
-      const glow = new THREE.Sprite(new THREE.SpriteMaterial({ color: kind === 'power' ? 0xff8a32 : 0x62dfff, transparent: true, opacity: .58, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending }));
+      // A map-less THREE.Sprite renders as a rectangular card. On Android it
+      // was clearly visible as a white debug square, so use cheap radial 3D
+      // geometry for the glow instead.
+      const glow = new THREE.Mesh(this.glowGeometry, kind === 'power' ? this.powerGlowMaterial : this.normalGlowMaterial);
       glow.scale.setScalar(kind === 'power' ? 1.28 : .78);
       const trail = new THREE.Mesh(this.trailGeometry, kind === 'power' ? this.powerTrailMaterial : this.normalTrailMaterial);
       trail.rotation.x = Math.PI / 2; trail.position.z = 1.02;
@@ -92,11 +103,11 @@ export class HybridProjectileRenderer {
     if (!visual) {
       const material = new THREE.MeshBasicMaterial({ color: 0xffb05a, transparent: true, opacity: .9, depthWrite: false, side: THREE.DoubleSide });
       const root = new THREE.Group();
-      const ring = new THREE.Mesh(new THREE.RingGeometry(.18, .38, 24), material); ring.rotation.x = -Math.PI / 2;
-      const burst = new THREE.Mesh(new THREE.OctahedronGeometry(.3, 0), material); burst.position.y = .12;
-      const crossA = new THREE.Mesh(new THREE.PlaneGeometry(.08, 1.05), material); crossA.position.y = .15;
-      const crossB = crossA.clone(); crossB.rotation.z = Math.PI / 2;
-      root.add(ring, burst, crossA, crossB); root.visible = false; this.scene.add(root);
+      const ring = new THREE.Mesh(this.impactRingGeometry, material); ring.rotation.x = -Math.PI / 2;
+      const burst = new THREE.Mesh(this.impactBurstGeometry, material); burst.position.y = .12;
+      const arcA = new THREE.Mesh(this.impactArcGeometry, material); arcA.position.y = .15;
+      const arcB = new THREE.Mesh(this.impactArcGeometry, material); arcB.position.y = .15; arcB.rotation.y = Math.PI / 2;
+      root.add(ring, burst, arcA, arcB); root.visible = false; this.scene.add(root);
       visual = { root, material, ageMs: 0, durationMs: 330, active: false }; this.impactPool.push(visual);
     }
     const world = simulationToWorld3D(position);
