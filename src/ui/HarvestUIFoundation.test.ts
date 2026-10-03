@@ -1,10 +1,11 @@
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { ASSET_MANIFEST } from '../assets';
 import { heroAnimationClip } from '../world3d/HeroAnimationController';
 import { HARVEST_UI_ASSETS, missingHarvestUIAssets } from './HarvestUIAssetCatalog';
 import { HARVEST_HUB_SECTIONS, renderHarvestHub, renderHarvestUIPreview, responsiveHubColumns } from './HarvestUIComponents';
+import { HARVEST_RARITIES, renderHarvestDetailScreens, renderHarvestStatePreview } from './HarvestMetaPanels';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -46,6 +47,32 @@ describe('Harvest hub and preview components', () => {
     expect(responsiveHubColumns(390)).toBe(1);
     expect(responsiveHubColumns(800)).toBe(2);
     expect(responsiveHubColumns(1280)).toBe(3);
+  });
+
+  it('renders ten responsive detail screens without using source sheets as runtime images', () => {
+    const html = renderHarvestDetailScreens();
+    for (const section of HARVEST_HUB_SECTIONS) {
+      expect(html).toContain(`id="hub-detail-${section.id}"`);
+      expect(html).toContain(`data-hub-detail="${section.id}"`);
+    }
+    expect(html.match(/data-hub-back/g)).toHaveLength(HARVEST_HUB_SECTIONS.length);
+    expect(html).not.toContain('production-assets/source');
+    expect(html).not.toContain('master.png');
+  });
+
+  it('provides every rarity and dynamic reusable status state', () => {
+    const html = renderHarvestStatePreview();
+    for (const rarity of HARVEST_RARITIES) expect(html).toContain(`rarity-${rarity}`);
+    for (const state of ['NEW', 'EQUIPPED', 'LOCKED', 'EVENT']) expect(html).toContain(state);
+  });
+
+  it('keeps supplied non-alpha master sheets out of runtime asset paths', () => {
+    const auditPath = `${root}production-assets/audit/harvest-ui-pass-02-audit.json`;
+    const audit = JSON.parse(readFileSync(auditPath, 'utf8')) as { sheets: Array<{ alpha: boolean; runtimeReady: boolean }>; runtime: { sourceSheetImagesRendered: boolean; businessLogicAdded: boolean } };
+    expect(audit.sheets.length).toBeGreaterThanOrEqual(10);
+    expect(audit.sheets.every((sheet) => !sheet.alpha && !sheet.runtimeReady)).toBe(true);
+    expect(audit.runtime.sourceSheetImagesRendered).toBe(false);
+    expect(audit.runtime.businessLogicAdded).toBe(false);
   });
 });
 

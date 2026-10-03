@@ -1,0 +1,23 @@
+{
+  "version": "UI-PASS-02",
+  "policy": "Master sheets are production references. Runtime UI is composed from reusable HTML/CSS components and existing isolated transparent assets; sheets are never rendered fullscreen.",
+  "sheets": [
+    { "file": "source/harvest-colossus-animation-vfx-master.png", "width": 1536, "height": 1024, "alpha": false, "runtimeReady": false, "use": "animation and impact reference", "blocker": "black presentation background, labels, front-only boss views" },
+    { "file": "source/ui/harvest-ui-controls-master-02.png", "width": 1536, "height": 1024, "alpha": false, "runtimeReady": false, "use": "button, badge, toggle and navigation reference" },
+    { "file": "source/ui/harvest-loot-collection-master.png", "width": 1536, "height": 1024, "alpha": false, "runtimeReady": false, "use": "collection layout reference" },
+    { "file": "source/ui/harvest-pets-builds-master.png", "width": 1536, "height": 1024, "alpha": false, "runtimeReady": false, "use": "pet and build layout reference" },
+    { "file": "source/ui/harvest-wings-customization-master.png", "width": 1536, "height": 1024, "alpha": false, "runtimeReady": false, "use": "customization layout reference" },
+    { "file": "source/ui/harvest-reinforcement-master.png", "width": 1536, "height": 1024, "alpha": false, "runtimeReady": false, "use": "reinforcement layout reference" },
+    { "file": "source/ui/harvest-shop-cards-master.png", "width": 1536, "height": 1024, "alpha": false, "runtimeReady": false, "use": "visual-only shop card reference" },
+    { "file": "source/ui/harvest-widget-master-02.png", "width": 1536, "height": 1536, "alpha": false, "runtimeReady": false, "use": "widget and skill state reference" },
+    { "file": "source/ui/harvest-item-slots-master.png", "width": 1536, "height": 1024, "alpha": false, "runtimeReady": false, "use": "rarity, item slot and equipment state reference" },
+    { "file": "source/ui/harvest-combat-hud-master.png", "width": 1536, "height": 1024, "alpha": false, "runtimeReady": false, "use": "combat HUD reference", "duplicateUploadSkipped": true }
+  ],
+  "runtime": {
+    "sourceSheetImagesRendered": false,
+    "dynamicText": true,
+    "touchTargetMinimumPx": 44,
+    "businessLogicAdded": false,
+    "bossRuntimeChanged": false
+  }
+}

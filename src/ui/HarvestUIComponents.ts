@@ -1,4 +1,5 @@
 import { HARVEST_UI_ASSETS } from './HarvestUIAssetCatalog';
+import { renderHarvestDetailScreens, renderHarvestStatePreview } from './HarvestMetaPanels';
 
 export const HARVEST_HUB_SECTIONS = [
   { id: 'progression', index: '01', title: 'Hero Progression', icon: '✦', lead: 'EVOLUTION PATH', copy: 'Grow the same creature through readable milestones.', tone: 'cyan' },
@@ -24,12 +25,15 @@ export function renderHarvestHub(): string {
     </header>
     <nav class="hc-hub-tabs" aria-label="Hub sections">${HARVEST_HUB_SECTIONS.map((section, index) => `<button type="button" data-hub-target="${section.id}" class="${index === 0 ? 'active' : ''}"><i>${section.icon}</i><span>${section.title}</span></button>`).join('')}</nav>
     <div class="hc-hub-content" tabindex="0">
+      <div class="hc-hub-overview" data-hub-overview>
       <section class="hc-hub-hero hc-nine-slice">
         <div class="hc-hero-orbit"><img src="/assets/creature/evo1/hero-evo1-s-idle.webp" alt="Evo 1 hero"><i></i></div>
         <div><small>EVO 1 · CRYSTAL AWAKENING</small><h2>ASTRA</h2><p>Compact directional Hero family integrated into the existing 8-direction runtime.</p><div class="hc-progress"><i></i></div><b>LV. 32 · 74%</b></div>
         <button type="button" class="hc-primary" data-hub-enter-combat>ENTER ARENA</button>
       </section>
       <div class="hc-hub-grid">${HARVEST_HUB_SECTIONS.map(renderHubCard).join('')}</div>
+      </div>
+      <div class="hc-detail-stack">${renderHarvestDetailScreens()}</div>
     </div>
   </div>`;
 }
@@ -63,6 +67,7 @@ export function renderHarvestUIPreview(): string {
     <div class="hc-preview-scroll">
       <section><h2>9-Slice Panels</h2><div class="hc-preview-panels"><article class="hc-nine-slice wide">Large Horizontal</article><article class="hc-nine-slice medium">Medium</article><article class="hc-nine-slice square">Square</article><article class="hc-nine-slice tall">Tall</article></div></section>
       <section><h2>Buttons & Tabs</h2><div class="hc-preview-buttons"><button class="hc-primary">DEFAULT</button><button class="hc-primary active">ACTIVE</button><button class="hc-primary" disabled>DISABLED</button><button class="hc-tab active">ACTIVE TAB</button><button class="hc-tab">DEFAULT TAB</button></div></section>
+      <section><h2>Slots, Rarity & Status</h2>${renderHarvestStatePreview()}</section>
       <section><h2>Combat Components</h2>${renderCombatPreview()}</section>
       <section><h2>Evo 1 · 8 Directions × 4 States</h2>${['idle', 'run', 'dash', 'attack'].map((pose) => `<h3>${pose}</h3><div class="hc-hero-audit">${heroDirections.map((direction) => `<figure><img src="/assets/creature/evo1/hero-evo1-${direction}-${pose}.webp" alt="${direction} ${pose}"><figcaption>${direction.toUpperCase()}</figcaption></figure>`).join('')}</div>`).join('')}</section>
     </div>

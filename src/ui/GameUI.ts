@@ -381,11 +381,37 @@ export class GameUI {
   private bindHarvestNavigation(): void {
     requiredElement<HTMLButtonElement>('hub-open').addEventListener('click', () => this.toggleMetaHub(true));
     this.metaHub.querySelectorAll<HTMLElement>('[data-hub-close], [data-hub-enter-combat]').forEach((button) => button.addEventListener('click', () => this.toggleMetaHub(false)));
+    const hubContent = this.metaHub.querySelector<HTMLElement>('.hc-hub-content');
+    const showHubDetail = (target?: string): void => {
+      const detailOpen = Boolean(target);
+      hubContent?.classList.toggle('detail-open', detailOpen);
+      this.metaHub.querySelectorAll<HTMLElement>('[data-hub-detail]').forEach((screen) => {
+        const active = detailOpen && screen.dataset.hubDetail === target;
+        screen.classList.toggle('active', active);
+        screen.setAttribute('aria-hidden', String(!active));
+      });
+      this.metaHub.querySelectorAll('[data-hub-target]').forEach((item) => item.classList.toggle('active', detailOpen && item.getAttribute('data-hub-target') === target));
+      if (hubContent) hubContent.scrollTop = 0;
+    };
     this.metaHub.querySelectorAll<HTMLButtonElement>('[data-hub-target]').forEach((button) => button.addEventListener('click', () => {
       const target = button.dataset.hubTarget;
       if (!target) return;
-      this.metaHub.querySelectorAll('[data-hub-target]').forEach((item) => item.classList.toggle('active', item.getAttribute('data-hub-target') === target));
-      this.metaHub.querySelector(`#hub-${target}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      showHubDetail(target);
+    }));
+    this.metaHub.querySelectorAll<HTMLButtonElement>('[data-hub-back]').forEach((button) => button.addEventListener('click', () => showHubDetail()));
+    this.metaHub.querySelectorAll<HTMLButtonElement>('[data-ui-select]').forEach((button) => button.addEventListener('click', () => {
+      const group = button.closest('[data-ui-group]');
+      if (group) group.querySelectorAll('[data-ui-select]').forEach((item) => item.classList.toggle('selected', item === button));
+      else button.classList.toggle('selected');
+      button.setAttribute('aria-pressed', String(button.classList.contains('selected')));
+    }));
+    this.metaHub.querySelectorAll<HTMLButtonElement>('[data-meta-action]').forEach((button) => button.addEventListener('click', () => {
+      const screen = button.closest<HTMLElement>('[data-hub-detail]');
+      const feedback = screen?.querySelector<HTMLOutputElement>('.hc-detail-feedback');
+      if (!feedback) return;
+      feedback.textContent = button.dataset.metaAction ?? 'Preview updated';
+      feedback.classList.add('show');
+      window.setTimeout(() => feedback.classList.remove('show'), 1300);
     }));
     this.uiPreview.querySelector<HTMLElement>('[data-ui-preview-close]')?.addEventListener('click', () => this.toggleUIPreview(false));
     window.addEventListener('keydown', (event) => {

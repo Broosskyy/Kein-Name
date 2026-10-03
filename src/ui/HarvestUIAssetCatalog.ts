@@ -11,6 +11,18 @@ export type HarvestUIAssetId =
   | 'ui.tab.active'
   | 'ui.nav.back'
   | 'ui.nav.close'
+  | 'ui.slot.common'
+  | 'ui.slot.rare'
+  | 'ui.slot.epic'
+  | 'ui.slot.legendary'
+  | 'ui.slot.mythic'
+  | 'ui.badge.new'
+  | 'ui.badge.equipped'
+  | 'ui.badge.locked'
+  | 'ui.badge.event'
+  | 'ui.card.shop'
+  | 'ui.card.pet'
+  | 'ui.card.build'
   | 'combat.bossBar'
   | 'combat.playerPlate'
   | 'combat.partyRow'
@@ -49,6 +61,18 @@ export const HARVEST_UI_ASSETS: Readonly<Record<HarvestUIAssetId, HarvestUIAsset
   'ui.tab.active': panel('ui.tab.active', 'button-primary-active.webp', [54, 92, 54, 92]),
   'ui.nav.back': image('ui.nav.back', 'nav-back.webp'),
   'ui.nav.close': image('ui.nav.close', 'nav-close.webp'),
+  'ui.slot.common': reference('ui.slot.common', 'harvest-item-slots-master.png'),
+  'ui.slot.rare': reference('ui.slot.rare', 'harvest-item-slots-master.png'),
+  'ui.slot.epic': reference('ui.slot.epic', 'harvest-item-slots-master.png'),
+  'ui.slot.legendary': reference('ui.slot.legendary', 'harvest-item-slots-master.png'),
+  'ui.slot.mythic': reference('ui.slot.mythic', 'harvest-item-slots-master.png'),
+  'ui.badge.new': reference('ui.badge.new', 'harvest-ui-controls-master-02.png'),
+  'ui.badge.equipped': reference('ui.badge.equipped', 'harvest-ui-controls-master-02.png'),
+  'ui.badge.locked': reference('ui.badge.locked', 'harvest-ui-controls-master-02.png'),
+  'ui.badge.event': reference('ui.badge.event', 'harvest-ui-controls-master-02.png'),
+  'ui.card.shop': reference('ui.card.shop', 'harvest-shop-cards-master.png'),
+  'ui.card.pet': reference('ui.card.pet', 'harvest-pets-builds-master.png'),
+  'ui.card.build': reference('ui.card.build', 'harvest-pets-builds-master.png'),
   'combat.bossBar': css('combat.bossBar'),
   'combat.playerPlate': css('combat.playerPlate'),
   'combat.partyRow': css('combat.partyRow'),
@@ -75,6 +99,10 @@ function image(id: HarvestUIAssetId, file: string): HarvestUIAssetDefinition {
 
 function css(id: HarvestUIAssetId): HarvestUIAssetDefinition {
   return { id, sourceSheet: 'harvest-combat-hud-master.png', render: 'css-component' };
+}
+
+function reference(id: HarvestUIAssetId, sourceSheet: string): HarvestUIAssetDefinition {
+  return { id, sourceSheet, render: 'css-component' };
 }
 
 function world(id: HarvestUIAssetId): HarvestUIAssetDefinition {
