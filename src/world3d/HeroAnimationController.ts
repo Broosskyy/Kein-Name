@@ -40,11 +40,11 @@ export const HERO_ANIMATION_CLIPS: Readonly<Record<string, HeroAnimationClip>> =
       return {
         asset: evo1HeroDirectionAsset(direction, state),
         durationMs: frameMs,
-        offsetX: attack ? Math.sin(phase) * .018 : 0,
-        offsetY: run ? Math.abs(Math.sin(phase)) * .055 : state === 'idle' ? Math.sin(phase) * .012 : dash ? Math.sin(phase) * .025 : Math.sin(phase) * .02,
-        scaleX: dash ? 1.08 + Math.sin(phase) * .035 : attack ? 1 + Math.sin(phase) * .022 : 1,
-        scaleY: dash ? .93 - Math.sin(phase) * .025 : run ? 1 - Math.abs(Math.sin(phase)) * .018 : 1,
-        rotation: run ? Math.sin(phase) * .018 : attack ? Math.sin(phase) * .025 : 0,
+        offsetX: attack ? Math.sin(phase) * .008 : 0,
+        offsetY: run ? Math.abs(Math.sin(phase)) * .022 : state === 'idle' ? Math.sin(phase) * .004 : dash ? Math.sin(phase) * .012 : Math.sin(phase) * .008,
+        scaleX: dash ? 1.035 + Math.sin(phase) * .012 : attack ? 1 + Math.sin(phase) * .008 : 1,
+        scaleY: dash ? .97 - Math.sin(phase) * .01 : run ? 1 - Math.abs(Math.sin(phase)) * .006 : 1,
+        rotation: run ? Math.sin(phase) * .007 : attack ? Math.sin(phase) * .009 : 0,
       };
     });
     const clip: HeroAnimationClip = { state, direction, frames, fps: FPS[state], loop: state === 'idle' || state === 'run', footAnchor: .0521, scale: 2.05, pivot: { x: .5, y: .0521 } };

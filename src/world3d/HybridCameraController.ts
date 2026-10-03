@@ -16,8 +16,8 @@ export class HybridCameraController {
   readonly target = new THREE.Vector3();
   readonly manualTargetOffset = new THREE.Vector3();
   mode: HybridCameraMode = 'follow';
-  userZoomDistance = 15.5;
-  actualCameraDistance = 15.5;
+  userZoomDistance = 16.8;
+  actualCameraDistance = 16.8;
   yaw = 0;
   pitch = THREE.MathUtils.degToRad(52);
   collisionLimitedDistance = MAX_USER_ZOOM_DISTANCE;
@@ -103,7 +103,10 @@ export class HybridCameraController {
     if (speed > 10) this.lookAhead.set(velocity.x * .00072, 0, velocity.y * .00072);
     this.anchor.copy(this.player3).add(this.lookAhead);
 
-    const automaticBias = this.mode === 'boss-focus' ? .42 : this.mode === 'tactical' ? .2 : this.mode === 'follow' ? .08 : 0;
+    // FOLLOW belongs to the player, not to the encounter. The previous 8%
+    // Colossus bias kept moving the composition back towards the Boss after
+    // manual input and made the camera feel as if it was fighting the player.
+    const automaticBias = this.mode === 'boss-focus' ? .32 : this.mode === 'tactical' ? .12 : 0;
     const desiredBiasBlend = this.temporaryManualControlTimer > 0 ? 0 : 1;
     this.bossBiasBlend = THREE.MathUtils.lerp(this.bossBiasBlend, desiredBiasBlend, 1 - Math.exp(-dt * 1.15));
     if (automaticBias > 0) this.anchor.lerp(this.boss3, automaticBias * this.bossBiasBlend);
@@ -125,10 +128,14 @@ export class HybridCameraController {
       this.target.z + Math.cos(this.yaw) * horizontal,
     );
     const allowedDistance = this.obstruction?.resolve(this.target, this.desiredCamera, this.smoothedUserDistance) ?? this.smoothedUserDistance;
-    const obstructionRate = allowedDistance < this.collisionLimitedDistance ? 18 : 3.8;
+    const obstructionRate = allowedDistance < this.collisionLimitedDistance ? 18 : 5.5;
     this.collisionLimitedDistance = THREE.MathUtils.lerp(this.collisionLimitedDistance, allowedDistance, 1 - Math.exp(-dt * obstructionRate));
     if (Math.abs(this.collisionLimitedDistance - allowedDistance) < .001) this.collisionLimitedDistance = allowedDistance;
-    this.actualCameraDistance = Math.min(this.smoothedUserDistance, this.collisionLimitedDistance);
+    // Real-device QA showed that retracting as far as 3.8m turned a normal
+    // portrait view into an unplayable full-screen Hero close-up. Occluders
+    // are already handled by material fading, so collision remains diagnostic
+    // only and is never allowed to author the visible zoom distance.
+    this.actualCameraDistance = this.smoothedUserDistance;
     const cameraDistance = this.actualCameraDistance;
     const cameraHorizontal = cameraDistance * Math.cos(this.pitch);
     this.impulseStrength = THREE.MathUtils.lerp(this.impulseStrength, 0, 1 - Math.exp(-dt * 12));

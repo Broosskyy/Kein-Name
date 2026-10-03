@@ -59,20 +59,34 @@ describe('M10.4 manual zoom ownership', () => {
     expect(controller.snapshot().userZoomDistance).toBe(18.25);
   });
 
-  it('lets collision reduce only actual distance and restores the user distance', () => {
+  it('never lets camera obstruction override the user-authored visible distance', () => {
     class ToggleObstruction implements CameraObstructionResolver {
       blocked = true;
       resolve(_target: THREE.Vector3, _desired: THREE.Vector3, requested: number): number { return this.blocked ? 7 : requested; }
     }
     const obstruction = new ToggleObstruction();
     const controller = new HybridCameraController(new THREE.PerspectiveCamera(), 10.6, obstruction);
+    const clearController = new HybridCameraController(new THREE.PerspectiveCamera());
     controller.setUserZoomDistance(17);
-    for (let index = 0; index < 30; index += 1) controller.update(16, { x: 0, y: 500 }, { x: 0, y: 0 }, { x: 0, y: -380 });
-    expect(controller.actualCameraDistance).toBeLessThan(controller.userZoomDistance);
+    clearController.setUserZoomDistance(17);
+    for (let index = 0; index < 30; index += 1) {
+      controller.update(16, { x: 0, y: 500 }, { x: 0, y: 0 }, { x: 0, y: -380 });
+      clearController.update(16, { x: 0, y: 500 }, { x: 0, y: 0 }, { x: 0, y: -380 });
+    }
+    expect(controller.collisionLimitedDistance).toBeLessThan(controller.userZoomDistance);
+    expect(controller.actualCameraDistance).toBe(clearController.actualCameraDistance);
     obstruction.blocked = false;
     for (let index = 0; index < 240; index += 1) controller.update(16, { x: 0, y: 500 }, { x: 0, y: 0 }, { x: 0, y: -380 });
     expect(controller.actualCameraDistance).toBeCloseTo(17, 2);
     expect(controller.userZoomDistance).toBe(17);
+  });
+
+  it('keeps normal FOLLOW centered on the Hero without automatic Boss bias', () => {
+    const controller = new HybridCameraController(new THREE.PerspectiveCamera());
+    controller.setMode('follow');
+    for (let index = 0; index < 180; index += 1) controller.update(16, { x: 0, y: 700 }, { x: 0, y: 0 }, { x: 0, y: -700 });
+    expect(controller.snapshot().bossBias).toBeCloseTo(1, 2);
+    expect(controller.target.z).toBeGreaterThan(6.5);
   });
 });
 

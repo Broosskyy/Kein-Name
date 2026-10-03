@@ -53,7 +53,10 @@ export class ArenaCamera{
     this.manualOffset.y=this.mode==='look'&&this.lookTarget?this.lookTarget.y-player.y:0;
   }
   impulse(power:number):void{this.shakePower=Math.max(this.shakePower,power)}
-  emphasize(kind:'breakpoint'|'mutation'|'kill'|'cycle'):void{const delta=kind==='mutation'?.05:kind==='kill'?-.09:-.04;this.zoom=clamp(this.zoom+delta,this.minZoom,this.maxZoom)}
+  emphasize(_kind:'breakpoint'|'mutation'|'kill'|'cycle'):void{
+    // Zoom is user-owned in both renderers. Combat events may drive VFX or a
+    // short impulse, but never silently change the player's chosen framing.
+  }
   worldToScreen(world:Vec2):Vec2{const s=this.scale;return{x:this.viewport.x+this.viewport.width/2+(world.x-this.position.x)*s+this.shake.x,y:this.viewport.y+this.viewport.height/2+(world.y-this.position.y)*s+this.shake.y}}
   screenToWorld(screen:Vec2):Vec2{const s=this.scale;return{x:this.position.x+(screen.x-this.viewport.x-this.viewport.width/2-this.shake.x)/s,y:this.position.y+(screen.y-this.viewport.y-this.viewport.height/2-this.shake.y)/s}}
   get scale():number{return Math.max(this.viewport.width/1850,this.viewport.height/2400)*this.zoom}

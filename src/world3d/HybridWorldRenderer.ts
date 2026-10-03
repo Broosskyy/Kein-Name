@@ -22,6 +22,7 @@ const STONE = 0x333746;
 const STONE_DARK = 0x202430;
 const STONE_LIGHT = 0x4b4e5e;
 const ORANGE = 0xff6b23;
+const BOSS_VISUAL_SIZE = 5.8;
 
 export interface HybridRenderState {
   player: CombatEntityState;
@@ -74,15 +75,15 @@ export class HybridWorldRenderer {
     this.renderer.setSize(mount.clientWidth, mount.clientHeight, false);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.18;
+    this.renderer.toneMappingExposure = 1.3;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.domElement.id = 'hybrid-3d-canvas';
     this.renderer.domElement.setAttribute('aria-label', 'M10 Hybrid 3D Harvest Arena');
     mount.appendChild(this.renderer.domElement);
 
-    this.scene.background = new THREE.Color(0x111522);
-    this.scene.fog = new THREE.FogExp2(0x151722, .021);
+    this.scene.background = new THREE.Color(0x171b28);
+    this.scene.fog = new THREE.FogExp2(0x1a1d29, .018);
     this.cameraController = new HybridCameraController(this.camera, definition.dimensions.width / WORLD3D_UNITS_PER_METER / 2 - 1, this.cameraObstruction);
     this.addLighting();
     this.addGround();
@@ -98,7 +99,7 @@ export class HybridWorldRenderer {
     this.scene.add(this.hero);
     this.preloadHeroTextures();
     this.bossProxy = this.addBossProxy();
-    this.bossVisual = this.makeSprite(assetUrl(this.appliedBossAsset), 6.35, 6.35);
+    this.bossVisual = this.makeSprite(assetUrl(this.appliedBossAsset), BOSS_VISUAL_SIZE, BOSS_VISUAL_SIZE);
     this.bossVisual.center.set(.5, bossViewAnchor('front'));
     this.scene.add(this.bossVisual);
     this.preloadBossTextures();
@@ -171,7 +172,7 @@ export class HybridWorldRenderer {
     const pulse = 1 + Math.sin(this.elapsed * .0028) * .012 + (1 - state.bossHpRatio) * .02;
     const recoil = hitRatio * .1 - death * .34;
     this.bossVisual.position.set(boss.x, bossGround + .02 + recoil, boss.z);
-    this.bossVisual.scale.set(6.35 * pulse * (1 + hitRatio * .035) * (1 - death * .12), 6.35 * pulse * (1 - hitRatio * .025) * (1 - death * .46), 1);
+    this.bossVisual.scale.set(BOSS_VISUAL_SIZE * pulse * (1 + hitRatio * .035) * (1 - death * .12), BOSS_VISUAL_SIZE * pulse * (1 - hitRatio * .025) * (1 - death * .46), 1);
     this.syncTelegraphs(state.telegraphs);
     this.syncLoot(state.loot);
     this.projectileRenderer.update(deltaMs, state.projectiles, state.projectileImpacts);
@@ -245,7 +246,7 @@ export class HybridWorldRenderer {
       positions.setY(i, sampleBaseTerrainHeight(positions.getX(i), positions.getZ(i)));
     }
     geometry.computeVertexNormals();
-    const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x292c37, roughness: .98, metalness: .01 });
+    const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x343844, roughness: .98, metalness: .01 });
     const ground = new THREE.Mesh(geometry, groundMaterial);
     ground.receiveShadow = true;
     this.scene.add(ground);

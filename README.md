@@ -1,8 +1,8 @@
-# Harvest Colossus — UI Foundation Pass 01
+# Harvest Colossus — Gameplay Recovery Pass 01
 
 Browser-first hybrid Three.js + PixiJS boss-arena prototype. The default M10 path is a deterministic 2200×2200 spatial slice with real 3D terrain, structures, perspective camera, geometry occlusion, a world-space Boss proxy, ground telegraphs and physical loot. The complete M09.3 2.5D experience remains available as a migration fallback.
 
-The current pass preserves M10.4 and adds a reusable Harvest UI asset catalog, 9-slice meta foundation, compact combat HUD, responsive ten-section Hero Sanctum hub and a production Evo-1 8-direction × 4-state visual family. See `HARVEST_UI_FOUNDATION_PASS_01.md`; the M10.4 implementation record remains in `M10_4_CORE_GAMEPLAY_STABILITY.md`.
+The current recovery pass addresses real-device failures without replacing the M10 hybrid architecture: visible zoom is exclusively user-owned, FOLLOW no longer drifts toward the Boss, movement is camera-relative, pinch cannot trigger the double-tap reset, and noisy cutout pose switching is restrained. See `GAMEPLAY_RECOVERY_PASS_01.md`. The reusable Harvest UI foundation remains documented in `HARVEST_UI_FOUNDATION_PASS_01.md`; the M10.4 implementation record remains in `M10_4_CORE_GAMEPLAY_STABILITY.md`.
 
 ## Start and validate
 
@@ -23,7 +23,7 @@ Append `?ui=hub` for the responsive meta-hub entry view or `?ui=preview` in a DE
 
 ## Controls
 
-- Mobile: 360° joystick + **POWER HIT** + **DASH**; drag open battlefield space to look, pinch or use the fold-out right-edge slider to zoom, double-tap to reset follow.
+- Mobile: camera-relative 360° joystick + **POWER HIT** + **DASH**; drag open battlefield space to look, pinch or use the fold-out right-edge slider to set the user-owned zoom, double-tap to reset follow.
 - Desktop: WASD/arrows, Space to dash, E/F for Power Hit, mouse drag to pan, mouse wheel to dolly, R to reset Follow, T for Tactical and F3 for 3D debug.
 - Fullscreen is optional and only requested from its explicit button.
 - Mutation and level-up choices pause active time and danger timing.

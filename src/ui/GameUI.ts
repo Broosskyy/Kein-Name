@@ -391,21 +391,22 @@ export class GameUI {
   }
 
   private bindArenaZoom(): void {
-    const surface = requiredElement('game-canvas'); const pointers = new Map<number, { x: number; y: number; pan: boolean }>(); let previousDistance = 0; let lastTap = 0;
+    const surface = requiredElement('game-canvas'); const pointers = new Map<number, { x: number; y: number; pan: boolean }>();
+    let previousDistance = 0; let lastTap = 0; let tapPointerId: number | undefined; let tapStartedAt = 0; let tapMoved = false;
     surface.addEventListener('wheel', (event) => { event.preventDefault(); this.onZoom?.(event.deltaY > 0 ? -0.055 : 0.055); }, { passive: false });
     surface.addEventListener('pointerdown', (event) => {
       if (!cameraGestureAllowed('world')) return;
       pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, pan: event.shiftKey || event.button === 1 });
       surface.setPointerCapture?.(event.pointerId);
+      if (pointers.size === 1) { tapPointerId = event.pointerId; tapStartedAt = performance.now(); tapMoved = false; }
+      else { tapPointerId = undefined; tapMoved = true; }
       if (pointers.size === 2) { const [a,b]=[...pointers.values()]; previousDistance=Math.hypot(a.x-b.x,a.y-b.y); }
-      const now = performance.now();
-      if (now - lastTap < 310) this.onCameraReset?.();
-      lastTap = now;
       event.preventDefault();
     });
     surface.addEventListener('pointermove', (event) => {
       const previous = pointers.get(event.pointerId);
       if (!previous) return;
+      if (event.pointerId === tapPointerId && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) > 4) tapMoved = true;
       pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, pan: previous.pan || event.shiftKey || event.buttons === 4 });
       if (pointers.size === 1) {
         const dx=event.clientX-previous.x,dy=event.clientY-previous.y;
@@ -417,7 +418,18 @@ export class GameUI {
       if (pointers.size !== 2) return;
       const [a,b]=[...pointers.values()];const distance=Math.hypot(a.x-b.x,a.y-b.y);if(previousDistance>0&&Math.abs(distance-previousDistance)>3)this.onZoom?.((distance-previousDistance)*.0025);previousDistance=distance;event.preventDefault();
     });
-    const release=(event:PointerEvent):void=>{pointers.delete(event.pointerId);if(surface.hasPointerCapture?.(event.pointerId))surface.releasePointerCapture(event.pointerId);if(pointers.size<2)previousDistance=0};surface.addEventListener('pointerup',release);surface.addEventListener('pointercancel',release);
+    const release=(event:PointerEvent):void=>{
+      const wasSingleTap = event.pointerId === tapPointerId && pointers.size === 1 && !tapMoved && performance.now() - tapStartedAt < 260;
+      pointers.delete(event.pointerId);
+      if(surface.hasPointerCapture?.(event.pointerId))surface.releasePointerCapture(event.pointerId);
+      if(pointers.size<2)previousDistance=0;
+      if (wasSingleTap) {
+        const now = performance.now();
+        if (now - lastTap < 310) { this.onCameraReset?.(); lastTap = 0; }
+        else lastTap = now;
+      }
+      tapPointerId = undefined;
+    };surface.addEventListener('pointerup',release);surface.addEventListener('pointercancel',release);
   }
 
   private bindZoomSlider(): void {

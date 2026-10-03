@@ -9,6 +9,7 @@ import { heroRenderY } from './HeroGrounding';
 import { sampleBaseTerrainHeight, sampleGroundHeight } from './HybridGroundSampler';
 import { M10_HYBRID_TEST_SCENE } from './Hybrid3DTestScene';
 import { bossVisualSectorFromView } from './HybridWorldRenderer';
+import { cameraRelativeMovement } from './Hybrid3DVerticalSlice';
 
 function settleCamera(controller: HybridCameraController, frames = 50): void {
   for (let index = 0; index < frames; index += 1) {
@@ -118,6 +119,16 @@ describe('M10.2 mobile input arbitration', () => {
     expect(cameraGestureAllowed('joystick')).toBe(false);
     expect(cameraGestureAllowed('combat-button')).toBe(false);
     expect(cameraGestureAllowed('hud')).toBe(false);
+  });
+
+  it('keeps joystick directions screen-relative after camera orbit', () => {
+    expect(cameraRelativeMovement({ x: 0, y: -1 }, 0)).toEqual({ x: 0, y: -1 });
+    const quarterTurn = cameraRelativeMovement({ x: 0, y: -1 }, Math.PI / 2);
+    expect(quarterTurn.x).toBeCloseTo(-1, 6);
+    expect(quarterTurn.y).toBeCloseTo(0, 6);
+    const right = cameraRelativeMovement({ x: 1, y: 0 }, Math.PI / 2);
+    expect(right.x).toBeCloseTo(0, 6);
+    expect(right.y).toBeCloseTo(-1, 6);
   });
 });
 

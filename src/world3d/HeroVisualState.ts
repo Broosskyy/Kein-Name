@@ -29,22 +29,25 @@ export class HeroVisualState {
     else if (this.running && speed <= 18) this.running = false;
 
     if (attacking && !this.wasAttacking) {
-      const attackVector = aimDirection && Math.hypot(aimDirection.x, aimDirection.y) > 1 ? aimDirection : velocity;
+      // While moving, preserve locomotion facing. Auto attack projectiles can
+      // still target the Boss independently without turning the authored Hero
+      // cutout away from the player's current movement every few frames.
+      const attackVector = speed > 45 ? velocity : aimDirection && Math.hypot(aimDirection.x, aimDirection.y) > 1 ? aimDirection : velocity;
       this.attackDirection = stableDirectionCandidate(attackVector, this.direction, Math.max(speed, 23), true);
       if (this.attackDirection !== this.direction) {
         this.direction = this.attackDirection;
         this.directionChanges += 1;
       }
-      this.directionLockMs = Math.max(this.directionLockMs, 220);
+      this.directionLockMs = Math.max(this.directionLockMs, 180);
     } else if (!attacking && this.wasAttacking) {
-      this.directionLockMs = Math.max(this.directionLockMs, 125);
+      this.directionLockMs = Math.max(this.directionLockMs, 160);
     }
     this.wasAttacking = attacking;
     const facingVector = attacking ? DIRECTION_VECTORS[this.attackDirection] : velocity;
     const candidate = attacking ? this.attackDirection : stableDirectionCandidate(facingVector, this.direction, speed, false);
     if (!attacking && candidate !== this.direction && this.directionLockMs <= 0) {
       this.direction = candidate;
-      this.directionLockMs = 125;
+      this.directionLockMs = 165;
       this.directionChanges += 1;
     }
 
@@ -80,7 +83,7 @@ function stableDirectionCandidate(vector: Vec2, current: HeroDirection, speed: n
   const distanceFromCurrent = Math.abs(shortestAngle(inputAngle - currentAngle));
   // An octant normally changes at 22.5°. Extra hysteresis prevents velocity
   // noise from oscillating between adjacent authored sprites.
-  return distanceFromCurrent >= Math.PI / 8 + .16 ? candidate : current;
+  return distanceFromCurrent >= Math.PI / 8 + .2 ? candidate : current;
 }
 
 const DIRECTION_ANGLES: Readonly<Record<HeroDirection, number>> = {

@@ -206,7 +206,8 @@ export class Hybrid3DVerticalSlice {
     if (this.keyboard.has('KeyW') || this.keyboard.has('ArrowUp')) y -= 1;
     if (this.keyboard.has('KeyS') || this.keyboard.has('ArrowDown')) y += 1;
     const magnitude = Math.hypot(x, y);
-    return magnitude > 1 ? { x: x / magnitude, y: y / magnitude } : { x, y };
+    const normalized = magnitude > 1 ? { x: x / magnitude, y: y / magnitude } : { x, y };
+    return cameraRelativeMovement(normalized, this.renderer.cameraController.yaw);
   }
 
   private dash(): void {
@@ -220,7 +221,10 @@ export class Hybrid3DVerticalSlice {
     const damage = kind === 'power' ? GAME_CONFIG.combat.powerDamage : GAME_CONFIG.combat.normalDamage;
     const launched = this.projectiles.launch(kind, this.player.position, this.boss.position, damage);
     if (!launched) return;
-    this.attackPoseMs = kind === 'power' ? 620 : 520;
+    // Normal auto attacks only need a readable launch beat. Holding a full
+    // directional cutout for most of the fire interval made locomotion pop
+    // between run and attack art on every shot.
+    this.attackPoseMs = kind === 'power' ? 380 : 160;
   }
 
   private resolveProjectileImpact(impact: PlayerProjectileImpact, now: number): void {
@@ -260,7 +264,7 @@ export class Hybrid3DVerticalSlice {
       `GROUND ${metrics.surfaceId} ${metrics.groundHeight.toFixed(2)}m · HERO Y ${metrics.heroRenderY.toFixed(2)} · ANCHOR ${metrics.heroAnchor.toFixed(3)} · ${this.collisionState.toUpperCase()}`,
       `ANIM ${metrics.heroAnimationFrame} · ${metrics.heroAsset}`,
       `BOSS ${this.bossEncounter.state.toUpperCase()} · ROUND ${this.bossEncounter.bossRoundIndex} · LV ${this.bossEncounter.bossLevel} · HP ${this.combat.bossHp}/${this.combat.maxHp}`,
-      `CAMERA ${metrics.cameraObstructed ? 'RETRACTED' : 'CLEAR'} · ${metrics.heroAsset}`,
+      `CAMERA ${metrics.cameraObstructed ? 'OCCLUDED / FADE' : 'CLEAR'} · ${metrics.heroAsset}`,
     ].join('\n');
   }
 
@@ -290,6 +294,17 @@ export class Hybrid3DVerticalSlice {
 }
 
 function toFullMap(point: Vec2): Vec2 { return { x: point.x + 2800, y: point.y + 2000 }; }
+/** Maps screen-space stick/WASD input to the planar simulation using the
+ * local camera yaw. Up on the stick therefore remains up on the screen after
+ * the player orbits the camera; camera state still never enters simulation
+ * snapshots or authoritative world state. */
+export function cameraRelativeMovement(input: MovementInput, cameraYaw: number): MovementInput {
+  const cos = Math.cos(cameraYaw), sin = Math.sin(cameraYaw);
+  return {
+    x: input.x * cos + input.y * sin,
+    y: -input.x * sin + input.y * cos,
+  };
+}
 function createDebugElement(): HTMLElement {
   const element = document.createElement('pre'); element.id = 'hybrid-debug'; element.hidden = true; document.body.appendChild(element); return element;
 }
@@ -297,7 +312,7 @@ const ZOOM_STORAGE_KEY = 'mutation-boss.hybrid.userZoomDistance';
 function loadZoomPreference(): number {
   try {
     const value = Number(sessionStorage.getItem(ZOOM_STORAGE_KEY));
-    return Number.isFinite(value) && value >= MIN_USER_ZOOM_DISTANCE && value <= MAX_USER_ZOOM_DISTANCE ? value : 15.5;
-  } catch { return 15.5; }
+    return Number.isFinite(value) && value >= MIN_USER_ZOOM_DISTANCE && value <= MAX_USER_ZOOM_DISTANCE ? value : 16.8;
+  } catch { return 16.8; }
 }
 function saveZoomPreference(distance: number): void { try { sessionStorage.setItem(ZOOM_STORAGE_KEY, String(distance)); } catch { /* storage can be unavailable in privacy mode */ } }
