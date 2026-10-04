@@ -1,5 +1,7 @@
 # Harvest Colossus — Gameplay Recovery Pass 02
 
+> **New product direction:** Harvest Colossus is planned as an original, browser-first social action MMORPG with NosTale-like structural parity, modern direct combat, a free 3D camera and reduced mobile-first UI. The existing boss arena becomes the first Raid foundation. See [`HARVEST_COLOSSUS_NOSTALE_PARITY_MASTER_PLAN.md`](HARVEST_COLOSSUS_NOSTALE_PARITY_MASTER_PLAN.md).
+
 Browser-first hybrid Three.js + PixiJS boss-arena prototype. The default M10 path is a deterministic 2200×2200 spatial slice with real 3D terrain, structures, perspective camera, geometry occlusion, a world-space Boss proxy, ground telegraphs and physical loot. The complete M09.3 2.5D experience remains available as a migration fallback.
 
 The current recovery pass addresses the second real-device recording without replacing the M10 hybrid architecture: camera gestures cover both screen halves, pitch has a substantially wider safe range, slow swipes cannot become reset taps, fullscreen has mobile fallbacks and visible failure feedback, and the Boss basin no longer reads as a black foreground slab. See `GAMEPLAY_RECOVERY_PASS_02.md`; Pass 01 remains documented in `GAMEPLAY_RECOVERY_PASS_01.md`. The reusable Harvest UI foundation remains documented in `HARVEST_UI_FOUNDATION_PASS_01.md`.
