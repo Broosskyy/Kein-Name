@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { BossTelegraph } from '../gameplay/BossAttackSystem';
 import { BOSS_ATTACKS } from '../gameplay/BossAttackSystem';
-import { cameraRelativeHeroDirection, type HeroDirection } from '../gameplay/HeroDirection';
+import { stableCameraRelativeHeroDirection, type HeroDirection } from '../gameplay/HeroDirection';
 import type { LootDrop } from '../gameplay/LootSystem';
 import type { CombatEntityState, Vec2 } from '../gameplay/ArenaTypes';
 import type { PlayerProjectile, PlayerProjectileImpact } from '../gameplay/PlayerProjectileSystem';
@@ -44,6 +44,7 @@ export interface HybridRenderState {
   fieldMonsters?: readonly FieldMonsterState[];
   worldNpcs?: readonly WorldNpcDefinition[];
   worldPortals?: readonly WorldPortalDefinition[];
+  selectedFieldMonsterId?: string;
 }
 
 export class HybridWorldRenderer {
@@ -134,7 +135,7 @@ export class HybridWorldRenderer {
     // now reacts immediately when the player orbits around it.
     this.cameraController.update(deltaMs, state.player.position, state.player.velocity, state.bossPosition);
     this.heroVisualSnapshot = this.heroVisualState.update(deltaMs, state.player.velocity, state.dashing, state.attacking, state.aimDirection);
-    this.heroViewDirection = cameraRelativeHeroDirection(this.heroVisualSnapshot.direction, this.cameraController.yaw);
+    this.heroViewDirection = stableCameraRelativeHeroDirection(this.heroVisualSnapshot.direction, this.cameraController.yaw, this.heroViewDirection);
     const animationFrame = this.heroAnimation.update(deltaMs, this.heroVisualSnapshot.pose, this.heroViewDirection);
     const desiredAsset = animationFrame.asset;
     const desiredTexture = this.texture(assetUrl(desiredAsset));
@@ -197,7 +198,7 @@ export class HybridWorldRenderer {
     }
     this.syncTelegraphs(state.telegraphs);
     this.syncLoot(state.loot);
-    this.syncWorldActors(state.fieldMonsters ?? [], state.worldNpcs ?? [], state.worldPortals ?? []);
+    this.syncWorldActors(state.fieldMonsters ?? [], state.worldNpcs ?? [], state.worldPortals ?? [], state.selectedFieldMonsterId);
     this.projectileRenderer.update(deltaMs, state.projectiles, state.projectileImpacts);
     this.renderer.render(this.scene, this.camera);
   }
@@ -210,6 +211,21 @@ export class HybridWorldRenderer {
   }
 
   toggleDebug(): boolean { this.debugRoot.visible = !this.debugRoot.visible; return this.debugRoot.visible; }
+  pickFieldMonster(clientX: number, clientY: number): string | undefined {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return undefined;
+    const pointer = new THREE.Vector2(
+      (clientX - rect.left) / rect.width * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(pointer, this.camera);
+    const monsters = [...this.worldActorMeshes.values()].filter((group) => group.visible && group.userData.actorKind === 'monster');
+    const hit = raycaster.intersectObjects(monsters, true)[0]?.object;
+    let current: THREE.Object3D | null = hit ?? null;
+    while (current && !current.userData.actorId) current = current.parent;
+    return current?.userData.actorKind === 'monster' ? current.userData.actorId as string : undefined;
+  }
   metrics(): Readonly<{ calls: number; triangles: number; points: number; lines: number; textures: number; projectiles: number; projectilePool: number; heroDirectionSwaps: number; heroPoseSwaps: number; heroTextureSwaps: number; heroAnimationFrame: number; heroViewDirection: HeroDirection; bossView: string; cameraObstructed: boolean; fadedOccluders: number; groundHeight: number; surfaceId: string; heroRenderY: number; heroAnchor: number; heroAsset: string }> {
     const render = this.renderer.info.render;
     const obstruction = this.cameraObstruction.snapshot();
@@ -609,12 +625,16 @@ export class HybridWorldRenderer {
     }
   }
 
-  private syncWorldActors(monsters: readonly FieldMonsterState[], npcs: readonly WorldNpcDefinition[], portals: readonly WorldPortalDefinition[]): void {
+  private syncWorldActors(monsters: readonly FieldMonsterState[], npcs: readonly WorldNpcDefinition[], portals: readonly WorldPortalDefinition[], selectedMonsterId?: string): void {
     const live = new Set([...monsters.map((actor) => actor.id), ...npcs.map((actor) => actor.id), ...portals.map((actor) => actor.id)]);
     for (const [id, group] of this.worldActorMeshes) if (!live.has(id)) { this.scene.remove(group); disposeObject(group); this.worldActorMeshes.delete(id); }
     for (const monster of monsters) {
       let group = this.worldActorMeshes.get(monster.id);
-      if (!group) { group = this.createMonsterVisual(monster.species); this.worldActorMeshes.set(monster.id, group); this.scene.add(group); }
+      if (!group) {
+        group = this.createMonsterVisual(monster.species);
+        group.userData.actorId = monster.id; group.userData.actorKind = 'monster';
+        this.worldActorMeshes.set(monster.id, group); this.scene.add(group);
+      }
       const position = simulationToWorld3D(monster.position);
       group.position.set(position.x, sampleGroundHeight(position.x, position.z), position.z);
       group.visible = monster.alive;
@@ -622,6 +642,8 @@ export class HybridWorldRenderer {
       group.position.y += monster.alive ? Math.abs(Math.sin(this.elapsed * .004 + position.z)) * .045 : 0;
       const hit = monster.hitFlashMs > 0;
       group.traverse((child) => { if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) child.material.emissiveIntensity = hit ? 1.5 : .15; });
+      const targetRing = group.getObjectByName('field-target-ring');
+      if (targetRing) targetRing.visible = monster.alive && monster.id === selectedMonsterId;
     }
     for (const npc of npcs) {
       let group = this.worldActorMeshes.get(npc.id);
@@ -652,6 +674,7 @@ export class HybridWorldRenderer {
     if (species === 'stonebeak') { const beak = new THREE.Mesh(new THREE.ConeGeometry(.13, .42, 5), new THREE.MeshStandardMaterial({ color: 0xd7a95b })); beak.rotation.x = Math.PI / 2; beak.position.set(0, 1.08, .7); root.add(beak); }
     else for (const x of [-.28, .28]) { const leaf = new THREE.Mesh(new THREE.ConeGeometry(.18, .65, 5), material); leaf.position.set(x, 1.58, .05); leaf.rotation.z = x > 0 ? -.45 : .45; root.add(leaf); }
     root.add(makeDisc(.65, 0x0b1011, .3));
+    const targetRing = makeRing(.64, .76, 0xffbe58, .9); targetRing.name = 'field-target-ring'; targetRing.visible = false; root.add(targetRing);
     return root;
   }
 

@@ -3,7 +3,7 @@ import { ASSET_MANIFEST } from '../assets';
 import { MUTATION_VISUAL_SCALE } from '../render/GameScene';
 import { ArenaCamera } from './ArenaCamera';
 import { HARVEST_ARENA_MAP,HARVEST_TRAVERSAL_WAYPOINTS,MASTER_COMPOSITION_SCENARIO } from './HarvestArenaMap';
-import { cameraRelativeHeroDirection, heroDirectionFromVector } from './HeroDirection';
+import { cameraRelativeHeroDirection, heroDirectionFromVector, stableCameraRelativeHeroDirection } from './HeroDirection';
 import { mapZoneAt,worldToMinimap } from './MapDefinition';
 import { WorldCollisionSystem } from './WorldCollisionSystem';
 import { planarToWorld,worldToPlanar } from './WorldCoordinates';
@@ -26,6 +26,10 @@ describe('M09.2.1 real map, living hero and camera',()=>{
     expect(cameraRelativeHeroDirection('n',Math.PI)).toBe('s');
     expect(cameraRelativeHeroDirection('n',-Math.PI/2)).toBe('w');
     expect(cameraRelativeHeroDirection('se',Math.PI/2)).toBe('sw');
+  });
+  it('holds the rendered Hero view around camera-octant boundaries',()=>{
+    expect(stableCameraRelativeHeroDirection('n',Math.PI/8+.04,'n')).toBe('n');
+    expect(stableCameraRelativeHeroDirection('n',Math.PI/8+.2,'n')).toBe('ne');
   });
   it('registers all directional production frames',()=>{
     for(const direction of ['n','ne','e','se','s','sw','w','nw'] as const)for(const pose of ['idle','run','dash','attack'] as const)expect(ASSET_MANIFEST[`creature.direction.${direction}.${pose}`].src).toMatch(/directional\/creature-/);

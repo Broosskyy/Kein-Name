@@ -1,6 +1,7 @@
 import type { CombatModel } from '../core/CombatModel';
 import { createLocalPlayer, type MovementInput, type Vec2 } from '../gameplay/ArenaTypes';
 import { FieldMonsterSystem } from '../gameplay/FieldMonsterSystem';
+import { FieldCombatTargeting } from '../gameplay/FieldCombatTargeting';
 import { HARVEST_HAVEN_MAP } from '../gameplay/HarvestHavenMap';
 import { LootSystem } from '../gameplay/LootSystem';
 import { PlayerMovementController } from '../gameplay/PlayerMovementController';
@@ -20,6 +21,8 @@ export interface HarvestWorldPersistence {
   save(snapshot: WorldProgressionSnapshot): void;
 }
 
+export const FIELD_ATTACK_RANGE = 760;
+
 export class HarvestWorldVerticalSlice {
   readonly definition = HARVEST_HAVEN_MAP.scene;
   readonly player = createLocalPlayer('haven-local-player', 'haven-guest');
@@ -27,6 +30,7 @@ export class HarvestWorldVerticalSlice {
   readonly surfaces = new HybridWalkableSurfaceSystem(this.definition.dimensions.width, this.definition.dimensions.depth, this.definition.colliders, 38);
   readonly renderer: HybridWorldRenderer;
   readonly monsters = new FieldMonsterSystem(HARVEST_HAVEN_MAP.monsters);
+  readonly targeting = new FieldCombatTargeting();
   readonly quests = new WorldQuestSystem(HARVEST_HAVEN_MAP.quests);
   readonly portals = new WorldPortalSystem(HARVEST_HAVEN_MAP.portals);
   readonly projectiles = new PlayerProjectileSystem();
@@ -44,7 +48,6 @@ export class HarvestWorldVerticalSlice {
   private attackPoseMs = 0;
   private attackCooldownMs = 250;
   private powerCooldownMs = 0;
-  private currentTargetId?: string;
   private currentImpacts: PlayerProjectileImpact[] = [];
 
   constructor(mount: HTMLElement, private readonly ui: GameUI, _combat: CombatModel, private readonly persistence: HarvestWorldPersistence) {
@@ -56,6 +59,7 @@ export class HarvestWorldVerticalSlice {
     this.renderer.cameraController.setUserZoomDistance(loadWorldZoom());
     this.worldHud.bindInteract(() => this.enterNearbyPortal());
     this.worldHud.bindClass((classId) => this.chooseClass(classId));
+    this.worldHud.bindAttack(() => this.toggleAttack());
     this.worldHud.updateProgress(this.progression);
     this.worldHud.updateQuests(HARVEST_HAVEN_MAP.quests, this.quests.states);
     this.bindInput();
@@ -88,17 +92,19 @@ export class HarvestWorldVerticalSlice {
     this.attackPoseMs = Math.max(0, this.attackPoseMs - deltaMs);
     this.attackCooldownMs -= deltaMs;
     this.powerCooldownMs = Math.max(0, this.powerCooldownMs - deltaMs);
-    const target = this.selectTarget();
-    if (target && this.attackCooldownMs <= 0 && this.projectiles.active.length < 3) {
+    const target = this.selectedTarget();
+    const targetInRange = Boolean(target && this.targetDistance(target.position) <= FIELD_ATTACK_RANGE);
+    if (target && targetInRange && this.targeting.autoAttackActive && this.attackCooldownMs <= 0 && this.projectiles.active.length < 3) {
       this.launchAttack('normal', target.id, target.position, 30 + this.progression.heroLevel * 2);
       this.attackCooldownMs = 760;
     }
-    const trackedTarget = this.currentTargetId ? this.monsters.monsters.find((monster) => monster.id === this.currentTargetId && monster.alive) : undefined;
+    const trackedTarget = this.targeting.selectedTargetId ? this.monsters.monsters.find((monster) => monster.id === this.targeting.selectedTargetId && monster.alive) : undefined;
     this.currentImpacts = trackedTarget ? this.projectiles.update(deltaMs, trackedTarget.position, 54) : [];
     for (const impact of this.currentImpacts) this.resolveImpact(impact, now);
     const portal = this.portals.nearby(this.player.position);
     this.worldHud.showPortal(portal, Boolean(portal && this.portals.canEnter(portal, this.progression.heroLevel)));
     this.worldHud.showTarget(target?.name, target?.level, target?.hp, target?.maxHp);
+    this.worldHud.updateAttack(Boolean(target), this.targeting.autoAttackActive, targetInRange);
     this.renderer.update(deltaMs, {
       player: this.player,
       bossPosition: this.player.position,
@@ -109,25 +115,30 @@ export class HarvestWorldVerticalSlice {
       aimDirection: target ? { x: target.position.x - this.player.position.x, y: target.position.y - this.player.position.y } : undefined,
       bossState: 'alive', bossDeathProgress: 0, bossVisible: false,
       fieldMonsters: this.monsters.monsters, worldNpcs: HARVEST_HAVEN_MAP.npcs, worldPortals: HARVEST_HAVEN_MAP.portals,
+      selectedFieldMonsterId: this.targeting.selectedTargetId,
     });
     this.ui.updateArena(this.player.hp, this.player.maxHp, this.progression.heroLevel, this.progression.heroXp, this.progression.heroXpToNext, 1, this.dashCooldownMs);
     this.ui.updateZoomControl(this.renderer.cameraController.userZoomDistance, MIN_USER_ZOOM_DISTANCE, MAX_USER_ZOOM_DISTANCE);
-    this.ui.update(1, 1, now, this.powerCooldownMs, true, false);
+    this.ui.update(1, 1, now, this.powerCooldownMs, Boolean(target && targetInRange), false);
   }
 
-  private selectTarget() {
-    const current = this.currentTargetId ? this.monsters.monsters.find((monster) => monster.id === this.currentTargetId && monster.alive) : undefined;
-    if (current && Math.hypot(current.position.x - this.player.position.x, current.position.y - this.player.position.y) <= 760) return current;
-    const next = this.monsters.nearest(this.player.position, 720);
-    this.currentTargetId = next?.id;
-    return next;
+  private selectedTarget() {
+    const target = this.targeting.selectedTargetId
+      ? this.monsters.monsters.find((monster) => monster.id === this.targeting.selectedTargetId && monster.alive)
+      : undefined;
+    if (!target && this.targeting.selectedTargetId) this.targeting.stop(true);
+    return target;
+  }
+
+  private targetDistance(position: Vec2): number {
+    return Math.hypot(position.x - this.player.position.x, position.y - this.player.position.y);
   }
 
   private launchAttack(kind: 'normal'|'power', targetId: string, targetPosition: Vec2, damage: number): void {
     const projectile = this.projectiles.launch(kind, this.player.position, targetPosition, damage);
     if (!projectile) return;
     this.projectileTargets.set(projectile.id, targetId);
-    this.currentTargetId = targetId;
+    this.targeting.select(targetId);
     this.attackPoseMs = kind === 'power' ? 380 : 165;
   }
 
@@ -139,7 +150,7 @@ export class HarvestWorldVerticalSlice {
     if (!defeat) return;
     // Any remaining bolts were authored for the defeated target. Retiring
     // them prevents a stale projectile from visually jumping to the next mob.
-    this.projectiles.reset(); this.projectileTargets.clear(); this.currentTargetId = undefined;
+    this.projectiles.reset(); this.projectileTargets.clear(); this.targeting.removeTarget(targetId);
     const direct = this.progression.grant(defeat.heroXp, defeat.jobXp);
     let heroLevels = direct.heroLevels, jobLevels = direct.jobLevels;
     for (const quest of this.quests.onMonsterDefeated(defeat)) {
@@ -174,6 +185,7 @@ export class HarvestWorldVerticalSlice {
     this.ui.bindZoomAbsolute((distance) => { this.renderer.cameraController.setUserZoomDistance(distance); saveWorldZoom(distance); });
     this.ui.bindCameraGesture((dx, dy, gesture) => this.renderer.cameraController.gesture(dx, dy, gesture));
     this.ui.bindCameraReset(() => this.renderer.cameraController.resetFollow());
+    this.ui.bindWorldTap((clientX, clientY) => this.selectTargetAt(clientX, clientY));
     window.addEventListener('keydown', this.onKeyDown); window.addEventListener('keyup', this.onKeyUp);
   }
 
@@ -181,6 +193,7 @@ export class HarvestWorldVerticalSlice {
     this.keyboard.add(event.code);
     if (event.code === 'Space') { event.preventDefault(); this.dash(); }
     if (event.code === 'KeyE' || event.code === 'KeyF') this.powerAttack();
+    if (event.code === 'KeyX') this.toggleAttack();
     if (event.code === 'Enter' || event.code === 'KeyQ') this.enterNearbyPortal();
     if (event.code === 'KeyR') this.renderer.cameraController.resetFollow();
     if (event.code === 'KeyT') this.renderer.cameraController.setMode('tactical');
@@ -200,8 +213,27 @@ export class HarvestWorldVerticalSlice {
   private dash(): void { if (this.dashCooldownMs <= 0 && this.movement.startDash(this.combinedInput())) this.dashCooldownMs = 1450; }
   private powerAttack(): void {
     if (this.powerCooldownMs > 0) return;
-    const target = this.selectTarget(); if (!target) return;
+    const target = this.selectedTarget(); if (!target || this.targetDistance(target.position) > FIELD_ATTACK_RANGE) return;
     this.launchAttack('power', target.id, target.position, 92 + this.progression.heroLevel * 4); this.powerCooldownMs = 5200;
+  }
+
+  private selectTargetAt(clientX: number, clientY: number): void {
+    const targetId = this.renderer.pickFieldMonster(clientX, clientY);
+    if (targetId === this.targeting.selectedTargetId) return;
+    this.projectiles.reset(); this.projectileTargets.clear();
+    this.targeting.select(targetId);
+  }
+
+  private toggleAttack(): void {
+    const target = this.selectedTarget();
+    if (!target) { this.targeting.stop(true); return; }
+    if (this.targeting.autoAttackActive) { this.targeting.stop(); this.projectiles.reset(); this.projectileTargets.clear(); return; }
+    if (this.targetDistance(target.position) > FIELD_ATTACK_RANGE) {
+      this.ui.announce('OUT OF RANGE', 'MOVE CLOSER TO ATTACK', '#ffbd68', 850);
+      return;
+    }
+    this.targeting.start();
+    this.attackCooldownMs = 0;
   }
 }
 

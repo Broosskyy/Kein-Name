@@ -26,6 +26,22 @@ export function cameraRelativeHeroDirection(worldDirection: HeroDirection, camer
   return DIRECTIONS[(Math.round(angle / (Math.PI / 4)) + 8) % 8];
 }
 
+/** Keeps camera-orbit view changes from flickering on authored octant edges. */
+export function stableCameraRelativeHeroDirection(
+  worldDirection: HeroDirection,
+  cameraYaw: number,
+  current: HeroDirection,
+  margin = .12,
+): HeroDirection {
+  const relativeAngle = DIRECTION_ANGLES[worldDirection] + cameraYaw;
+  const distanceFromCurrent = Math.abs(Math.atan2(
+    Math.sin(relativeAngle - DIRECTION_ANGLES[current]),
+    Math.cos(relativeAngle - DIRECTION_ANGLES[current]),
+  ));
+  if (distanceFromCurrent < Math.PI / 8 + margin) return current;
+  return cameraRelativeHeroDirection(worldDirection, cameraYaw);
+}
+
 export function heroDirectionAsset(direction: HeroDirection, pose: HeroPose): `creature.direction.${HeroDirection}.${HeroPose}` {
   return `creature.direction.${direction}.${pose}`;
 }

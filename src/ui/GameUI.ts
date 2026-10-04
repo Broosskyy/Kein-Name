@@ -54,6 +54,7 @@ export class GameUI {
   private onCameraPan?: (dx: number, dy: number) => void;
   private onCameraGesture?: (dx: number, dy: number, gesture: 'orbit' | 'pan') => void;
   private onCameraReset?: () => void;
+  private onWorldTap?: (clientX: number, clientY: number) => void;
   private onRetry?: () => void;
   private onDebug?: (action: DebugAction) => void;
   private onEventEnter?: () => void;
@@ -141,6 +142,7 @@ export class GameUI {
   bindCameraPan(callback: (dx: number, dy: number) => void): void { this.onCameraPan = callback; }
   bindCameraGesture(callback: (dx: number, dy: number, gesture: 'orbit' | 'pan') => void): void { this.onCameraGesture = callback; }
   bindCameraReset(callback: () => void): void { this.onCameraReset = callback; }
+  bindWorldTap(callback: (clientX: number, clientY: number) => void): void { this.onWorldTap = callback; }
   bindRetry(callback: () => void): void { this.onRetry = callback; }
   bindDebug(callback: (action: DebugAction) => void): void { this.onDebug = callback; }
   bindEventEnter(callback: () => void): void { this.onEventEnter = callback; }
@@ -498,6 +500,7 @@ export class GameUI {
       if(pointers.size<2)previousDistance=0;
       if(pointers.size===0)pinchActive=false;
       if (wasSingleTap) {
+        this.onWorldTap?.(event.clientX, event.clientY);
         const now = performance.now();
         if (now - lastTap < 310) { this.onCameraReset?.(); lastTap = 0; }
         else lastTap = now;

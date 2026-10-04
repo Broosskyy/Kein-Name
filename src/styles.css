@@ -436,6 +436,11 @@ body.world-mode .combat-actions { display: none !important; }
 .world-target b { display: block; margin-bottom: 4px; color: #f2e3ca; font-size: 11px; }
 .world-target i { display: block; height: 5px; overflow: hidden; border-radius: 5px; background: #180f12; }
 .world-target u { display: block; width: 100%; height: 100%; transform-origin: left; background: linear-gradient(90deg,#e85d4f,#ffb268); }
+.world-attack { position: absolute; right: max(20px, env(safe-area-inset-right)); bottom: max(82px, calc(env(safe-area-inset-bottom) + 72px)); width: 82px; height: 82px; display: grid; place-content: center; gap: 3px; pointer-events: auto; border: 1px solid #e6b75d; border-radius: 50%; color: #fff3ce; background: radial-gradient(circle at 40% 28%,#7b4d28,#251b1d 72%); box-shadow: 0 9px 26px #000a,inset 0 1px #ffffff35,0 0 18px #e7893226; touch-action: manipulation; }
+.world-attack b { font-size: 12px; letter-spacing: .08em; }
+.world-attack span { color: #e2cda7; font-size: 7px; font-weight: 850; letter-spacing: .08em; }
+.world-attack.active { border-color: #ff8068; color: #ffe0d8; background: radial-gradient(circle at 40% 28%,#7d302b,#281518 72%); box-shadow: 0 9px 26px #000a,inset 0 1px #ffffff35,0 0 20px #ff563d3d; }
+.world-attack:disabled { filter: grayscale(.75); opacity: .48; }
 .world-context { position: absolute; right: max(18px, env(safe-area-inset-right)); bottom: max(154px, calc(env(safe-area-inset-bottom) + 144px)); min-width: 118px; padding: 12px 15px; pointer-events: auto; color: white; border: 1px solid #e4b961; border-radius: 50px; background: linear-gradient(180deg,#624226dd,#211a1cdd); box-shadow: 0 7px 20px #0008; }
 .world-context b,.world-context span { display: block; }
 .world-context b { color: #ffe09a; font-size: 11px; }
@@ -457,8 +462,16 @@ body.world-mode .combat-actions { display: none !important; }
 }
 
 @media (max-width: 600px) {
+  #world-hud>header { width: 52vw; min-width: 0; padding: 8px 10px; }
+  #world-hud>header strong { overflow: hidden; font-size: 15px; white-space: nowrap; text-overflow: ellipsis; }
+  #world-hud>header span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .world-progress { top: max(82px, calc(env(safe-area-inset-top) + 70px)); width: 52vw; padding: 7px 9px; }
   .world-quests { top: max(13px, env(safe-area-inset-top)); width: 42vw; }
   .world-quests article span { display: grid; }
+  .world-target { left: auto; right: max(12px, env(safe-area-inset-right)); top: max(114px, calc(env(safe-area-inset-top) + 101px)); width: 40vw; transform: none; padding: 6px 9px; }
+  .world-target b { overflow: hidden; font-size: 9px; white-space: nowrap; text-overflow: ellipsis; }
+  .world-attack { right: max(18px, env(safe-area-inset-right)); bottom: max(122px, calc(env(safe-area-inset-bottom) + 112px)); width: 74px; height: 74px; }
+  body.world-mode #announcement { top: 34%; width: min(72vw, 300px); }
   .world-class-select>div { grid-template-columns: 1fr; }
   .world-class-select { max-height: 78vh; overflow: auto; }
 }

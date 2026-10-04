@@ -12,8 +12,10 @@ export class HarvestWorldHUD {
   private readonly questList: HTMLElement;
   private readonly context: HTMLButtonElement;
   private readonly target: HTMLElement;
+  private readonly attack: HTMLButtonElement;
   private onInteract?: () => void;
   private onClass?: (classId: HeroClassId) => void;
+  private onAttack?: () => void;
 
   constructor(mapName: string, subtitle: string) {
     this.root.id = 'world-hud';
@@ -21,6 +23,7 @@ export class HarvestWorldHUD {
       <section class="world-progress"><div><b>HERO <em data-world-hero-level>1</em></b><i><u data-world-hero-bar></u></i></div><div><b>JOB <em data-world-job-level>1</em></b><i><u data-world-job-bar></u></i></div><p data-world-class></p></section>
       <section class="world-quests"><small>ACTIVE QUESTS</small><div data-world-quests></div></section>
       <div class="world-target" data-world-target hidden></div>
+      <button class="world-attack" type="button" data-world-attack disabled><b>ATTACK</b><span>SELECT TARGET</span></button>
       <button class="world-context" type="button" data-world-context hidden>INTERACT</button>
       <section class="world-class-select" data-world-class-select hidden><small>CLASS AWAKENING</small><strong>CHOOSE YOUR PATH</strong><div>${HERO_CLASSES.map((heroClass) => `<button type="button" data-world-class="${heroClass.id}"><b>${heroClass.name}</b><span>${heroClass.combatRole}</span><small>${heroClass.description}</small></button>`).join('')}</div></section>`;
     document.body.appendChild(this.root);
@@ -32,12 +35,15 @@ export class HarvestWorldHUD {
     this.questList = required(this.root, '[data-world-quests]');
     this.context = required<HTMLButtonElement>(this.root, '[data-world-context]');
     this.target = required(this.root, '[data-world-target]');
+    this.attack = required<HTMLButtonElement>(this.root, '[data-world-attack]');
     this.context.addEventListener('pointerdown', (event) => { event.preventDefault(); event.stopPropagation(); this.onInteract?.(); });
+    this.attack.addEventListener('pointerdown', (event) => { event.preventDefault(); event.stopPropagation(); this.onAttack?.(); });
     this.root.querySelectorAll<HTMLButtonElement>('[data-world-class]').forEach((button) => button.addEventListener('click', () => this.onClass?.(button.dataset.worldClass as HeroClassId)));
   }
 
   bindInteract(callback: () => void): void { this.onInteract = callback; }
   bindClass(callback: (classId: HeroClassId) => void): void { this.onClass = callback; }
+  bindAttack(callback: () => void): void { this.onAttack = callback; }
 
   updateProgress(progression: WorldProgression): void {
     this.heroLevel.textContent = String(progression.heroLevel);
@@ -69,6 +75,15 @@ export class HarvestWorldHUD {
     this.target.hidden = !name;
     if (!name) return;
     this.target.innerHTML = `<b>LV. ${level} · ${name}</b><i><u style="transform:scaleX(${Math.max(0, hp / maxHp)})"></u></i>`;
+  }
+
+  updateAttack(selected: boolean, attacking: boolean, inRange: boolean): void {
+    this.attack.disabled = !selected;
+    this.attack.classList.toggle('active', attacking);
+    const title = this.attack.querySelector('b');
+    const status = this.attack.querySelector('span');
+    if (title) title.textContent = attacking ? 'STOP' : 'ATTACK';
+    if (status) status.textContent = !selected ? 'SELECT TARGET' : attacking ? 'AUTO ATTACK' : inRange ? 'READY' : 'MOVE CLOSER';
   }
 
   destroy(): void { this.root.remove(); }
