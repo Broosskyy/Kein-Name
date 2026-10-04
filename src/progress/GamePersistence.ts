@@ -10,9 +10,16 @@ export class GamePersistence {
   loadProgress(): PlayerProgress {
     try {
       const raw = this.storage.getItem(SAVE_KEY); if (!raw) return createPlayerProgress();
-      const parsed = JSON.parse(raw) as PlayerProgress;
-      if (parsed.schemaVersion !== PLAYER_PROGRESS_VERSION || !parsed.guestId) return createPlayerProgress();
-      return parsed;
+      const parsed = JSON.parse(raw) as Partial<PlayerProgress>;
+      if (!parsed.guestId) return createPlayerProgress();
+      if (parsed.schemaVersion === PLAYER_PROGRESS_VERSION) return parsed as PlayerProgress;
+      if (parsed.schemaVersion === 1) return {
+        ...createPlayerProgress(parsed.guestId), ...parsed,
+        schemaVersion: PLAYER_PROGRESS_VERSION,
+        jobLevel: 1,
+        jobXp: 0,
+      } as PlayerProgress;
+      return createPlayerProgress();
     } catch { return createPlayerProgress(); }
   }
   saveProgress(progress: PlayerProgress): void { this.storage.setItem(SAVE_KEY, JSON.stringify(progress)); }

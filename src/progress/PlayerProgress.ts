@@ -1,10 +1,12 @@
 import type { CosmeticLoadout } from '../gameplay/Equipment';
 import type { EvolutionId, Mutation } from '../types';
+import type { HeroClassId } from '../gameplay/WorldProgression';
 
-export const PLAYER_PROGRESS_VERSION = 1;
+export const PLAYER_PROGRESS_VERSION = 2;
 
 export interface PlayerProgress {
   schemaVersion: number; guestId: string; playerLevel: number; playerXp: number;
+  jobLevel: number; jobXp: number; classId?: HeroClassId;
   unlockedCreatureIds: string[]; unlockedMutationIds: Mutation[]; unlockedEvolutionIds: EvolutionId[];
   permanentEquipmentIds: string[]; petIds: string[]; cosmeticIds: string[]; mastery: Record<string, number>;
   achievementIds: string[]; currencies: Record<string, number>; settings: Record<string, string | number | boolean>;
@@ -20,7 +22,7 @@ export function createGuestId(): string {
 
 export function createPlayerProgress(guestId = createGuestId()): PlayerProgress {
   return {
-    schemaVersion: PLAYER_PROGRESS_VERSION, guestId, playerLevel: 1, playerXp: 0,
+    schemaVersion: PLAYER_PROGRESS_VERSION, guestId, playerLevel: 1, playerXp: 0, jobLevel: 1, jobXp: 0,
     unlockedCreatureIds: ['base'], unlockedMutationIds: [], unlockedEvolutionIds: [], permanentEquipmentIds: [],
     petIds: [], cosmeticIds: [], mastery: {}, achievementIds: [], currencies: {}, settings: {},
     statistics: { runsStarted: 0, runsCompleted: 0, bossCyclesCleared: 0, totalDamage: 0, pickups: 0 },

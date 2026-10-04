@@ -1,8 +1,10 @@
-# Harvest Colossus — Gameplay Recovery Pass 02
+# Harvest Colossus — Harvest Haven World Foundation
 
 > **New product direction:** Harvest Colossus is planned as an original, browser-first social action MMORPG with NosTale-like structural parity, modern direct combat, a free 3D camera and reduced mobile-first UI. The existing boss arena becomes the first Raid foundation. See [`HARVEST_COLOSSUS_NOSTALE_PARITY_MASTER_PLAN.md`](HARVEST_COLOSSUS_NOSTALE_PARITY_MASTER_PLAN.md).
 
-Browser-first hybrid Three.js + PixiJS boss-arena prototype. The default M10 path is a deterministic 2200×2200 spatial slice with real 3D terrain, structures, perspective camera, geometry occlusion, a world-space Boss proxy, ground telegraphs and physical loot. The complete M09.3 2.5D experience remains available as a migration fallback.
+Browser-first hybrid Three.js + PixiJS social action RPG foundation. The default route now opens **Harvest Haven**, a continuous town and Southfields slice with buildings, NPC positions, farm monsters, Hero/Job progression, quests and a physical portal into the existing Harvest Colossus raid. The raid remains available with `?map=raid`; the complete M09.3 2D renderer remains available with `?renderer=2d`.
+
+See [`M11_HARVEST_HAVEN_WORLD_FOUNDATION.md`](M11_HARVEST_HAVEN_WORLD_FOUNDATION.md) for the new world loop and [`HARVEST_COLOSSUS_NOSTALE_PARITY_MASTER_PLAN.md`](HARVEST_COLOSSUS_NOSTALE_PARITY_MASTER_PLAN.md) for the long-term original-IP social action MMORPG direction.
 
 The current recovery pass addresses the second real-device recording without replacing the M10 hybrid architecture: camera gestures cover both screen halves, pitch has a substantially wider safe range, slow swipes cannot become reset taps, fullscreen has mobile fallbacks and visible failure feedback, and the Boss basin no longer reads as a black foreground slab. See `GAMEPLAY_RECOVERY_PASS_02.md`; Pass 01 remains documented in `GAMEPLAY_RECOVERY_PASS_01.md`. The reusable Harvest UI foundation remains documented in `HARVEST_UI_FOUNDATION_PASS_01.md`.
 
@@ -19,7 +21,7 @@ npm run build
 npm run preview
 ```
 
-Use the default URL for M10 Hybrid 3D. Append `?renderer=2d` for the intact M09.3 renderer. Append `?debug3d=1` or press `F3` for spatial metrics/proxies.
+Use the default URL for Harvest Haven. Append `?map=raid` for the Hybrid-3D Harvest Colossus raid, `?renderer=2d` for the intact M09.3 renderer, or `?debug3d=1` / `F3` for spatial metrics.
 
 Append `?ui=hub` for the responsive meta-hub entry view or `?ui=preview` in a DEV build for the complete UI/Hero QA catalog.
 

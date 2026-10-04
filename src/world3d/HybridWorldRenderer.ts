@@ -17,6 +17,8 @@ import { HybridCameraObstruction } from './HybridCameraObstruction';
 import { BossDirectionalState, bossViewAnchor, bossViewAsset, bossViewSector, type BossDirectionalView } from './BossDirectionalView';
 import { HeroAnimationController } from './HeroAnimationController';
 import type { BossEncounterState } from '../gameplay/BossEncounterLoop';
+import type { FieldMonsterState } from '../gameplay/FieldMonsterSystem';
+import type { WorldNpcDefinition, WorldPortalDefinition } from '../gameplay/WorldMapDefinition';
 
 const STONE = 0x333746;
 const STONE_DARK = 0x202430;
@@ -38,6 +40,10 @@ export interface HybridRenderState {
   aimDirection?: Vec2;
   bossState: BossEncounterState;
   bossDeathProgress: number;
+  bossVisible?: boolean;
+  fieldMonsters?: readonly FieldMonsterState[];
+  worldNpcs?: readonly WorldNpcDefinition[];
+  worldPortals?: readonly WorldPortalDefinition[];
 }
 
 export class HybridWorldRenderer {
@@ -57,6 +63,7 @@ export class HybridWorldRenderer {
   private readonly cameraObstruction = new HybridCameraObstruction();
   private readonly telegraphMeshes = new Map<string, THREE.Object3D>();
   private readonly lootMeshes = new Map<string, THREE.Group>();
+  private readonly worldActorMeshes = new Map<string, THREE.Group>();
   private readonly heroVisualState = new HeroVisualState();
   private readonly heroAnimation = new HeroAnimationController();
   private readonly heroGrounding = new HeroGroundingController();
@@ -83,8 +90,9 @@ export class HybridWorldRenderer {
     this.renderer.domElement.setAttribute('aria-label', 'M10 Hybrid 3D Harvest Arena');
     mount.appendChild(this.renderer.domElement);
 
-    this.scene.background = new THREE.Color(0x171b28);
-    this.scene.fog = new THREE.FogExp2(0x1a1d29, .018);
+    const haven = definition.sceneKind === 'haven';
+    this.scene.background = new THREE.Color(haven ? 0x283247 : 0x171b28);
+    this.scene.fog = new THREE.FogExp2(haven ? 0x344156 : 0x1a1d29, haven ? .009 : .018);
     this.cameraController = new HybridCameraController(this.camera, definition.dimensions.width / WORLD3D_UNITS_PER_METER / 2 - 1, this.cameraObstruction);
     this.addLighting();
     this.addGround();
@@ -173,13 +181,15 @@ export class HybridWorldRenderer {
       Math.max(.04, 1 - hitRatio * .48 - death * .76),
     );
     this.bossVisual.material.opacity = state.bossState === 'alive' ? 1 : Math.max(0, 1 - death * 1.08);
-    this.bossVisual.visible = state.bossState === 'alive' || death < .96;
+    this.bossVisual.visible = state.bossVisible !== false && (state.bossState === 'alive' || death < .96);
+    this.bossProxy.visible = state.bossVisible !== false && this.debugRoot.visible;
     const pulse = 1 + Math.sin(this.elapsed * .0028) * .012 + (1 - state.bossHpRatio) * .02;
     const recoil = hitRatio * .1 - death * .34;
     this.bossVisual.position.set(boss.x, bossGround + .02 + recoil, boss.z);
     this.bossVisual.scale.set(BOSS_VISUAL_SIZE * pulse * (1 + hitRatio * .035) * (1 - death * .12), BOSS_VISUAL_SIZE * pulse * (1 - hitRatio * .025) * (1 - death * .46), 1);
     this.syncTelegraphs(state.telegraphs);
     this.syncLoot(state.loot);
+    this.syncWorldActors(state.fieldMonsters ?? [], state.worldNpcs ?? [], state.worldPortals ?? []);
     this.projectileRenderer.update(deltaMs, state.projectiles, state.projectileImpacts);
     this.renderer.render(this.scene, this.camera);
   }
@@ -222,7 +232,8 @@ export class HybridWorldRenderer {
   }
 
   private addLighting(): void {
-    this.scene.add(new THREE.HemisphereLight(0x9ba8c8, 0x251713, 2.05));
+    const haven = this.definition.sceneKind === 'haven';
+    this.scene.add(new THREE.HemisphereLight(haven ? 0xc0d6eb : 0x9ba8c8, haven ? 0x303425 : 0x251713, haven ? 2.35 : 2.05));
     const sun = new THREE.DirectionalLight(0xffd6ad, 2.55);
     sun.position.set(-7, 13, 9);
     sun.castShadow = true;
@@ -235,10 +246,12 @@ export class HybridWorldRenderer {
     const fill = new THREE.DirectionalLight(0x6d86b9, .55);
     fill.position.set(9, 7, -8);
     this.scene.add(fill);
-    const core = new THREE.PointLight(ORANGE, 7.5, 12, 2);
-    const boss = simulationToWorld3D(this.definition.bossSpawn);
-    core.position.set(boss.x, 2.6, boss.z + .3);
-    this.scene.add(core);
+    if (!haven) {
+      const core = new THREE.PointLight(ORANGE, 7.5, 12, 2);
+      const boss = simulationToWorld3D(this.definition.bossSpawn);
+      core.position.set(boss.x, 2.6, boss.z + .3);
+      this.scene.add(core);
+    }
   }
 
   private addGround(): void {
@@ -251,10 +264,13 @@ export class HybridWorldRenderer {
       positions.setY(i, sampleBaseTerrainHeight(positions.getX(i), positions.getZ(i)));
     }
     geometry.computeVertexNormals();
-    const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x343844, roughness: .98, metalness: .01 });
+    const haven = this.definition.sceneKind === 'haven';
+    const groundMaterial = new THREE.MeshStandardMaterial({ color: haven ? 0x465044 : 0x343844, roughness: .98, metalness: .01 });
     const ground = new THREE.Mesh(geometry, groundMaterial);
     ground.receiveShadow = true;
     this.scene.add(ground);
+
+    if (haven) { this.addHavenGround(); return; }
 
     // Large authored floor masses: the arena reads as one place rather than a flat test plane.
     const boss = simulationToWorld3D(this.definition.bossSpawn);
@@ -325,6 +341,11 @@ export class HybridWorldRenderer {
     else if (prop.kind === 'corruption') this.buildCorruption(root);
     else if (prop.kind === 'wall') this.buildWall(root);
     else if (prop.kind === 'ring') this.buildRingFragment(root);
+    else if (prop.kind === 'house' || prop.kind === 'inn' || prop.kind === 'forge' || prop.kind === 'guild-hall') this.buildHavenBuilding(root, prop.kind);
+    else if (prop.kind === 'market-stall') this.buildMarketStall(root);
+    else if (prop.kind === 'shrine') this.buildShrine(root);
+    else if (prop.kind === 'tree') this.buildTree(root);
+    else if (prop.kind === 'fence') this.buildFence(root);
     this.scene.add(root);
     const obstruction = propObstructionProfile(prop);
     if (obstruction) this.cameraObstruction.register(prop.id, root, obstruction.radius, obstruction.height, true);
@@ -406,6 +427,76 @@ export class HybridWorldRenderer {
     }
   }
 
+  private addHavenGround(): void {
+    const plazaMaterial = stoneMaterial(0x59606a);
+    const plaza = new THREE.Mesh(new THREE.CylinderGeometry(5.9, 6.1, .16, 32), plazaMaterial);
+    plaza.position.y = .055; plaza.receiveShadow = true; this.scene.add(plaza);
+    const roadMaterial = stoneMaterial(0x4a4d50);
+    const roads = [
+      [0, 5.9, 3.1, 14.8, 0], [0, -7.2, 3.0, 12.8, 0],
+      [-8.4, 1.5, 10.8, 2.7, Math.PI / 24], [8.3, 1.7, 10.8, 2.7, -Math.PI / 24],
+    ] as const;
+    roads.forEach(([x, z, w, d, rotation]) => {
+      const road = new THREE.Mesh(new THREE.BoxGeometry(w, .11, d), roadMaterial);
+      road.position.set(x, .08, z); road.rotation.y = rotation; road.receiveShadow = true; this.scene.add(road);
+    });
+    const farm = new THREE.Mesh(new THREE.BoxGeometry(20, .055, 8.4), new THREE.MeshStandardMaterial({ color: 0x3a4638, roughness: 1 }));
+    farm.position.set(0, .03, 10.0); farm.receiveShadow = true; this.scene.add(farm);
+    for (let i = -5; i <= 5; i += 1) {
+      const furrow = new THREE.Mesh(new THREE.BoxGeometry(.08, .025, 7.5), new THREE.MeshBasicMaterial({ color: 0x293528 }));
+      furrow.position.set(i * 1.55, .066, 10.1); this.scene.add(furrow);
+    }
+    const stream = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 17), new THREE.MeshStandardMaterial({ color: 0x315b71, emissive: 0x102c3d, emissiveIntensity: .35, roughness: .22, transparent: true, opacity: .82 }));
+    stream.rotation.x = -Math.PI / 2; stream.rotation.z = -.08; stream.position.set(-12.6, .045, 5); this.scene.add(stream);
+  }
+
+  private buildHavenBuilding(root: THREE.Group, kind: 'house'|'inn'|'forge'|'guild-hall'): void {
+    const large = kind === 'guild-hall';
+    const width = large ? 4.6 : 3.5, depth = large ? 3.2 : 2.7, wallHeight = large ? 2.65 : 2.15;
+    const wallColor = kind === 'forge' ? 0x4a4240 : kind === 'inn' ? 0x565160 : 0x4b5360;
+    const body = new THREE.Mesh(new THREE.BoxGeometry(width, wallHeight, depth), stoneMaterial(wallColor));
+    body.position.y = wallHeight / 2; body.castShadow = body.receiveShadow = true; root.add(body);
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(width * .73, large ? 2.15 : 1.55, 4), new THREE.MeshStandardMaterial({ color: kind === 'forge' ? 0x6b3528 : 0x263048, roughness: .88 }));
+    roof.position.y = wallHeight + (large ? .82 : .6); roof.rotation.y = Math.PI / 4; roof.scale.z = depth / width; roof.castShadow = true; root.add(roof);
+    const door = new THREE.Mesh(new THREE.BoxGeometry(.72, 1.25, .09), new THREE.MeshStandardMaterial({ color: 0x34261f, roughness: .9 }));
+    door.position.set(0, .63, depth / 2 + .05); root.add(door);
+    const trim = new THREE.MeshStandardMaterial({ color: 0xb88a4e, roughness: .6, metalness: .12 });
+    for (const x of [-width * .32, width * .32]) {
+      const window = new THREE.Mesh(new THREE.BoxGeometry(.62, .55, .1), new THREE.MeshStandardMaterial({ color: 0x71b8cf, emissive: 0x21495f, emissiveIntensity: .55 }));
+      window.position.set(x, 1.38, depth / 2 + .055); root.add(window);
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(.12, wallHeight, .12), trim); beam.position.set(x * 1.35, wallHeight / 2, depth / 2 + .08); root.add(beam);
+    }
+    if (kind === 'forge') {
+      const chimney = new THREE.Mesh(new THREE.BoxGeometry(.55, 2.25, .55), stoneMaterial(0x343139)); chimney.position.set(1.05, 2.35, -.55); chimney.castShadow = true; root.add(chimney);
+    }
+    root.add(makeDisc(width * .66, 0x11141b, .28));
+  }
+
+  private buildMarketStall(root: THREE.Group): void {
+    const wood = new THREE.MeshStandardMaterial({ color: 0x5b3d2a, roughness: .92 });
+    const counter = new THREE.Mesh(new THREE.BoxGeometry(2.5, .85, 1.35), wood); counter.position.y = .45; counter.castShadow = true; root.add(counter);
+    for (const x of [-1.05, 1.05]) { const pole = new THREE.Mesh(new THREE.BoxGeometry(.12, 2.25, .12), wood); pole.position.set(x, 1.2, 0); root.add(pole); }
+    const awning = new THREE.Mesh(new THREE.BoxGeometry(2.8, .14, 1.7), new THREE.MeshStandardMaterial({ color: 0xa14b35, roughness: .8 })); awning.position.y = 2.15; awning.rotation.z = -.05; awning.castShadow = true; root.add(awning);
+  }
+
+  private buildShrine(root: THREE.Group): void {
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.35, .32, 8), stoneMaterial(0x555866)); base.position.y = .16; root.add(base);
+    const core = new THREE.Mesh(new THREE.OctahedronGeometry(.62), new THREE.MeshStandardMaterial({ color: 0x67bfe2, emissive: 0x265c7d, emissiveIntensity: 1.1, roughness: .3 })); core.position.y = 1.35; root.add(core);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(.88, .07, 8, 32), new THREE.MeshBasicMaterial({ color: 0xd5b36a })); ring.position.y = 1.35; ring.rotation.x = Math.PI / 2; root.add(ring);
+  }
+
+  private buildTree(root: THREE.Group): void {
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.18, .3, 2.2, 7), new THREE.MeshStandardMaterial({ color: 0x4a3428, roughness: 1 })); trunk.position.y = 1.1; trunk.castShadow = true; root.add(trunk);
+    const crownMaterial = new THREE.MeshStandardMaterial({ color: 0x405d48, roughness: 1 });
+    for (const [x, y, z, size] of [[0,2.65,0,1.15],[-.65,2.35,.1,.78],[.62,2.4,-.1,.84]] as const) { const crown = new THREE.Mesh(new THREE.DodecahedronGeometry(size, 0), crownMaterial); crown.position.set(x,y,z); crown.castShadow = true; root.add(crown); }
+  }
+
+  private buildFence(root: THREE.Group): void {
+    const wood = new THREE.MeshStandardMaterial({ color: 0x5b4431, roughness: 1 });
+    for (const x of [-1.2, 0, 1.2]) { const post = new THREE.Mesh(new THREE.BoxGeometry(.14, 1.05, .14), wood); post.position.set(x,.52,0); root.add(post); }
+    for (const y of [.35,.75]) { const rail = new THREE.Mesh(new THREE.BoxGeometry(2.7,.12,.12),wood); rail.position.y=y; root.add(rail); }
+  }
+
   private addArenaAtmosphere(): void {
     // Sparse ember motes supply depth cues without post-processing.
     const geometry = new THREE.BufferGeometry();
@@ -417,13 +508,14 @@ export class HybridWorldRenderer {
       positions.push(x, y, z);
     }
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    const motes = new THREE.Points(geometry, new THREE.PointsMaterial({ color: 0xff7138, size: .045, transparent: true, opacity: .38, depthWrite: false }));
+    const haven = this.definition.sceneKind === 'haven';
+    const motes = new THREE.Points(geometry, new THREE.PointsMaterial({ color: haven ? 0xd4e7b0 : 0xff7138, size: .045, transparent: true, opacity: haven ? .22 : .38, depthWrite: false }));
     this.scene.add(motes);
   }
 
   private addBoundaryGeometry(): void {
     const half = this.definition.dimensions.width / WORLD3D_UNITS_PER_METER / 2;
-    const material = stoneMaterial(0x242834);
+    const material = stoneMaterial(this.definition.sceneKind === 'haven' ? 0x353e43 : 0x242834);
     for (let i = 0; i < 28; i += 1) {
       const side = i % 4, along = -half + .6 + Math.floor(i / 4) * 3.15;
       const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(.95 + (i % 3) * .16, 0), material);
@@ -447,7 +539,9 @@ export class HybridWorldRenderer {
     const boss = simulationToWorld3D(this.definition.bossSpawn); root.position.set(boss.x, sampleGroundHeight(boss.x, boss.z), boss.z);
     // A 3.5m / 56% black disc read as an opaque platform in portrait QA and
     // hid the lower half of the Boss. Keep grounding, not a second silhouette.
-    const shadow = makeDisc(2.75, 0x05060a, .25); shadow.position.set(boss.x, sampleGroundHeight(boss.x, boss.z) + .012, boss.z); shadow.scale.z = .7; this.scene.add(shadow);
+    if (this.definition.sceneKind !== 'haven') {
+      const shadow = makeDisc(2.75, 0x05060a, .25); shadow.position.set(boss.x, sampleGroundHeight(boss.x, boss.z) + .012, boss.z); shadow.scale.z = .7; this.scene.add(shadow);
+    }
     return root;
   }
 
@@ -507,6 +601,73 @@ export class HybridWorldRenderer {
     }
   }
 
+  private syncWorldActors(monsters: readonly FieldMonsterState[], npcs: readonly WorldNpcDefinition[], portals: readonly WorldPortalDefinition[]): void {
+    const live = new Set([...monsters.map((actor) => actor.id), ...npcs.map((actor) => actor.id), ...portals.map((actor) => actor.id)]);
+    for (const [id, group] of this.worldActorMeshes) if (!live.has(id)) { this.scene.remove(group); disposeObject(group); this.worldActorMeshes.delete(id); }
+    for (const monster of monsters) {
+      let group = this.worldActorMeshes.get(monster.id);
+      if (!group) { group = this.createMonsterVisual(monster.species); this.worldActorMeshes.set(monster.id, group); this.scene.add(group); }
+      const position = simulationToWorld3D(monster.position);
+      group.position.set(position.x, sampleGroundHeight(position.x, position.z), position.z);
+      group.visible = monster.alive;
+      group.rotation.y = Math.sin(this.elapsed * .0007 + position.x) * .35;
+      group.position.y += monster.alive ? Math.abs(Math.sin(this.elapsed * .004 + position.z)) * .045 : 0;
+      const hit = monster.hitFlashMs > 0;
+      group.traverse((child) => { if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) child.material.emissiveIntensity = hit ? 1.5 : .15; });
+    }
+    for (const npc of npcs) {
+      let group = this.worldActorMeshes.get(npc.id);
+      if (!group) { group = this.createNpcVisual(npc.role); this.worldActorMeshes.set(npc.id, group); this.scene.add(group); }
+      const position = simulationToWorld3D(npc.position);
+      group.position.set(position.x, sampleGroundHeight(position.x, position.z), position.z);
+      group.rotation.y = -npc.facing;
+    }
+    for (const portal of portals) {
+      let group = this.worldActorMeshes.get(portal.id);
+      if (!group) { group = this.createPortalVisual(); this.worldActorMeshes.set(portal.id, group); this.scene.add(group); }
+      const position = simulationToWorld3D(portal.position);
+      group.position.set(position.x, sampleGroundHeight(position.x, position.z), position.z);
+      group.rotation.y = this.elapsed * .00035;
+      const core = group.getObjectByName('portal-core');
+      if (core) core.rotation.z = this.elapsed * .0012;
+    }
+  }
+
+  private createMonsterVisual(species: FieldMonsterState['species']): THREE.Group {
+    const root = new THREE.Group();
+    const color = species === 'mossling' ? 0x6d9b67 : species === 'stonebeak' ? 0x78879a : 0x65456f;
+    const emissive = species === 'corrupted-sprout' ? 0x4b1d62 : 0x17231a;
+    const material = new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: .15, roughness: .82, flatShading: true });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(.55, 8, 6), material); body.scale.set(1.05, .8, 1.15); body.position.y = .62; body.castShadow = true; root.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(.42, 8, 6), material); head.position.set(0, 1.12, .18); head.castShadow = true; root.add(head);
+    for (const x of [-.2, .2]) { const eye = new THREE.Mesh(new THREE.SphereGeometry(.055, 7, 5), new THREE.MeshBasicMaterial({ color: species === 'corrupted-sprout' ? 0xd777ff : 0x9aeaff })); eye.position.set(x, 1.18, .55); root.add(eye); }
+    if (species === 'stonebeak') { const beak = new THREE.Mesh(new THREE.ConeGeometry(.13, .42, 5), new THREE.MeshStandardMaterial({ color: 0xd7a95b })); beak.rotation.x = Math.PI / 2; beak.position.set(0, 1.08, .7); root.add(beak); }
+    else for (const x of [-.28, .28]) { const leaf = new THREE.Mesh(new THREE.ConeGeometry(.18, .65, 5), material); leaf.position.set(x, 1.58, .05); leaf.rotation.z = x > 0 ? -.45 : .45; root.add(leaf); }
+    root.add(makeDisc(.65, 0x0b1011, .3));
+    return root;
+  }
+
+  private createNpcVisual(role: WorldNpcDefinition['role']): THREE.Group {
+    const root = new THREE.Group();
+    const tones: Record<WorldNpcDefinition['role'], number> = { mayor: 0x7a5e8c, 'class-mentor': 0x476e91, blacksmith: 0x8b5540, merchant: 0x6d8c64, innkeeper: 0x8b7359, 'rift-keeper': 0x73548f };
+    const robe = new THREE.Mesh(new THREE.ConeGeometry(.42, 1.35, 7), new THREE.MeshStandardMaterial({ color: tones[role], roughness: .8, flatShading: true })); robe.position.y = .68; robe.castShadow = true; root.add(robe);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(.28, 10, 8), new THREE.MeshStandardMaterial({ color: 0xe0b897, roughness: .82 })); head.position.y = 1.55; head.castShadow = true; root.add(head);
+    const marker = new THREE.Mesh(new THREE.OctahedronGeometry(.11), new THREE.MeshBasicMaterial({ color: role === 'class-mentor' ? 0xffd467 : 0x73d9ff })); marker.position.y = 2.25; root.add(marker);
+    root.add(makeDisc(.45, 0x101116, .27));
+    return root;
+  }
+
+  private createPortalVisual(): THREE.Group {
+    const root = new THREE.Group();
+    const stone = stoneMaterial(0x34384b);
+    for (const x of [-1.15, 1.15]) { const pillar = new THREE.Mesh(new THREE.BoxGeometry(.42, 3.25, .55), stone); pillar.position.set(x, 1.62, 0); pillar.castShadow = true; root.add(pillar); }
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(2.7, .45, .62), stone); lintel.position.y = 3.1; lintel.castShadow = true; root.add(lintel);
+    const core = new THREE.Mesh(new THREE.RingGeometry(.68, 1.03, 40), new THREE.MeshBasicMaterial({ color: 0xffa348, transparent: true, opacity: .78, side: THREE.DoubleSide, depthWrite: false })); core.name = 'portal-core'; core.position.y = 1.62; root.add(core);
+    const glow = new THREE.PointLight(0xff7d32, 3.2, 5.5, 2); glow.position.y = 1.6; root.add(glow);
+    root.add(makeDisc(1.45, 0x1a0b08, .42));
+    return root;
+  }
+
   private makeSprite(url: string, width: number, height: number): THREE.Sprite {
     const material = new THREE.SpriteMaterial({ map: this.texture(url), transparent: true, depthTest: true, depthWrite: false, alphaTest: .05 });
     const sprite = new THREE.Sprite(material); sprite.scale.set(width, height, 1); return sprite;
@@ -552,6 +713,8 @@ function propObstructionProfile(prop: HybridPropDefinition): { radius: number; h
   if (prop.kind === 'wall') return { radius: 2.35 * scale, height: 3 * scale };
   if (prop.kind === 'crystal') return { radius: 1.25 * scale, height: 3.4 * scale };
   if (prop.kind === 'corruption') return { radius: 1.2 * scale, height: 2.4 * scale };
+  if (prop.kind === 'house' || prop.kind === 'inn' || prop.kind === 'forge' || prop.kind === 'guild-hall') return { radius: 2.35 * scale, height: 4.4 * scale };
+  if (prop.kind === 'tree') return { radius: 1.15 * scale, height: 3.8 * scale };
   return undefined;
 }
 function firstMaterial(object: THREE.Object3D): THREE.MeshBasicMaterial | undefined {

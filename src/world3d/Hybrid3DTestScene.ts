@@ -3,7 +3,8 @@ import type { WorldCollider3D } from './World3DTypes';
 
 export interface HybridPropDefinition {
   id: string;
-  kind: 'pillar' | 'broken-pillar' | 'arch' | 'rock' | 'boundary' | 'ring' | 'crystal' | 'corruption' | 'wall';
+  kind: 'pillar' | 'broken-pillar' | 'arch' | 'rock' | 'boundary' | 'ring' | 'crystal' | 'corruption' | 'wall'
+    | 'house' | 'inn' | 'forge' | 'guild-hall' | 'market-stall' | 'shrine' | 'tree' | 'fence';
   position: Vec2;
   rotation: number;
   scale: number;
@@ -12,6 +13,7 @@ export interface HybridPropDefinition {
 
 export interface Hybrid3DSceneDefinition {
   id: string;
+  sceneKind?: 'raid' | 'haven';
   seed: number;
   dimensions: { width: number; depth: number };
   playerSpawn: Vec2;

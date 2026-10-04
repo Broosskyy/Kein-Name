@@ -15,6 +15,8 @@ import { GamePersistence } from './progress/GamePersistence';
 import { awardPersistentProgress } from './progress/PlayerProgress';
 import { FullscreenController } from './platform/FullscreenController';
 import { Hybrid3DVerticalSlice } from './world3d/Hybrid3DVerticalSlice';
+import { HarvestWorldVerticalSlice } from './world3d/HarvestWorldVerticalSlice';
+import type { WorldProgressionSnapshot } from './gameplay/WorldProgression';
 
 async function bootstrapLegacy(): Promise<void> {
   const mount = document.getElementById('game-canvas');
@@ -101,7 +103,22 @@ async function bootstrapHybrid(): Promise<void> {
     eventEnabled: eventRuntime.enabled,
     seedGenerator: () => 0x10a3d,
   });
-  const scene = new Hybrid3DVerticalSlice(mount, ui, model);
+  const persistence = new GamePersistence(localStorage);
+  const map = new URLSearchParams(location.search).get('map');
+  const scene = map === 'raid'
+    ? new Hybrid3DVerticalSlice(mount, ui, model)
+    : new HarvestWorldVerticalSlice(mount, ui, model, {
+      load: (): WorldProgressionSnapshot => {
+        const progress = persistence.loadProgress();
+        return { heroLevel: progress.playerLevel, heroXp: progress.playerXp, jobLevel: progress.jobLevel, jobXp: progress.jobXp, classId: progress.classId };
+      },
+      save: (snapshot): void => {
+        const progress = persistence.loadProgress();
+        progress.playerLevel = snapshot.heroLevel; progress.playerXp = snapshot.heroXp;
+        progress.jobLevel = snapshot.jobLevel; progress.jobXp = snapshot.jobXp; progress.classId = snapshot.classId;
+        progress.updatedAt = new Date().toISOString(); persistence.saveProgress(progress);
+      },
+    });
   const fullscreen = new FullscreenController(document, shell, () => scene.resize());
   ui.bindFullscreen(() => fullscreen.toggle());
   const lifecycle = new AppLifecycle({

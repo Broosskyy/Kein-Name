@@ -12,6 +12,9 @@ import { M10_HYBRID_TEST_SCENE, type Hybrid3DSceneDefinition } from './Hybrid3DT
 import { HybridWorldRenderer } from './HybridWorldRenderer';
 import { HybridWalkableSurfaceSystem } from './HybridWalkableSurfaceSystem';
 import { BossEncounterLoop, type BossEncounterEvent } from '../gameplay/BossEncounterLoop';
+import type { WorldPortalDefinition } from '../gameplay/WorldMapDefinition';
+
+const HAVEN_RETURN_PORTAL: WorldPortalDefinition = { id: 'portal-return-haven', kind: 'portal', name: 'Return to Harvest Haven', position: { x: 0, y: 900 }, radius: 130, targetMapId: 'harvest-haven', query: '?map=haven' };
 
 export class Hybrid3DVerticalSlice {
   readonly definition: Hybrid3DSceneDefinition;
@@ -35,6 +38,7 @@ export class Hybrid3DVerticalSlice {
   private destroyed = false;
   private debugElement: HTMLElement;
   private collisionState: 'clear'|'blocked' = 'clear';
+  private readonly returnPortalElement = createReturnPortalElement();
 
   constructor(
     mount: HTMLElement,
@@ -59,6 +63,7 @@ export class Hybrid3DVerticalSlice {
     definition.lootSpawns.forEach((target, index) => this.loot.spawn(index === 2 ? 'relic' : 'run-xp', index === 2 ? 'epic' : index === 1 ? 'rare' : 'common', definition.bossSpawn, 10 + index * 10, target));
     this.attacks.force('ground-slam', definition.telegraphSpawn, 1, { position: definition.bossSpawn, orientation: definition.bossOrientation });
     this.bindInput();
+    this.returnPortalElement.addEventListener('pointerdown', () => this.enterReturnPortal());
     this.raf = requestAnimationFrame(this.frame);
   }
 
@@ -101,6 +106,7 @@ export class Hybrid3DVerticalSlice {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     this.debugElement.remove();
+    this.returnPortalElement.remove();
     this.renderer.destroy();
   }
 
@@ -148,7 +154,10 @@ export class Hybrid3DVerticalSlice {
       aimDirection: { x: this.boss.position.x - this.player.position.x, y: this.boss.position.y - this.player.position.y },
       bossState: bossSnapshot.state,
       bossDeathProgress: bossSnapshot.deathProgress,
+      worldPortals: [HAVEN_RETURN_PORTAL],
     });
+    const returnNearby = Math.hypot(this.player.position.x - HAVEN_RETURN_PORTAL.position.x, this.player.position.y - HAVEN_RETURN_PORTAL.position.y) <= HAVEN_RETURN_PORTAL.radius;
+    this.returnPortalElement.hidden = !returnNearby;
     this.ui.update(this.combat.bossHp, this.combat.maxHp, this.combat.elapsedMs(now), this.combat.powerCooldownRemaining(now), this.combat.phase === 'playing', this.projectiles.hasPendingPower);
     this.ui.updateArena(this.player.hp, this.player.maxHp, 1, 30, 100, this.bossEncounter.bossRoundIndex, this.dashCooldownMs);
     this.ui.updateBossRound(this.bossEncounter.bossRoundIndex, this.bossEncounter.bossLevel, this.bossEncounter.state);
@@ -195,6 +204,7 @@ export class Hybrid3DVerticalSlice {
     if (event.code === 'KeyE' || event.code === 'KeyF') this.performAttack('power', performance.now());
     if (event.code === 'KeyR') this.renderer.cameraController.resetFollow();
     if (event.code === 'KeyT') this.renderer.cameraController.setMode('tactical');
+    if (event.code === 'Enter' || event.code === 'KeyQ') this.enterReturnPortal();
     if (event.code === 'F3') this.renderer.toggleDebug();
   };
   private onKeyUp = (event: KeyboardEvent): void => { this.keyboard.delete(event.code); };
@@ -277,6 +287,11 @@ export class Hybrid3DVerticalSlice {
     this.ui.announce('COLOSSUS BROKEN', `ROUND ${this.bossEncounter.bossRoundIndex} CLEARED`, '#ff8a42', 1150);
   }
 
+  private enterReturnPortal(): void {
+    if (Math.hypot(this.player.position.x - HAVEN_RETURN_PORTAL.position.x, this.player.position.y - HAVEN_RETURN_PORTAL.position.y) > HAVEN_RETURN_PORTAL.radius) return;
+    location.search = HAVEN_RETURN_PORTAL.query;
+  }
+
   private handleBossEncounterEvent(event: BossEncounterEvent, now: number): void {
     if (event === 'loot') {
       this.loot.spawn('relic', 'epic', this.boss.position, 50, { x: this.player.position.x + 180, y: this.player.position.y - 140 });
@@ -307,6 +322,10 @@ export function cameraRelativeMovement(input: MovementInput, cameraYaw: number):
 }
 function createDebugElement(): HTMLElement {
   const element = document.createElement('pre'); element.id = 'hybrid-debug'; element.hidden = true; document.body.appendChild(element); return element;
+}
+function createReturnPortalElement(): HTMLButtonElement {
+  const element = document.createElement('button'); element.type = 'button'; element.className = 'raid-return'; element.hidden = true;
+  element.innerHTML = '<b>RETURN</b><span>Harvest Haven</span>'; document.body.appendChild(element); return element;
 }
 const ZOOM_STORAGE_KEY = 'mutation-boss.hybrid.userZoomDistance';
 function loadZoomPreference(): number {
