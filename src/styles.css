@@ -411,7 +411,7 @@ body.world-mode #minimap,
 body.world-mode .mutation-strip,
 body.world-mode .combat-actions { display: none !important; }
 
-#world-hud { position: fixed; inset: 0; z-index: 22; pointer-events: none; color: #eef5ff; font-family: inherit; }
+#world-hud { position: absolute; inset: 0; z-index: 22; overflow: hidden; pointer-events: none; color: #eef5ff; font-family: inherit; }
 #world-hud>header { position: absolute; left: max(14px, env(safe-area-inset-left)); top: max(14px, env(safe-area-inset-top)); display: grid; padding: 10px 14px; min-width: 190px; border-left: 2px solid #d4a85a; border-radius: 4px 12px 12px 4px; background: linear-gradient(100deg, rgba(8,16,31,.9), rgba(12,26,42,.58)); box-shadow: 0 8px 28px #0007; }
 #world-hud>header small { color: #82d9ef; letter-spacing: .16em; font-size: 9px; }
 #world-hud>header strong { color: #ffe0a0; font-size: 18px; letter-spacing: .04em; }
@@ -462,19 +462,21 @@ body.world-mode .combat-actions { display: none !important; }
 }
 
 @media (max-width: 600px) {
-  #world-hud>header { width: 52vw; min-width: 0; padding: 8px 10px; }
+  #world-hud>header { width: 49vw; min-width: 0; padding: 7px 9px; }
   #world-hud>header strong { overflow: hidden; font-size: 15px; white-space: nowrap; text-overflow: ellipsis; }
   #world-hud>header span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .world-progress { top: max(82px, calc(env(safe-area-inset-top) + 70px)); width: 52vw; padding: 7px 9px; }
-  .world-quests { top: max(13px, env(safe-area-inset-top)); width: 42vw; }
+  .world-progress { top: max(78px, calc(env(safe-area-inset-top) + 66px)); width: 49vw; padding: 6px 8px; }
+  .world-quests { top: max(13px, env(safe-area-inset-top)); width: 40vw; padding: 8px; }
   .world-quests article span { display: grid; }
-  .world-target { left: auto; right: max(12px, env(safe-area-inset-right)); top: max(114px, calc(env(safe-area-inset-top) + 101px)); width: 40vw; transform: none; padding: 6px 9px; }
+  .world-target { left: auto; right: max(12px, env(safe-area-inset-right)); top: max(108px, calc(env(safe-area-inset-top) + 95px)); width: 38vw; transform: none; padding: 6px 9px; }
   .world-target b { overflow: hidden; font-size: 9px; white-space: nowrap; text-overflow: ellipsis; }
   .world-attack { right: max(18px, env(safe-area-inset-right)); bottom: max(122px, calc(env(safe-area-inset-bottom) + 112px)); width: 74px; height: 74px; }
-  body.world-mode #announcement { top: 34%; width: min(72vw, 300px); }
+  body.world-mode #announcement { top: 24%; width: min(62vw, 260px); padding: 5px 10px; }
+  body.world-mode #announcement strong { font-size: clamp(13px,3.5vw,20px); }
+  body.world-mode #announcement span { font-size: clamp(7px,1.8vw,10px); }
   .world-class-select>div { grid-template-columns: 1fr; }
   .world-class-select { max-height: 78vh; overflow: auto; }
 }
 
-.raid-return { position: fixed; z-index: 28; right: max(18px, env(safe-area-inset-right)); bottom: max(154px, calc(env(safe-area-inset-bottom) + 144px)); min-width: 118px; padding: 11px 15px; color: #fff; border: 1px solid #efb85e; border-radius: 50px; background: linear-gradient(180deg,#5c3924e8,#17151ce8); box-shadow: 0 8px 24px #000a; }
+.raid-return { position: absolute; z-index: 28; right: max(18px, env(safe-area-inset-right)); bottom: max(154px, calc(env(safe-area-inset-bottom) + 144px)); min-width: 118px; padding: 11px 15px; color: #fff; border: 1px solid #efb85e; border-radius: 50px; background: linear-gradient(180deg,#5c3924e8,#17151ce8); box-shadow: 0 8px 24px #000a; }
 .raid-return b,.raid-return span { display:block; }.raid-return b{color:#ffdc92;font-size:11px}.raid-return span{font-size:9px}

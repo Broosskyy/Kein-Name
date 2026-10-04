@@ -16,6 +16,8 @@ export class HeroVisualState {
   private directionLockMs = 0;
   private wasAttacking = false;
   private attackDirection: HeroDirection = 'n';
+  private pendingDirection?: HeroDirection;
+  private pendingDirectionMs = 0;
   private metricWindowMs = 0;
   private directionChanges = 0;
   private poseChanges = 0;
@@ -46,12 +48,25 @@ export class HeroVisualState {
     const facingVector = attacking ? DIRECTION_VECTORS[this.attackDirection] : velocity;
     const candidate = attacking ? this.attackDirection : stableDirectionCandidate(facingVector, this.direction, speed, false);
     if (!attacking && candidate !== this.direction && this.directionLockMs <= 0) {
-      this.direction = candidate;
-      this.directionLockMs = 165;
-      this.directionChanges += 1;
+      if (candidate !== this.pendingDirection) { this.pendingDirection = candidate; this.pendingDirectionMs = 0; }
+      this.pendingDirectionMs += Math.max(0, deltaMs);
+      if (this.pendingDirectionMs >= 85) {
+        this.direction = candidate;
+        this.directionLockMs = 190;
+        this.pendingDirection = undefined;
+        this.pendingDirectionMs = 0;
+        this.directionChanges += 1;
+      }
+    } else if (candidate === this.direction || attacking) {
+      this.pendingDirection = undefined;
+      this.pendingDirectionMs = 0;
     }
 
-    const nextPose: HeroPose = dashing ? 'dash' : attacking ? 'attack' : this.running ? 'run' : 'idle';
+    // Keep locomotion visually continuous while an auto-attack launches. The
+    // world-space muzzle flash and projectile communicate the moving shot;
+    // swapping the entire cutout to a planted attack pose every 760 ms caused
+    // the severe run/attack popping seen in real-device QA.
+    const nextPose: HeroPose = dashing ? 'dash' : attacking && !this.running ? 'attack' : this.running ? 'run' : 'idle';
     if (nextPose !== this.pose) { this.pose = nextPose; this.poseChanges += 1; }
     this.metricWindowMs += deltaMs;
     if (this.metricWindowMs >= 1000) {

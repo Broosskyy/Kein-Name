@@ -42,6 +42,30 @@ export function stableCameraRelativeHeroDirection(
   return cameraRelativeHeroDirection(worldDirection, cameraYaw);
 }
 
+/**
+ * Adds a short temporal confirmation to the angular hysteresis. Mobile orbit
+ * gestures and movement can cross an octant boundary on adjacent frames; the
+ * authored cutout only changes after the new view remains stable long enough
+ * to be intentional.
+ */
+export class StableHeroViewSelector {
+  current: HeroDirection;
+  private candidate?: HeroDirection;
+  private candidateMs = 0;
+
+  constructor(initial: HeroDirection = 'n', private readonly confirmationMs = 90) { this.current = initial; }
+
+  update(deltaMs: number, worldDirection: HeroDirection, cameraYaw: number): HeroDirection {
+    const next = stableCameraRelativeHeroDirection(worldDirection, cameraYaw, this.current, .17);
+    if (next === this.current) { this.candidate = undefined; this.candidateMs = 0; return this.current; }
+    if (next !== this.candidate) { this.candidate = next; this.candidateMs = 0; }
+    this.candidateMs += Math.max(0, deltaMs);
+    if (this.candidateMs < this.confirmationMs) return this.current;
+    this.current = next; this.candidate = undefined; this.candidateMs = 0;
+    return this.current;
+  }
+}
+
 export function heroDirectionAsset(direction: HeroDirection, pose: HeroPose): `creature.direction.${HeroDirection}.${HeroPose}` {
   return `creature.direction.${direction}.${pose}`;
 }

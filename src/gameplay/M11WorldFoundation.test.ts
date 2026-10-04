@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { HARVEST_HAVEN_MAP } from './HarvestHavenMap';
 import { validateWorldMap } from './WorldMapDefinition';
@@ -6,6 +8,8 @@ import { WorldPortalSystem } from './WorldPortalSystem';
 import { WorldQuestSystem } from './WorldQuestSystem';
 import { CLASS_HERO_LEVEL_REQUIREMENT, CLASS_JOB_LEVEL_REQUIREMENT, WorldProgression } from './WorldProgression';
 import { GamePersistence, SAVE_KEY, type StoragePort } from '../progress/GamePersistence';
+
+const root = fileURLToPath(new URL('../../', import.meta.url));
 
 describe('M11 Harvest Haven world foundation', () => {
   it('keeps the authored town, farm actors and raid gate inside the map', () => {
@@ -34,11 +38,23 @@ describe('M11 Harvest Haven world foundation', () => {
     const defeat = monsters.damage(definition.id, definition.maxHp);
     expect(defeat?.species).toBe('mossling');
     expect(monsters.monsters[0].alive).toBe(false);
+    expect(monsters.monsters[0].defeatVisualMs).toBeGreaterThan(0);
     expect(quests.onMonsterDefeated(defeat!).length).toBe(0);
     expect(quests.state('quest-first-harvest')?.progress).toBe(1);
     monsters.update(definition.respawnMs);
     expect(monsters.monsters[0].alive).toBe(true);
     expect(monsters.monsters[0].hp).toBe(definition.maxHp);
+    expect(monsters.monsters[0].defeatVisualMs).toBe(0);
+  });
+
+  it('mounts field and raid overlays inside the fullscreen game shell', () => {
+    const fieldHud = readFileSync(`${root}src/ui/HarvestWorldHUD.ts`, 'utf8');
+    const raid = readFileSync(`${root}src/world3d/Hybrid3DVerticalSlice.ts`, 'utf8');
+    const css = readFileSync(`${root}src/styles.css`, 'utf8');
+    expect(fieldHud).toContain('fullscreenHost.appendChild(this.root)');
+    expect(fieldHud).not.toContain('document.body.appendChild(this.root)');
+    expect(raid).toContain('createReturnPortalElement(fullscreenHost)');
+    expect(css).toMatch(/#world-hud \{ position: absolute;/);
   });
 
   it('only offers physical portals inside their world radius', () => {

@@ -36,7 +36,7 @@ export class HarvestWorldVerticalSlice {
   readonly projectiles = new PlayerProjectileSystem();
   readonly loot = new LootSystem(this.definition.seed, 24);
   readonly progression: WorldProgression;
-  readonly worldHud = new HarvestWorldHUD(HARVEST_HAVEN_MAP.name, HARVEST_HAVEN_MAP.subtitle);
+  readonly worldHud: HarvestWorldHUD;
   private readonly projectileTargets = new Map<string, string>();
   private movementInput: MovementInput = { x: 0, y: 0 };
   private readonly keyboard = new Set<string>();
@@ -56,6 +56,8 @@ export class HarvestWorldVerticalSlice {
     this.player.stats.moveSpeed = 500;
     this.progression = new WorldProgression(persistence.load());
     this.renderer = new HybridWorldRenderer(mount, this.definition);
+    const fullscreenHost = mount.closest<HTMLElement>('#game-shell') ?? mount.parentElement ?? mount;
+    this.worldHud = new HarvestWorldHUD(HARVEST_HAVEN_MAP.name, HARVEST_HAVEN_MAP.subtitle, fullscreenHost);
     this.renderer.cameraController.setUserZoomDistance(loadWorldZoom());
     this.worldHud.bindInteract(() => this.enterNearbyPortal());
     this.worldHud.bindClass((classId) => this.chooseClass(classId));
@@ -146,7 +148,7 @@ export class HarvestWorldVerticalSlice {
     const targetId = this.projectileTargets.get(impact.projectileId); this.projectileTargets.delete(impact.projectileId);
     if (!targetId) return;
     const defeat = this.monsters.damage(targetId, impact.damage);
-    this.ui.showDamageNumber(impact.damage, impact.kind === 'power');
+    this.ui.showDamageNumber(impact.damage, impact.kind === 'power', this.renderer.projectSimulationPoint(impact.position, impact.height));
     if (!defeat) return;
     // Any remaining bolts were authored for the defeated target. Retiring
     // them prevents a stale projectile from visually jumping to the next mob.

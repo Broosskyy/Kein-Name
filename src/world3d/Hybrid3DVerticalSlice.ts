@@ -38,7 +38,7 @@ export class Hybrid3DVerticalSlice {
   private destroyed = false;
   private debugElement: HTMLElement;
   private collisionState: 'clear'|'blocked' = 'clear';
-  private readonly returnPortalElement = createReturnPortalElement();
+  private readonly returnPortalElement: HTMLButtonElement;
 
   constructor(
     mount: HTMLElement,
@@ -57,9 +57,11 @@ export class Hybrid3DVerticalSlice {
     this.loot = new LootSystem(definition.seed, 18);
     this.surfaces = new HybridWalkableSurfaceSystem(definition.dimensions.width, definition.dimensions.depth, definition.colliders, 38);
     this.renderer = new HybridWorldRenderer(mount, definition);
+    const fullscreenHost = mount.closest<HTMLElement>('#game-shell') ?? mount.parentElement ?? mount;
+    this.returnPortalElement = createReturnPortalElement(fullscreenHost);
     this.applyVisualProofPreset(new URLSearchParams(location.search).get('proof'));
     if (!new URLSearchParams(location.search).has('proof')) this.renderer.cameraController.setUserZoomDistance(loadZoomPreference());
-    this.debugElement = createDebugElement();
+    this.debugElement = createDebugElement(fullscreenHost);
     definition.lootSpawns.forEach((target, index) => this.loot.spawn(index === 2 ? 'relic' : 'run-xp', index === 2 ? 'epic' : index === 1 ? 'rare' : 'common', definition.bossSpawn, 10 + index * 10, target));
     this.attacks.force('ground-slam', definition.telegraphSpawn, 1, { position: definition.bossSpawn, orientation: definition.bossOrientation });
     this.bindInput();
@@ -240,7 +242,7 @@ export class Hybrid3DVerticalSlice {
   private resolveProjectileImpact(impact: PlayerProjectileImpact, now: number): void {
     const result = this.combat.attack(impact.kind as PlayerProjectileKind, now);
     if (!result.accepted) return;
-    this.ui.showDamageNumber(result.damage, impact.kind === 'power');
+    this.ui.showDamageNumber(result.damage, impact.kind === 'power', this.renderer.projectSimulationPoint(impact.position, impact.height));
     if (result.triggeredBreakpointId && this.combat.pendingChoices.length) {
       this.ui.showChoices(this.combat.pendingChoices, (mutation) => {
         if (this.combat.chooseMutation(mutation, performance.now())) { this.ui.setMutation(mutation); this.ui.hideChoices(); }
@@ -320,12 +322,12 @@ export function cameraRelativeMovement(input: MovementInput, cameraYaw: number):
     y: -input.x * sin + input.y * cos,
   };
 }
-function createDebugElement(): HTMLElement {
-  const element = document.createElement('pre'); element.id = 'hybrid-debug'; element.hidden = true; document.body.appendChild(element); return element;
+function createDebugElement(host: HTMLElement): HTMLElement {
+  const element = document.createElement('pre'); element.id = 'hybrid-debug'; element.hidden = true; host.appendChild(element); return element;
 }
-function createReturnPortalElement(): HTMLButtonElement {
+function createReturnPortalElement(host: HTMLElement): HTMLButtonElement {
   const element = document.createElement('button'); element.type = 'button'; element.className = 'raid-return'; element.hidden = true;
-  element.innerHTML = '<b>RETURN</b><span>Harvest Haven</span>'; document.body.appendChild(element); return element;
+  element.innerHTML = '<b>RETURN</b><span>Harvest Haven</span>'; host.appendChild(element); return element;
 }
 const ZOOM_STORAGE_KEY = 'mutation-boss.hybrid.userZoomDistance';
 function loadZoomPreference(): number {

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { BossTelegraph } from '../gameplay/BossAttackSystem';
 import { BOSS_ATTACKS } from '../gameplay/BossAttackSystem';
-import { stableCameraRelativeHeroDirection, type HeroDirection } from '../gameplay/HeroDirection';
+import { StableHeroViewSelector, type HeroDirection } from '../gameplay/HeroDirection';
 import type { LootDrop } from '../gameplay/LootSystem';
 import type { CombatEntityState, Vec2 } from '../gameplay/ArenaTypes';
 import type { PlayerProjectile, PlayerProjectileImpact } from '../gameplay/PlayerProjectileSystem';
@@ -76,6 +76,7 @@ export class HybridWorldRenderer {
   private bossHitMs = 0;
   private bossViewSector: 'front'|'flank'|'rear' = 'front';
   private heroViewDirection: HeroDirection = 'n';
+  private readonly heroViewSelector = new StableHeroViewSelector('n');
   private elapsed = 0;
 
   constructor(private readonly mount: HTMLElement, private readonly definition: Hybrid3DSceneDefinition) {
@@ -135,7 +136,7 @@ export class HybridWorldRenderer {
     // now reacts immediately when the player orbits around it.
     this.cameraController.update(deltaMs, state.player.position, state.player.velocity, state.bossPosition);
     this.heroVisualSnapshot = this.heroVisualState.update(deltaMs, state.player.velocity, state.dashing, state.attacking, state.aimDirection);
-    this.heroViewDirection = stableCameraRelativeHeroDirection(this.heroVisualSnapshot.direction, this.cameraController.yaw, this.heroViewDirection);
+    this.heroViewDirection = this.heroViewSelector.update(deltaMs, this.heroVisualSnapshot.direction, this.cameraController.yaw);
     const animationFrame = this.heroAnimation.update(deltaMs, this.heroVisualSnapshot.pose, this.heroViewDirection);
     const desiredAsset = animationFrame.asset;
     const desiredTexture = this.texture(assetUrl(desiredAsset));
@@ -225,6 +226,12 @@ export class HybridWorldRenderer {
     let current: THREE.Object3D | null = hit ?? null;
     while (current && !current.userData.actorId) current = current.parent;
     return current?.userData.actorKind === 'monster' ? current.userData.actorId as string : undefined;
+  }
+  projectSimulationPoint(position: Vec2, height = 0): Readonly<{ x: number; y: number }> {
+    const world = simulationToWorld3D(position);
+    const projected = new THREE.Vector3(world.x, sampleGroundHeight(world.x, world.z) + height / WORLD3D_UNITS_PER_METER, world.z).project(this.camera);
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    return { x: (projected.x * .5 + .5) * rect.width, y: (-projected.y * .5 + .5) * rect.height };
   }
   metrics(): Readonly<{ calls: number; triangles: number; points: number; lines: number; textures: number; projectiles: number; projectilePool: number; heroDirectionSwaps: number; heroPoseSwaps: number; heroTextureSwaps: number; heroAnimationFrame: number; heroViewDirection: HeroDirection; bossView: string; cameraObstructed: boolean; fadedOccluders: number; groundHeight: number; surfaceId: string; heroRenderY: number; heroAnchor: number; heroAsset: string }> {
     const render = this.renderer.info.render;
@@ -637,13 +644,36 @@ export class HybridWorldRenderer {
       }
       const position = simulationToWorld3D(monster.position);
       group.position.set(position.x, sampleGroundHeight(position.x, position.z), position.z);
-      group.visible = monster.alive;
+      group.visible = monster.alive || monster.defeatVisualMs > 0;
       group.rotation.y = Math.sin(this.elapsed * .0007 + position.x) * .35;
       group.position.y += monster.alive ? Math.abs(Math.sin(this.elapsed * .004 + position.z)) * .045 : 0;
-      const hit = monster.hitFlashMs > 0;
-      group.traverse((child) => { if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) child.material.emissiveIntensity = hit ? 1.5 : .15; });
+      const hitRatio = THREE.MathUtils.clamp(monster.hitFlashMs / 260, 0, 1);
+      const defeatRatio = monster.alive ? 0 : 1 - THREE.MathUtils.clamp(monster.defeatVisualMs / 420, 0, 1);
+      const hitPulse = Math.sin(hitRatio * Math.PI) * .09;
+      group.scale.set(1 + hitPulse + defeatRatio * .08, Math.max(.08, 1 - defeatRatio * .88), 1 + hitPulse + defeatRatio * .08);
+      group.position.y += monster.alive ? 0 : defeatRatio * .12;
+      group.traverse((child) => {
+        if (!(child instanceof THREE.Mesh)) return;
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        for (const material of materials) {
+          if (material instanceof THREE.MeshStandardMaterial) material.emissiveIntensity = hitRatio > 0 ? .35 + hitRatio * 2.3 : .15;
+          if ('opacity' in material) {
+            const baseOpacity = typeof material.userData.baseOpacity === 'number' ? material.userData.baseOpacity as number : material.opacity;
+            material.userData.baseOpacity = baseOpacity;
+            material.transparent = defeatRatio > 0 || material.transparent;
+            material.opacity = Math.max(.04, baseOpacity * (1 - defeatRatio));
+          }
+        }
+      });
       const targetRing = group.getObjectByName('field-target-ring');
-      if (targetRing) targetRing.visible = monster.alive && monster.id === selectedMonsterId;
+      const targetMarker = group.getObjectByName('field-target-marker');
+      const selected = monster.alive && monster.id === selectedMonsterId;
+      if (targetRing) {
+        targetRing.visible = selected;
+        targetRing.scale.setScalar(1 + Math.sin(this.elapsed * .008) * .08);
+        if (targetRing instanceof THREE.Mesh && targetRing.material instanceof THREE.MeshBasicMaterial) targetRing.material.opacity = .74 + Math.sin(this.elapsed * .01) * .2;
+      }
+      if (targetMarker) { targetMarker.visible = selected; targetMarker.position.y = 2.08 + Math.sin(this.elapsed * .006) * .12; targetMarker.rotation.y += .025; }
     }
     for (const npc of npcs) {
       let group = this.worldActorMeshes.get(npc.id);
@@ -675,6 +705,8 @@ export class HybridWorldRenderer {
     else for (const x of [-.28, .28]) { const leaf = new THREE.Mesh(new THREE.ConeGeometry(.18, .65, 5), material); leaf.position.set(x, 1.58, .05); leaf.rotation.z = x > 0 ? -.45 : .45; root.add(leaf); }
     root.add(makeDisc(.65, 0x0b1011, .3));
     const targetRing = makeRing(.64, .76, 0xffbe58, .9); targetRing.name = 'field-target-ring'; targetRing.visible = false; root.add(targetRing);
+    const targetMarker = new THREE.Mesh(new THREE.OctahedronGeometry(.16, 0), new THREE.MeshBasicMaterial({ color: 0xffd36c, transparent: true, opacity: .92, depthWrite: false }));
+    targetMarker.name = 'field-target-marker'; targetMarker.position.y = 2.08; targetMarker.visible = false; root.add(targetMarker);
     return root;
   }
 

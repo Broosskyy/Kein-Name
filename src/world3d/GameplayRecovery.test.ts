@@ -53,5 +53,12 @@ describe('real-device gameplay recovery', () => {
     const movingDirection = visual.snapshot().direction;
     visual.update(16, { x: 100, y: 0 }, false, true, { x: 0, y: -500 });
     expect(visual.snapshot().direction).toBe(movingDirection);
+    expect(visual.snapshot().pose).toBe('run');
+  });
+
+  it('still uses the authored attack pose when firing from a standstill', () => {
+    const visual = new HeroVisualState();
+    visual.update(100, { x: 0, y: 0 }, false, true, { x: 0, y: -500 });
+    expect(visual.snapshot().pose).toBe('attack');
   });
 });

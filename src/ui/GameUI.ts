@@ -243,12 +243,16 @@ export class GameUI {
     document.body.classList.toggle('ui-preview-open', visible);
   }
 
-  showDamageNumber(value: number, critical = false): void {
+  showDamageNumber(value: number, critical = false, screenPosition?: Readonly<{ x: number; y: number }>): void {
     const layer = requiredElement('combat-floaters');
     const number = document.createElement('b');
     number.className = critical ? 'critical' : '';
     number.textContent = critical ? `${Math.round(value).toLocaleString()} CRIT!` : Math.round(value).toLocaleString();
     number.style.setProperty('--drift', `${Math.round((Math.random() - .5) * 42)}px`);
+    if (screenPosition) {
+      number.style.left = `${Math.round(screenPosition.x)}px`;
+      number.style.top = `${Math.round(screenPosition.y)}px`;
+    }
     layer.appendChild(number);
     window.setTimeout(() => number.remove(), 920);
   }

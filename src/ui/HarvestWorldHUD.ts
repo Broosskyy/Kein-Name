@@ -17,7 +17,7 @@ export class HarvestWorldHUD {
   private onClass?: (classId: HeroClassId) => void;
   private onAttack?: () => void;
 
-  constructor(mapName: string, subtitle: string) {
+  constructor(mapName: string, subtitle: string, fullscreenHost: HTMLElement = requiredFullscreenHost()) {
     this.root.id = 'world-hud';
     this.root.innerHTML = `<header><small>WORLD MAP</small><strong>${mapName}</strong><span>${subtitle}</span></header>
       <section class="world-progress"><div><b>HERO <em data-world-hero-level>1</em></b><i><u data-world-hero-bar></u></i></div><div><b>JOB <em data-world-job-level>1</em></b><i><u data-world-job-bar></u></i></div><p data-world-class></p></section>
@@ -26,7 +26,10 @@ export class HarvestWorldHUD {
       <button class="world-attack" type="button" data-world-attack disabled><b>ATTACK</b><span>SELECT TARGET</span></button>
       <button class="world-context" type="button" data-world-context hidden>INTERACT</button>
       <section class="world-class-select" data-world-class-select hidden><small>CLASS AWAKENING</small><strong>CHOOSE YOUR PATH</strong><div>${HERO_CLASSES.map((heroClass) => `<button type="button" data-world-class="${heroClass.id}"><b>${heroClass.name}</b><span>${heroClass.combatRole}</span><small>${heroClass.description}</small></button>`).join('')}</div></section>`;
-    document.body.appendChild(this.root);
+    // Browsers only render the fullscreen element and its descendants. Keep
+    // the complete field HUD inside #game-shell so Android fullscreen cannot
+    // discard quests, target information or combat controls.
+    fullscreenHost.appendChild(this.root);
     this.heroLevel = required(this.root, '[data-world-hero-level]');
     this.heroBar = required(this.root, '[data-world-hero-bar]');
     this.jobLevel = required(this.root, '[data-world-job-level]');
@@ -93,4 +96,10 @@ function required<T extends Element = HTMLElement>(root: ParentNode, selector: s
   const element = root.querySelector<T>(selector);
   if (!element) throw new Error(`Missing world HUD element: ${selector}`);
   return element;
+}
+
+function requiredFullscreenHost(): HTMLElement {
+  const host = document.getElementById('game-shell');
+  if (!host) throw new Error('Missing fullscreen HUD host: #game-shell');
+  return host;
 }

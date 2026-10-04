@@ -49,18 +49,18 @@ export const HARVEST_HAVEN_MAP: HarvestWorldMapDefinition = {
     { id: 'npc-rift-keeper', kind: 'npc', name: 'Rift Keeper', role: 'rift-keeper', position: { x: 120, y: -1080 }, facing: Math.PI },
   ],
   monsters: [
-    { id: 'mossling-1', kind: 'monster', species: 'mossling', name: 'Mossling', position: { x: -450, y: 900 }, level: 2, maxHp: 70, heroXp: 28, jobXp: 22, respawnMs: 5000 },
-    { id: 'mossling-2', kind: 'monster', species: 'mossling', name: 'Mossling', position: { x: -120, y: 1050 }, level: 2, maxHp: 70, heroXp: 28, jobXp: 22, respawnMs: 5000 },
-    { id: 'mossling-3', kind: 'monster', species: 'mossling', name: 'Mossling', position: { x: 250, y: 930 }, level: 3, maxHp: 82, heroXp: 34, jobXp: 25, respawnMs: 5200 },
-    { id: 'stonebeak-1', kind: 'monster', species: 'stonebeak', name: 'Stonebeak', position: { x: 650, y: 1110 }, level: 4, maxHp: 105, heroXp: 42, jobXp: 31, respawnMs: 6500 },
-    { id: 'stonebeak-2', kind: 'monster', species: 'stonebeak', name: 'Stonebeak', position: { x: 980, y: 900 }, level: 4, maxHp: 105, heroXp: 42, jobXp: 31, respawnMs: 6500 },
-    { id: 'corrupted-sprout-1', kind: 'monster', species: 'corrupted-sprout', name: 'Corrupted Sprout', position: { x: -980, y: 1030 }, level: 5, maxHp: 135, heroXp: 55, jobXp: 38, respawnMs: 7500 },
+    { id: 'mossling-1', kind: 'monster', species: 'mossling', name: 'Mossling', position: { x: -450, y: 900 }, level: 2, maxHp: 70, heroXp: 14, jobXp: 10, respawnMs: 5000 },
+    { id: 'mossling-2', kind: 'monster', species: 'mossling', name: 'Mossling', position: { x: -120, y: 1050 }, level: 2, maxHp: 70, heroXp: 14, jobXp: 10, respawnMs: 5000 },
+    { id: 'mossling-3', kind: 'monster', species: 'mossling', name: 'Mossling', position: { x: 250, y: 930 }, level: 3, maxHp: 82, heroXp: 17, jobXp: 12, respawnMs: 5200 },
+    { id: 'stonebeak-1', kind: 'monster', species: 'stonebeak', name: 'Stonebeak', position: { x: 650, y: 1110 }, level: 4, maxHp: 105, heroXp: 22, jobXp: 15, respawnMs: 6500 },
+    { id: 'stonebeak-2', kind: 'monster', species: 'stonebeak', name: 'Stonebeak', position: { x: 980, y: 900 }, level: 4, maxHp: 105, heroXp: 22, jobXp: 15, respawnMs: 6500 },
+    { id: 'corrupted-sprout-1', kind: 'monster', species: 'corrupted-sprout', name: 'Corrupted Sprout', position: { x: -980, y: 1030 }, level: 5, maxHp: 135, heroXp: 29, jobXp: 19, respawnMs: 7500 },
   ],
   portals: [
     { id: 'portal-harvest-raid', kind: 'portal', name: 'Harvest Basin Raid', position: { x: 0, y: -1190 }, radius: 135, targetMapId: 'harvest-basin-raid', query: '?map=raid', requiredHeroLevel: 1 },
   ],
   quests: [
-    { id: 'quest-first-harvest', title: 'Moss in the Road', description: 'Defeat 5 Mosslings beyond the south gate.', targetSpecies: 'mossling', targetCount: 5, rewardHeroXp: 120, rewardJobXp: 90 },
-    { id: 'quest-stonebeak', title: 'Stonebeak Trouble', description: 'Defeat 3 Stonebeaks near the crystal outcrop.', targetSpecies: 'stonebeak', targetCount: 3, rewardHeroXp: 180, rewardJobXp: 125 },
+    { id: 'quest-first-harvest', title: 'Moss in the Road', description: 'Defeat 5 Mosslings beyond the south gate.', targetSpecies: 'mossling', targetCount: 5, rewardHeroXp: 55, rewardJobXp: 40 },
+    { id: 'quest-stonebeak', title: 'Stonebeak Trouble', description: 'Defeat 3 Stonebeaks near the crystal outcrop.', targetSpecies: 'stonebeak', targetCount: 3, rewardHeroXp: 80, rewardJobXp: 55 },
   ],
 };

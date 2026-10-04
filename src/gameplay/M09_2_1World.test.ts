@@ -3,7 +3,7 @@ import { ASSET_MANIFEST } from '../assets';
 import { MUTATION_VISUAL_SCALE } from '../render/GameScene';
 import { ArenaCamera } from './ArenaCamera';
 import { HARVEST_ARENA_MAP,HARVEST_TRAVERSAL_WAYPOINTS,MASTER_COMPOSITION_SCENARIO } from './HarvestArenaMap';
-import { cameraRelativeHeroDirection, heroDirectionFromVector, stableCameraRelativeHeroDirection } from './HeroDirection';
+import { cameraRelativeHeroDirection, heroDirectionFromVector, StableHeroViewSelector, stableCameraRelativeHeroDirection } from './HeroDirection';
 import { mapZoneAt,worldToMinimap } from './MapDefinition';
 import { WorldCollisionSystem } from './WorldCollisionSystem';
 import { planarToWorld,worldToPlanar } from './WorldCoordinates';
@@ -30,6 +30,13 @@ describe('M09.2.1 real map, living hero and camera',()=>{
   it('holds the rendered Hero view around camera-octant boundaries',()=>{
     expect(stableCameraRelativeHeroDirection('n',Math.PI/8+.04,'n')).toBe('n');
     expect(stableCameraRelativeHeroDirection('n',Math.PI/8+.2,'n')).toBe('ne');
+  });
+  it('requires a stable camera-relative view before swapping authored cutouts',()=>{
+    const selector=new StableHeroViewSelector('n',90);
+    expect(selector.update(32,'n',Math.PI/2)).toBe('n');
+    expect(selector.update(32,'n',0)).toBe('n');
+    expect(selector.update(45,'n',Math.PI/2)).toBe('n');
+    expect(selector.update(45,'n',Math.PI/2)).toBe('e');
   });
   it('registers all directional production frames',()=>{
     for(const direction of ['n','ne','e','se','s','sw','w','nw'] as const)for(const pose of ['idle','run','dash','attack'] as const)expect(ASSET_MANIFEST[`creature.direction.${direction}.${pose}`].src).toMatch(/directional\/creature-/);

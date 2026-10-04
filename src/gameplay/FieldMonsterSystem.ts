@@ -6,6 +6,7 @@ export interface FieldMonsterState extends WorldMonsterSpawnDefinition {
   alive: boolean;
   respawnRemainingMs: number;
   hitFlashMs: number;
+  defeatVisualMs: number;
 }
 
 export interface FieldMonsterDefeat {
@@ -20,15 +21,16 @@ export class FieldMonsterSystem {
   readonly monsters: FieldMonsterState[];
 
   constructor(definitions: readonly WorldMonsterSpawnDefinition[]) {
-    this.monsters = definitions.map((definition) => ({ ...definition, position: { ...definition.position }, hp: definition.maxHp, alive: true, respawnRemainingMs: 0, hitFlashMs: 0 }));
+    this.monsters = definitions.map((definition) => ({ ...definition, position: { ...definition.position }, hp: definition.maxHp, alive: true, respawnRemainingMs: 0, hitFlashMs: 0, defeatVisualMs: 0 }));
   }
 
   update(deltaMs: number): void {
     for (const monster of this.monsters) {
       monster.hitFlashMs = Math.max(0, monster.hitFlashMs - deltaMs);
+      monster.defeatVisualMs = Math.max(0, monster.defeatVisualMs - deltaMs);
       if (monster.alive) continue;
       monster.respawnRemainingMs = Math.max(0, monster.respawnRemainingMs - deltaMs);
-      if (monster.respawnRemainingMs === 0) { monster.alive = true; monster.hp = monster.maxHp; }
+      if (monster.respawnRemainingMs === 0) { monster.alive = true; monster.hp = monster.maxHp; monster.defeatVisualMs = 0; }
     }
   }
 
@@ -46,11 +48,11 @@ export class FieldMonsterSystem {
     const monster = this.monsters.find((candidate) => candidate.id === id && candidate.alive);
     if (!monster) return undefined;
     monster.hp = Math.max(0, monster.hp - Math.max(0, Math.round(amount)));
-    monster.hitFlashMs = 180;
+    monster.hitFlashMs = 260;
     if (monster.hp > 0) return undefined;
     monster.alive = false;
     monster.respawnRemainingMs = monster.respawnMs;
+    monster.defeatVisualMs = 420;
     return { id: monster.id, species: monster.species, position: { ...monster.position }, heroXp: monster.heroXp, jobXp: monster.jobXp };
   }
 }
-
