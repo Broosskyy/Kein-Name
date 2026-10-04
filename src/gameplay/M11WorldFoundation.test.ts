@@ -57,6 +57,17 @@ describe('M11 Harvest Haven world foundation', () => {
     expect(css).toMatch(/#world-hud \{ position: absolute;/);
   });
 
+  it('keeps scheduling world frames before attack-time rendering can fail', () => {
+    const world = readFileSync(`${root}src/world3d/HarvestWorldVerticalSlice.ts`, 'utf8');
+    const schedule = world.indexOf('this.raf = requestAnimationFrame(this.frame);', world.indexOf('private frame ='));
+    const update = world.indexOf('this.update(deltaMs, now);', world.indexOf('private frame ='));
+    expect(schedule).toBeGreaterThan(-1);
+    expect(schedule).toBeLessThan(update);
+    expect(world).toContain('recoverFromFrameError(error, now)');
+    expect(world).toContain('this.projectiles.reset()');
+    expect(world).toContain('this.targeting.stop()');
+  });
+
   it('only offers physical portals inside their world radius', () => {
     const system = new WorldPortalSystem(HARVEST_HAVEN_MAP.portals);
     const portal = HARVEST_HAVEN_MAP.portals[0];

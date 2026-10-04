@@ -231,7 +231,12 @@ export class HybridWorldRenderer {
     const world = simulationToWorld3D(position);
     const projected = new THREE.Vector3(world.x, sampleGroundHeight(world.x, world.z) + height / WORLD3D_UNITS_PER_METER, world.z).project(this.camera);
     const rect = this.renderer.domElement.getBoundingClientRect();
-    return { x: (projected.x * .5 + .5) * rect.width, y: (-projected.y * .5 + .5) * rect.height };
+    const x = (projected.x * .5 + .5) * rect.width;
+    const y = (-projected.y * .5 + .5) * rect.height;
+    // A context transition, resize or point behind the camera can briefly
+    // yield invalid projection values. Keep those values out of CSS rather
+    // than letting optional combat feedback poison the runtime frame.
+    return { x: Number.isFinite(x) ? x : rect.width * .5, y: Number.isFinite(y) ? y : rect.height * .4 };
   }
   metrics(): Readonly<{ calls: number; triangles: number; points: number; lines: number; textures: number; projectiles: number; projectilePool: number; heroDirectionSwaps: number; heroPoseSwaps: number; heroTextureSwaps: number; heroAnimationFrame: number; heroViewDirection: HeroDirection; bossView: string; cameraObstructed: boolean; fadedOccluders: number; groundHeight: number; surfaceId: string; heroRenderY: number; heroAnchor: number; heroAsset: string }> {
     const render = this.renderer.info.render;
@@ -657,12 +662,6 @@ export class HybridWorldRenderer {
         const materials = Array.isArray(child.material) ? child.material : [child.material];
         for (const material of materials) {
           if (material instanceof THREE.MeshStandardMaterial) material.emissiveIntensity = hitRatio > 0 ? .35 + hitRatio * 2.3 : .15;
-          if ('opacity' in material) {
-            const baseOpacity = typeof material.userData.baseOpacity === 'number' ? material.userData.baseOpacity as number : material.opacity;
-            material.userData.baseOpacity = baseOpacity;
-            material.transparent = defeatRatio > 0 || material.transparent;
-            material.opacity = Math.max(.04, baseOpacity * (1 - defeatRatio));
-          }
         }
       });
       const targetRing = group.getObjectByName('field-target-ring');

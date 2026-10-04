@@ -49,6 +49,8 @@ export class HarvestWorldVerticalSlice {
   private attackCooldownMs = 250;
   private powerCooldownMs = 0;
   private currentImpacts: PlayerProjectileImpact[] = [];
+  private frameErrorCount = 0;
+  private lastRecoveryAnnouncementMs = Number.NEGATIVE_INFINITY;
 
   constructor(mount: HTMLElement, private readonly ui: GameUI, _combat: CombatModel, private readonly persistence: HarvestWorldPersistence) {
     document.body.classList.add('world-mode');
@@ -81,10 +83,39 @@ export class HarvestWorldVerticalSlice {
 
   private frame = (now: number): void => {
     if (this.destroyed) return;
-    const deltaMs = Math.min(50, Math.max(0, now - this.previousTime)); this.previousTime = now;
-    if (!this.paused) this.update(deltaMs, now);
+    // Always queue the next frame before touching simulation or rendering.
+    // Previously an exception in attack impact/render feedback aborted this
+    // callback before requestAnimationFrame ran again, permanently freezing
+    // the whole world on the affected mobile GPU/browser.
     this.raf = requestAnimationFrame(this.frame);
+    const deltaMs = Math.min(50, Math.max(0, now - this.previousTime)); this.previousTime = now;
+    if (this.paused) return;
+    try {
+      this.update(deltaMs, now);
+      this.frameErrorCount = 0;
+    } catch (error) {
+      this.recoverFromFrameError(error, now);
+    }
   };
+
+  private recoverFromFrameError(error: unknown, now: number): void {
+    this.frameErrorCount += 1;
+    console.error('[HarvestWorld] Recovered from frame update failure', { error, frameErrorCount: this.frameErrorCount });
+    // Combat feedback is disposable presentation state. Retire it so a bad
+    // projectile/impact cannot throw again on every following frame. The
+    // selected target remains available, but automatic attacks stop until the
+    // player explicitly presses ATTACK again.
+    this.currentImpacts = [];
+    this.projectiles.reset();
+    this.projectileTargets.clear();
+    this.targeting.stop();
+    this.attackPoseMs = 0;
+    this.attackCooldownMs = 350;
+    if (now - this.lastRecoveryAnnouncementMs > 2500) {
+      this.lastRecoveryAnnouncementMs = now;
+      try { this.ui.announce('COMBAT RECOVERED', 'ATTACK RESET · TAP ATTACK AGAIN', '#ffbd68', 900); } catch { /* the frame loop must survive UI recovery too */ }
+    }
+  }
 
   private update(deltaMs: number, now: number): void {
     this.movement.update(this.player, this.combinedInput(), deltaMs, (position) => this.surfaces.resolve(position).position);
