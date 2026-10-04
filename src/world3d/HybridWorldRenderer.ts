@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { BossTelegraph } from '../gameplay/BossAttackSystem';
 import { BOSS_ATTACKS } from '../gameplay/BossAttackSystem';
-import { cameraRelativeHeroDirection, evo1HeroDirectionAsset, type HeroDirection, type HeroPose } from '../gameplay/HeroDirection';
+import { cameraRelativeHeroDirection, type HeroDirection } from '../gameplay/HeroDirection';
 import type { LootDrop } from '../gameplay/LootSystem';
 import type { CombatEntityState, Vec2 } from '../gameplay/ArenaTypes';
 import type { PlayerProjectile, PlayerProjectileImpact } from '../gameplay/PlayerProjectileSystem';
@@ -14,7 +14,7 @@ import { HeroGroundingController } from './HeroGrounding';
 import { HeroVisualState, type HeroVisualSnapshot } from './HeroVisualState';
 import { HybridProjectileRenderer } from './HybridProjectileRenderer';
 import { HybridCameraObstruction } from './HybridCameraObstruction';
-import { BossDirectionalState, bossViewAnchor, bossViewAsset, bossViewSector, type BossDirectionalView } from './BossDirectionalView';
+import { BossDirectionalState, bossViewAnchor, bossViewAsset, bossViewSector } from './BossDirectionalView';
 import { HeroAnimationController } from './HeroAnimationController';
 import type { BossEncounterState } from '../gameplay/BossEncounterLoop';
 import type { FieldMonsterState } from '../gameplay/FieldMonsterSystem';
@@ -57,8 +57,8 @@ export class HybridWorldRenderer {
   private readonly hero: THREE.Sprite;
   private readonly heroShadow: THREE.Mesh;
   private readonly heroGroundRing: THREE.Mesh;
-  private readonly bossVisual: THREE.Sprite;
-  private readonly bossProxy: THREE.Group;
+  private readonly bossVisual?: THREE.Sprite;
+  private readonly bossProxy?: THREE.Group;
   private readonly projectileRenderer: HybridProjectileRenderer;
   private readonly cameraObstruction = new HybridCameraObstruction();
   private readonly telegraphMeshes = new Map<string, THREE.Object3D>();
@@ -79,7 +79,9 @@ export class HybridWorldRenderer {
 
   constructor(private readonly mount: HTMLElement, private readonly definition: Hybrid3DSceneDefinition) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.7));
+    const constrainedMobile = Math.min(window.innerWidth, window.innerHeight) < 700
+      || (navigator.hardwareConcurrency ?? 8) <= 4;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, constrainedMobile ? 1.35 : 1.65));
     this.renderer.setSize(mount.clientWidth, mount.clientHeight, false);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -106,12 +108,16 @@ export class HybridWorldRenderer {
     this.hero = this.makeSprite(assetUrl('creature.evo1.direction.n.idle'), 2.45, 2.45);
     this.hero.center.set(.5, .0521);
     this.scene.add(this.hero);
-    this.preloadHeroTextures();
-    this.bossProxy = this.addBossProxy();
-    this.bossVisual = this.makeSprite(assetUrl(this.appliedBossAsset), BOSS_VISUAL_SIZE, BOSS_VISUAL_SIZE);
-    this.bossVisual.center.set(.5, bossViewAnchor('front'));
-    this.scene.add(this.bossVisual);
-    this.preloadBossTextures();
+    // Directional textures now load on demand. Pre-decoding every Hero pose
+    // and every Colossus view during construction caused a severe first-frame
+    // decode spike on mobile. Haven has no Boss at all, so do not construct or
+    // load the raid-only visual/proxy on that route.
+    if (!haven) {
+      this.bossProxy = this.addBossProxy();
+      this.bossVisual = this.makeSprite(assetUrl(this.appliedBossAsset), BOSS_VISUAL_SIZE, BOSS_VISUAL_SIZE);
+      this.bossVisual.center.set(.5, bossViewAnchor('front'));
+      this.scene.add(this.bossVisual);
+    }
     this.projectileRenderer = new HybridProjectileRenderer(this.scene);
     this.scene.add(this.debugRoot);
     this.debugRoot.visible = new URLSearchParams(location.search).has('debug3d');
@@ -153,40 +159,42 @@ export class HybridWorldRenderer {
 
     this.heroVisibilityPoint.set(player.x, playerGround + .9, player.z);
     this.cameraObstruction.updateFades(deltaMs, this.camera.position, this.heroVisibilityPoint);
-    const bossGround = sampleGroundHeight(boss.x, boss.z);
-    this.bossProxy.position.set(boss.x, bossGround, boss.z);
-    this.bossProxy.rotation.y = -state.bossOrientation + Math.PI / 2;
-    const cameraAngle = Math.atan2(this.camera.position.z - boss.z, this.camera.position.x - boss.x);
-    const bossView = this.bossDirectionalState.update(deltaMs, cameraAngle, state.bossOrientation);
-    const desiredBossAsset = bossViewAsset(bossView);
-    const desiredBossTexture = this.texture(assetUrl(desiredBossAsset));
-    if (desiredBossAsset !== this.appliedBossAsset && desiredBossTexture.userData.ready === true) {
-      this.appliedBossAsset = desiredBossAsset;
-      this.bossVisual.material.map = desiredBossTexture;
-      this.bossVisual.material.needsUpdate = true;
-      this.bossVisual.center.y = bossViewAnchor(bossView);
+    if (this.bossVisual && this.bossProxy) {
+      const bossGround = sampleGroundHeight(boss.x, boss.z);
+      this.bossProxy.position.set(boss.x, bossGround, boss.z);
+      this.bossProxy.rotation.y = -state.bossOrientation + Math.PI / 2;
+      const cameraAngle = Math.atan2(this.camera.position.z - boss.z, this.camera.position.x - boss.x);
+      const bossView = this.bossDirectionalState.update(deltaMs, cameraAngle, state.bossOrientation);
+      const desiredBossAsset = bossViewAsset(bossView);
+      const desiredBossTexture = this.texture(assetUrl(desiredBossAsset));
+      if (desiredBossAsset !== this.appliedBossAsset && desiredBossTexture.userData.ready === true) {
+        this.appliedBossAsset = desiredBossAsset;
+        this.bossVisual.material.map = desiredBossTexture;
+        this.bossVisual.material.needsUpdate = true;
+        this.bossVisual.center.y = bossViewAnchor(bossView);
+      }
+      this.bossViewSector = bossViewSector(bossView);
+      this.bossHitMs = Math.max(0, this.bossHitMs - deltaMs);
+      if (state.projectileImpacts.length) {
+        const powerImpact = state.projectileImpacts.some((impact) => impact.kind === 'power');
+        this.bossHitMs = powerImpact ? 300 : 150;
+        if (powerImpact) this.cameraController.addImpulse(.12);
+      }
+      const hitRatio = this.bossHitMs > 0 ? this.bossHitMs / 260 : 0;
+      const death = THREE.MathUtils.clamp(state.bossDeathProgress, 0, 1);
+      this.bossVisual.material.color.setRGB(
+        Math.max(.18, 1 - death * .58),
+        Math.max(.08, 1 - hitRatio * .28 - death * .7),
+        Math.max(.04, 1 - hitRatio * .48 - death * .76),
+      );
+      this.bossVisual.material.opacity = state.bossState === 'alive' ? 1 : Math.max(0, 1 - death * 1.08);
+      this.bossVisual.visible = state.bossVisible !== false && (state.bossState === 'alive' || death < .96);
+      this.bossProxy.visible = state.bossVisible !== false && this.debugRoot.visible;
+      const pulse = 1 + Math.sin(this.elapsed * .0028) * .012 + (1 - state.bossHpRatio) * .02;
+      const recoil = hitRatio * .1 - death * .34;
+      this.bossVisual.position.set(boss.x, bossGround + .02 + recoil, boss.z);
+      this.bossVisual.scale.set(BOSS_VISUAL_SIZE * pulse * (1 + hitRatio * .035) * (1 - death * .12), BOSS_VISUAL_SIZE * pulse * (1 - hitRatio * .025) * (1 - death * .46), 1);
     }
-    this.bossViewSector = bossViewSector(bossView);
-    this.bossHitMs = Math.max(0, this.bossHitMs - deltaMs);
-    if (state.projectileImpacts.length) {
-      const powerImpact = state.projectileImpacts.some((impact) => impact.kind === 'power');
-      this.bossHitMs = powerImpact ? 300 : 150;
-      if (powerImpact) this.cameraController.addImpulse(.12);
-    }
-    const hitRatio = this.bossHitMs > 0 ? this.bossHitMs / 260 : 0;
-    const death = THREE.MathUtils.clamp(state.bossDeathProgress, 0, 1);
-    this.bossVisual.material.color.setRGB(
-      Math.max(.18, 1 - death * .58),
-      Math.max(.08, 1 - hitRatio * .28 - death * .7),
-      Math.max(.04, 1 - hitRatio * .48 - death * .76),
-    );
-    this.bossVisual.material.opacity = state.bossState === 'alive' ? 1 : Math.max(0, 1 - death * 1.08);
-    this.bossVisual.visible = state.bossVisible !== false && (state.bossState === 'alive' || death < .96);
-    this.bossProxy.visible = state.bossVisible !== false && this.debugRoot.visible;
-    const pulse = 1 + Math.sin(this.elapsed * .0028) * .012 + (1 - state.bossHpRatio) * .02;
-    const recoil = hitRatio * .1 - death * .34;
-    this.bossVisual.position.set(boss.x, bossGround + .02 + recoil, boss.z);
-    this.bossVisual.scale.set(BOSS_VISUAL_SIZE * pulse * (1 + hitRatio * .035) * (1 - death * .12), BOSS_VISUAL_SIZE * pulse * (1 - hitRatio * .025) * (1 - death * .46), 1);
     this.syncTelegraphs(state.telegraphs);
     this.syncLoot(state.loot);
     this.syncWorldActors(state.fieldMonsters ?? [], state.worldNpcs ?? [], state.worldPortals ?? []);
@@ -680,16 +688,6 @@ export class HybridWorldRenderer {
     this.textureCache.set(url, texture); return texture;
   }
 
-  private preloadHeroTextures(): void {
-    const directions: HeroDirection[] = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'];
-    const poses: HeroPose[] = ['idle', 'run', 'dash', 'attack'];
-    for (const direction of directions) for (const pose of poses) this.texture(assetUrl(evo1HeroDirectionAsset(direction, pose)));
-  }
-
-  private preloadBossTextures(): void {
-    const views: BossDirectionalView[] = ['front', 'front-left', 'left', 'rear-left', 'rear', 'rear-right', 'right', 'front-right'];
-    for (const view of views) this.texture(assetUrl(bossViewAsset(view)));
-  }
 }
 
 function assetUrl(key: AssetKey): string { return ASSET_MANIFEST[key].src ?? ''; }

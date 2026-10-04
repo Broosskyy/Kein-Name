@@ -65,10 +65,10 @@ export class GameUI {
   private choiceCallback?: (mutation: Mutation) => void;
   private choices: readonly Mutation[] = [];
   private zoomCollapseTimeout?: number;
+  private harvestHubReady = false;
+  private uiPreviewReady = false;
 
   constructor(private readonly assets: AssetRegistry) {
-    this.metaHub.innerHTML = renderHarvestHub();
-    this.uiPreview.innerHTML = renderHarvestUIPreview();
     this.bindHarvestNavigation();
     this.powerButton.addEventListener('pointerdown', (event) => {
       event.preventDefault();
@@ -227,6 +227,7 @@ export class GameUI {
 
   toggleMetaHub(force?: boolean): void {
     const visible = force ?? !this.metaHub.classList.contains('visible');
+    if (visible) this.ensureHarvestHub();
     this.metaHub.classList.toggle('visible', visible);
     this.metaHub.setAttribute('aria-hidden', String(!visible));
     document.body.classList.toggle('meta-hub-open', visible);
@@ -234,6 +235,7 @@ export class GameUI {
 
   toggleUIPreview(force?: boolean): void {
     const visible = force ?? !this.uiPreview.classList.contains('visible');
+    if (visible) this.ensureUIPreview();
     this.uiPreview.classList.toggle('visible', visible);
     this.uiPreview.setAttribute('aria-hidden', String(!visible));
     document.body.classList.toggle('ui-preview-open', visible);
@@ -380,6 +382,17 @@ export class GameUI {
 
   private bindHarvestNavigation(): void {
     requiredElement<HTMLButtonElement>('hub-open').addEventListener('click', () => this.toggleMetaHub(true));
+    window.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      if (this.uiPreview.classList.contains('visible')) this.toggleUIPreview(false);
+      else if (this.metaHub.classList.contains('visible')) this.toggleMetaHub(false);
+    });
+  }
+
+  private ensureHarvestHub(): void {
+    if (this.harvestHubReady) return;
+    this.harvestHubReady = true;
+    this.metaHub.innerHTML = renderHarvestHub();
     this.metaHub.querySelectorAll<HTMLElement>('[data-hub-close], [data-hub-enter-combat]').forEach((button) => button.addEventListener('click', () => this.toggleMetaHub(false)));
     const hubContent = this.metaHub.querySelector<HTMLElement>('.hc-hub-content');
     const showHubDetail = (target?: string): void => {
@@ -413,12 +426,13 @@ export class GameUI {
       feedback.classList.add('show');
       window.setTimeout(() => feedback.classList.remove('show'), 1300);
     }));
+  }
+
+  private ensureUIPreview(): void {
+    if (this.uiPreviewReady) return;
+    this.uiPreviewReady = true;
+    this.uiPreview.innerHTML = renderHarvestUIPreview();
     this.uiPreview.querySelector<HTMLElement>('[data-ui-preview-close]')?.addEventListener('click', () => this.toggleUIPreview(false));
-    window.addEventListener('keydown', (event) => {
-      if (event.key !== 'Escape') return;
-      if (this.uiPreview.classList.contains('visible')) this.toggleUIPreview(false);
-      else if (this.metaHub.classList.contains('visible')) this.toggleMetaHub(false);
-    });
   }
 
   private chooseResume(resume: boolean): void { this.hideResumePrompt(); this.onResumeChoice?.(resume); }

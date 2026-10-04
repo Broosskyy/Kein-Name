@@ -93,7 +93,12 @@ async function bootstrapHybrid(): Promise<void> {
   if (!shell) throw new Error('Missing #game-shell');
   document.body.classList.add('hybrid-3d');
   const assets = new AssetRegistry();
-  await assets.preload();
+  // The hybrid renderer owns its Three.js textures. Waiting here for the
+  // complete Pixi catalog decoded every arena, boss, VFX and hidden preview
+  // image before the first world frame. On real phones that looked like a
+  // frozen start and duplicated the same Hero textures in GPU memory.
+  // GameUI keeps graceful procedural/CSS fallbacks, so hybrid startup must not
+  // be gated by the legacy Pixi catalog.
   const ui = new GameUI(assets);
   const events = new DomainEventBus();
   const eventRuntime = new EventRuntime(HALLOWEEN_2026, (event) => events.emit(event));
